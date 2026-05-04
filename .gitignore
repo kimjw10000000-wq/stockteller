@@ -1,0 +1,18 @@
+# Secrets — 절대 커밋하지 마세요
+.env
+.env.*
+!.env.example
+
+# Next.js (web/)
+web/node_modules/
+web/.next/
+web/out/
+web/.vercel/
+web/*.tsbuildinfo
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db

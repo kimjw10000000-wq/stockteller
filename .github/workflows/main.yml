@@ -1,0 +1,46 @@
+# Periodic SEC poller → Gemini → Supabase (runs every 10 minutes).
+# Set repository secrets:
+#   NEXT_PUBLIC_SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   GEMINI_API_KEY
+# Optional:
+#   GEMINI_MODEL (default: gemini-3-flash-preview in app; optional override)
+#   SEC_USER_AGENT (SEC requires a descriptive UA with contact info)
+#   CRAWL_MAX_ITEMS (default: 8)
+
+name: disclosure-crawl
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "*/10 * * * *"
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Run crawler
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          CRAWL_MAX_ITEMS: ${{ secrets.CRAWL_MAX_ITEMS }}
+        run: npm run crawl
