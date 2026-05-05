@@ -18,6 +18,9 @@ export function Header() {
           </span>
         </Link>
         <nav className="flex shrink-0 items-center gap-3 text-sm" aria-label="주 메뉴">
+          <Link href="/volatile" className="text-slate-600 hover:text-[#3182f6]">
+            급등 감시
+          </Link>
           <Link
             href="/feed"
             className="font-medium text-[#3182f6] hover:text-[#1b64da]"
