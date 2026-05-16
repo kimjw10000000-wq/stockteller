@@ -6,13 +6,13 @@ import { listDisclosures } from "@/lib/disclosures";
 import { SITE_NAME_EN, SITE_NAME_KO, SITE_TAGLINE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "최신 공시 요약",
-  description: `${SITE_NAME_KO}(${SITE_NAME_EN}) — ${SITE_TAGLINE}`,
+  title: "뉴스",
+  description: `${SITE_NAME_KO}(${SITE_NAME_EN}) — AI가 정리한 뉴스·공시 요약`,
   alternates: {
     canonical: "/feed",
   },
   openGraph: {
-    title: `최신 공시 요약 · ${SITE_NAME_KO}`,
+    title: `뉴스 · ${SITE_NAME_KO}`,
     description: SITE_TAGLINE,
   },
 };
@@ -26,11 +26,11 @@ export default async function FeedPage() {
 
       <section aria-labelledby="feed-heading" className="space-y-2">
         <h1 id="feed-heading" className="text-2xl font-bold tracking-tight text-slate-900">
-          최신 공시 요약
+          뉴스
         </h1>
         <p className="text-sm text-slate-500">
-          {SITE_NAME_KO} — 나스닥 등 미국 시장 공시를 AI가 의도·재무 영향·결론 세 줄로 정리합니다. 카드를 눌러
-          상세를 보세요.
+          AI로 요약한 소식이 <strong>올라온 순서대로</strong>(가장 최근 업로드가 위) 표시됩니다. 나스닥 등 공시·뉴스 성격의
+          글을 세 줄 요약으로 정리했습니다. 카드를 눌러 상세를 보세요.
         </p>
       </section>
 
@@ -42,9 +42,11 @@ export default async function FeedPage() {
           role="status"
         >
           <FileWarning className="mb-3 h-10 w-10 text-amber-500" aria-hidden />
-          <p className="text-sm font-medium text-amber-900">아직 불러올 공시가 없습니다.</p>
+          <p className="text-sm font-medium text-amber-900">아직 표시할 뉴스가 없습니다.</p>
           <p className="mt-2 max-w-md text-xs text-amber-800/80">
-            Supabase 스키마를 적용하고 환경 변수를 설정한 뒤, 데이터를 넣어 주세요.
+            Supabase{" "}
+            <code className="rounded bg-amber-100/70 px-1 text-[11px]">disclosures</code> 테이블에 AI 요약
+            레코드를 넣으면 여기에 순서대로 나타납니다.
           </p>
         </div>
       ) : (

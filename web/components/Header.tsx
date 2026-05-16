@@ -25,7 +25,7 @@ export function Header() {
             href="/feed"
             className="font-medium text-[#3182f6] hover:text-[#1b64da]"
           >
-            공시 요약
+            뉴스
           </Link>
           <span className="hidden text-slate-300 sm:inline" aria-hidden>
             |

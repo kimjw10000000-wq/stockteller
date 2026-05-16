@@ -23,8 +23,8 @@ type SentimentBadgeProps = {
 };
 
 export function SentimentBadge({ sentiment }: SentimentBadgeProps) {
-  const s = sentiment ?? "neutral";
-  const { label, className } = config[s];
+  if (sentiment == null) return null;
+  const { label, className } = config[sentiment];
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${className}`}

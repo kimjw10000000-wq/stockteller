@@ -12,6 +12,7 @@ export async function listDisclosures(limit = 50): Promise<DisclosureWithStock[]
     .from("disclosures")
     .select("*, stocks(name, ticker, sector)")
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
 
   if (error) {

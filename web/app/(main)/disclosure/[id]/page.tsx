@@ -5,6 +5,7 @@ import { ArrowLeft, Clock } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 import { SentimentBadge } from "@/components/SentimentBadge";
 import { getDisclosureById } from "@/lib/disclosures";
+import { isManualEditorPost } from "@/lib/manual-post";
 import { SITE_NAME_KO } from "@/lib/site";
 
 type PageProps = { params: { id: string } };
@@ -14,7 +15,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!row) {
     return { title: "공시를 찾을 수 없음" };
   }
-  const name = row.stocks?.name ?? "종목";
+  const manual = isManualEditorPost(row);
+  const name = manual ? "사이트 소식" : (row.stocks?.name ?? "종목");
   const title = row.title ?? "공시 요약";
   const description = row.summary?.split("\n").filter(Boolean).slice(0, 2).join(" ") ?? "";
   return {
@@ -45,8 +47,9 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
   const row = await getDisclosureById(params.id);
   if (!row) notFound();
 
-  const name = row.stocks?.name ?? "종목 미상";
-  const ticker = row.stocks?.ticker ?? "—";
+  const manual = isManualEditorPost(row);
+  const name = manual ? "사이트 소식" : (row.stocks?.name ?? "종목 미상");
+  const ticker = manual ? "편집" : (row.stocks?.ticker ?? "—");
   const title = row.title ?? "제목 없음";
   const summaryLines = row.summary
     ? row.summary.split("\n").filter((l) => l.trim())
@@ -60,7 +63,7 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
           className="inline-flex items-center gap-1 text-sm font-medium text-[#3182f6] hover:text-[#1b64da]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          목록으로
+          뉴스 목록
         </Link>
       </nav>
 
@@ -91,10 +94,12 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
 
         <section className="mt-8" aria-labelledby="summary-heading">
           <h2 id="summary-heading" className="text-lg font-semibold text-slate-900">
-            AI 핵심 요약
+            {manual ? "미리보기" : "AI 핵심 요약"}
           </h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-slate-700">
-            {(summaryLines.length ? summaryLines : ["요약이 아직 없습니다."]).map((line, i) => (
+            {(summaryLines.length ? summaryLines : [
+              manual ? "목록 카드에 보이는 미리보기입니다." : "요약이 아직 없습니다.",
+            ]).map((line, i) => (
               <li key={i} className="leading-relaxed">
                 {line}
               </li>
@@ -106,7 +111,7 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
 
         <section className="mt-10" aria-labelledby="raw-heading">
           <h2 id="raw-heading" className="text-lg font-semibold text-slate-900">
-            공시 원문 (발췌)
+            {manual ? "본문" : "공시 원문 (발췌)"}
           </h2>
           <pre className="mt-3 max-h-[480px] overflow-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-left text-sm text-slate-600">
             {row.raw_content}

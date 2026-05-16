@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Clock } from "lucide-react";
 import type { DisclosureWithStock } from "@/lib/types";
+import { isManualEditorPost } from "@/lib/manual-post";
 import { SentimentBadge } from "@/components/SentimentBadge";
 
 function formatTime(iso: string) {
@@ -22,8 +23,9 @@ type DisclosureCardProps = {
 };
 
 export function DisclosureCard({ item }: DisclosureCardProps) {
-  const name = item.stocks?.name ?? "종목 미상";
-  const ticker = item.stocks?.ticker ?? "—";
+  const manual = isManualEditorPost(item);
+  const name = manual ? "사이트 소식" : (item.stocks?.name ?? "종목 미상");
+  const ticker = manual ? "편집" : (item.stocks?.ticker ?? "—");
   const title = item.title ?? "제목 없음";
   const preview = item.summary?.split("\n").filter(Boolean)[0] ?? "";
 
