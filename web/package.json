@@ -12,12 +12,16 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@radix-ui/react-slot": "^1.2.4",
     "@supabase/supabase-js": "^2.105.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.14.0",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
+    "tailwind-merge": "^3.6.0",
     "ws": "^8.20.0"
   },
   "devDependencies": {

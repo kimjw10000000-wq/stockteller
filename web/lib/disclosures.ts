@@ -1,25 +1,80 @@
 import type { DisclosureWithStock } from "@/lib/types";
 import { createPublicClient } from "@/lib/supabase/public";
+import { matchesMarketFilter, matchesSearchQuery } from "@/lib/news-display";
+import type { NewsMarketKey, NewsSortKey } from "@/lib/news-sort";
+
+export type ListDisclosuresOptions = {
+  sort?: NewsSortKey;
+  market?: NewsMarketKey;
+  q?: string;
+  limit?: number;
+  /** ISO created_at — 이보다 이전(older) 글만 */
+  cursor?: string;
+  excludeId?: string;
+};
+
+export type ListDisclosuresResult = {
+  items: DisclosureWithStock[];
+  nextCursor: string | null;
+};
+
+const SELECT = "*, stocks(name, ticker, sector)";
 
 export async function listDisclosures(limit = 50): Promise<DisclosureWithStock[]> {
+  const { items } = await listDisclosuresPaginated({ limit, sort: "latest", market: "all" });
+  return items;
+}
+
+export async function listDisclosuresPaginated(
+  opts: ListDisclosuresOptions = {}
+): Promise<ListDisclosuresResult> {
+  const sort = opts.sort ?? "latest";
+  const market = opts.market ?? "all";
+  const limit = opts.limit ?? 20;
+  const qLower = opts.q?.trim().toLowerCase() ?? "";
+
   let supabase;
   try {
     supabase = createPublicClient();
   } catch {
-    return [];
+    return { items: [], nextCursor: null };
   }
-  const { data, error } = await supabase
-    .from("disclosures")
-    .select("*, stocks(name, ticker, sector)")
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit);
+
+  const buildQuery = (useViewSort: boolean) => {
+    let q = supabase.from("disclosures").select(SELECT);
+    if (opts.excludeId) q = q.neq("id", opts.excludeId);
+    if (opts.cursor) q = q.lt("created_at", opts.cursor);
+
+    if (useViewSort && sort === "all_views") {
+      q = q.order("view_count", { ascending: false }).order("created_at", { ascending: false });
+    } else if (useViewSort && sort === "hour_views") {
+      q = q.order("views_1h", { ascending: false }).order("created_at", { ascending: false });
+    } else {
+      q = q.order("created_at", { ascending: false }).order("id", { ascending: false });
+    }
+    return q.limit(Math.min(limit * 4, 80));
+  };
+
+  let { data, error } = await buildQuery(sort !== "latest");
+
+  if (error && (sort === "all_views" || sort === "hour_views")) {
+    ({ data, error } = await buildQuery(false));
+  }
 
   if (error) {
-    console.error("[listDisclosures]", error.message);
-    return [];
+    console.error("[listDisclosuresPaginated]", error.message);
+    return { items: [], nextCursor: null };
   }
-  return (data ?? []) as DisclosureWithStock[];
+
+  let items = (data ?? []) as DisclosureWithStock[];
+  items = items.filter((item) => matchesMarketFilter(item, market));
+  if (qLower) items = items.filter((item) => matchesSearchQuery(item, qLower));
+  items = items.slice(0, limit);
+
+  const nextCursor =
+    items.length === limit ? items[items.length - 1]?.created_at ?? null : null;
+
+  return { items, nextCursor };
 }
 
 export async function getDisclosureById(
@@ -33,7 +88,7 @@ export async function getDisclosureById(
   }
   const { data, error } = await supabase
     .from("disclosures")
-    .select("*, stocks(name, ticker, sector)")
+    .select(SELECT)
     .eq("id", id)
     .maybeSingle();
 

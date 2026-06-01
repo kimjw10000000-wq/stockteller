@@ -5,8 +5,12 @@ create table if not exists public.stocks (
   name text not null,
   ticker text not null,
   sector text,
+  market text,
   created_at timestamptz not null default now(),
-  constraint stocks_ticker_unique unique (ticker)
+  constraint stocks_ticker_unique unique (ticker),
+  constraint stocks_market_check check (
+    market is null or market in ('us', 'kr')
+  )
 );
 
 create table if not exists public.disclosures (
@@ -19,6 +23,8 @@ create table if not exists public.disclosures (
   sentiment text,
   analysis_score numeric,
   gemini_metadata jsonb,
+  view_count int not null default 0,
+  views_1h int not null default 0,
   created_at timestamptz not null default now(),
   constraint disclosures_sentiment_check check (
     sentiment is null
@@ -42,3 +48,10 @@ create policy "stocks_select_public"
 create policy "disclosures_select_public"
   on public.disclosures for select
   using (true);
+
+-- 기존 DB 마이그레이션 (이미 테이블이 있을 때)
+-- alter table public.stocks add column if not exists market text;
+-- alter table public.disclosures add column if not exists view_count int not null default 0;
+-- alter table public.disclosures add column if not exists views_1h int not null default 0;
+-- create index if not exists disclosures_view_count_idx on public.disclosures (view_count desc);
+-- create index if not exists disclosures_views_1h_idx on public.disclosures (views_1h desc);

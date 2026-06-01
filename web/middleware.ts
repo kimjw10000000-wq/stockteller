@@ -5,6 +5,7 @@ import { adminGateCookieValue, timingSafeEqualHex } from "@/lib/admin-gate";
 export async function middleware(request: NextRequest) {
   const secret = process.env.ADMIN_NEWS_SECRET?.trim();
   const accessSlug = process.env.ADMIN_ACCESS_SLUG?.trim();
+
   const gateEnabled = Boolean(
     secret && secret.length >= 12 && accessSlug && accessSlug.length >= 8
   );
@@ -17,6 +18,9 @@ export async function middleware(request: NextRequest) {
     }
     return NextResponse.next();
   }
+
+  /* gateEnabled 이면 secret·accessSlug는 위 조건상 항상 정의된 문자열 */
+  const adminSecret = secret as string;
 
   const { pathname } = request.nextUrl;
   if (!pathname.startsWith("/admin")) {
@@ -34,7 +38,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const cookieVal = request.cookies.get("whyup_admin_gate")?.value ?? "";
-  const expected = await adminGateCookieValue(secret);
+  const expected = await adminGateCookieValue(adminSecret);
   if (cookieVal && timingSafeEqualHex(cookieVal, expected)) {
     return NextResponse.next();
   }

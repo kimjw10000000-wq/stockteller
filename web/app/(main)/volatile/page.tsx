@@ -15,15 +15,15 @@ export default function VolatilePage() {
       <nav className="mb-6" aria-label="뒤로">
         <Link
           href="/feed"
-          className="inline-flex items-center gap-1 text-sm font-medium text-[#3182f6] hover:text-[#1b64da]"
+          className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           뉴스로
         </Link>
       </nav>
 
-      <h1 className="text-2xl font-bold text-slate-900">급등 · 고변동 감시</h1>
-      <p className="mt-2 max-w-2xl text-sm text-slate-500">
+      <h1 className="text-2xl font-semibold text-foreground">급등 · 고변동 감시</h1>
+      <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         시장별로 미국·일본·한국을 나눕니다.{" "}
         <strong>미국</strong> 행의 <strong>호재</strong>/<strong>악재</strong>를 누르면 SEC 최근 8-K 본문을 가져와 Gemini가 각각 요약합니다.
         미국 급등은 <strong>Yahoo 스크리너로 후보</strong>를 잡고, <span className="whitespace-nowrap">FINNHUB_API_KEY</span>가

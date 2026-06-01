@@ -4,6 +4,7 @@
 !.env.example
 
 # Next.js (web/)
+node_modules/
 web/node_modules/
 web/.next/
 web/out/
@@ -12,6 +13,9 @@ web/*.tsbuildinfo
 web/npm-debug.log*
 web/yarn-debug.log*
 web/yarn-error.log*
+
+# Figma export 참고용 (zip 원본 유지, 추출본은 재생성 가능)
+.design-ref/
 
 # OS
 .DS_Store

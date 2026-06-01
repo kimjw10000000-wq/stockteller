@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const STORAGE_KEY = "admin_news_secret_v1";
 
@@ -32,11 +34,8 @@ export function AdminNewsComposer() {
     setMessage("");
     setSavedId(null);
     try {
-      if (rememberSecret && secret) {
-        sessionStorage.setItem(STORAGE_KEY, secret);
-      } else {
-        sessionStorage.removeItem(STORAGE_KEY);
-      }
+      if (rememberSecret && secret) sessionStorage.setItem(STORAGE_KEY, secret);
+      else sessionStorage.removeItem(STORAGE_KEY);
 
       const res = await fetch("/api/admin/news", {
         method: "POST",
@@ -55,7 +54,7 @@ export function AdminNewsComposer() {
       }
 
       setStatus("ok");
-      setMessage("저장되었습니다. 뉴스 피드 상단에 표시됩니다.");
+      setMessage("저장되었습니다. 뉴스 피드에 표시됩니다.");
       setSavedId(typeof j.id === "string" ? j.id : null);
       setTitle("");
       setBody("");
@@ -68,59 +67,53 @@ export function AdminNewsComposer() {
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="space-y-2">
-        <label htmlFor="admin-secret" className="block text-sm font-medium text-slate-700">
+        <label htmlFor="admin-secret" className="block text-sm font-medium text-foreground">
           관리자 비밀번호
         </label>
-        <input
+        <Input
           id="admin-secret"
-          name="admin-secret"
           type="password"
           autoComplete="off"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none ring-[#3182f6]/30 placeholder:text-slate-400 focus:border-[#3182f6] focus:ring-4"
-          placeholder="환경 변수 ADMIN_NEWS_SECRET 값"
+          placeholder="ADMIN_NEWS_SECRET"
           required
         />
-        <label className="flex items-center gap-2 text-xs text-slate-600">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
             checked={rememberSecret}
             onChange={(e) => setRememberSecret(e.target.checked)}
-            className="rounded border-slate-300 text-[#3182f6] focus:ring-[#3182f6]"
+            className="rounded border-border"
           />
-          이 브라우저 세션 동안 비밀번호 기억 (이 PC를 다른 사람과 쓰면 끄세요)
+          이 브라우저 세션 동안 비밀번호 기억
         </label>
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="news-title" className="block text-sm font-medium text-slate-700">
+        <label htmlFor="news-title" className="block text-sm font-medium text-foreground">
           제목
         </label>
-        <input
+        <Input
           id="news-title"
-          name="title"
-          type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none ring-[#3182f6]/30 placeholder:text-slate-400 focus:border-[#3182f6] focus:ring-4"
           placeholder="뉴스 제목"
           required
         />
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="news-body" className="block text-sm font-medium text-slate-700">
+        <label htmlFor="news-body" className="block text-sm font-medium text-foreground">
           본문 (복사·붙여넣기 가능)
         </label>
         <textarea
           id="news-body"
-          name="body"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={18}
           spellCheck={false}
-          className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-sm leading-relaxed text-slate-900 shadow-sm outline-none ring-[#3182f6]/30 placeholder:text-slate-400 focus:border-[#3182f6] focus:ring-4"
+          className="w-full resize-y rounded-md border border-border bg-input-background px-3 py-2 font-mono text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           placeholder="기사·공지 등 전체 내용을 붙여 넣으세요."
           required
         />
@@ -128,14 +121,11 @@ export function AdminNewsComposer() {
 
       {message ? (
         <div role="status" className="space-y-2">
-          <p className={`text-sm ${status === "err" ? "text-rose-600" : "text-emerald-700"}`}>
+          <p className={`text-sm ${status === "err" ? "text-destructive" : "text-green-600"}`}>
             {message}
           </p>
           {savedId ? (
-            <Link
-              href={`/disclosure/${savedId}`}
-              className="inline-block text-sm font-medium text-[#3182f6] underline-offset-4 hover:underline"
-            >
+            <Link href={`/disclosure/${savedId}`} className="text-sm font-medium text-foreground underline">
               방금 올린 글 보기 →
             </Link>
           ) : null}
@@ -143,19 +133,12 @@ export function AdminNewsComposer() {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="submit"
-          disabled={status === "saving"}
-          className="inline-flex items-center justify-center rounded-xl bg-[#3182f6] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-500/25 transition hover:bg-[#1b64da] disabled:opacity-60"
-        >
+        <Button type="submit" disabled={status === "saving"}>
           {status === "saving" ? "저장 중…" : "뉴스로 게시"}
-        </button>
-        <Link
-          href="/feed"
-          className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-[#3182f6] hover:underline"
-        >
-          뉴스 목록 보기
-        </Link>
+        </Button>
+        <Button variant="ghost" asChild>
+          <Link href="/feed">뉴스 목록 보기</Link>
+        </Button>
       </div>
     </form>
   );

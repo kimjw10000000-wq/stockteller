@@ -17,11 +17,11 @@ export default function AdminAccessGatePage({ params }: PageProps) {
 
   return (
     <main>
-      <header className="mb-8 space-y-2 border-b border-slate-100 pb-6 text-center">
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">관리 영역</h1>
-        <p className="text-sm text-slate-600">
+      <header className="mb-8 space-y-2 border-b border-border pb-6 text-center">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">관리 영역</h1>
+        <p className="text-sm text-muted-foreground">
           이 주소는 즐겨찾기만 해 두세요. 통과 후 같은 브라우저에서는{" "}
-          <code className="rounded bg-slate-100 px-1 text-xs">/admin/news</code> 로 바로 들어갈 수 있습니다.
+          <code className="rounded bg-muted px-1 text-xs">/admin/news</code> 로 바로 들어갈 수 있습니다.
         </p>
       </header>
       <AdminUnlockForm />

@@ -5,6 +5,7 @@ export type StockRow = {
   name: string;
   ticker: string;
   sector: string | null;
+  market?: string | null;
   created_at: string;
 };
 
@@ -18,11 +19,13 @@ export type DisclosureRow = {
   sentiment: Sentiment | null;
   analysis_score: number | null;
   gemini_metadata: Record<string, unknown> | null;
+  view_count?: number | null;
+  views_1h?: number | null;
   created_at: string;
 };
 
 export type DisclosureWithStock = DisclosureRow & {
-  stocks: Pick<StockRow, "name" | "ticker" | "sector"> | null;
+  stocks: Pick<StockRow, "name" | "ticker" | "sector" | "market"> | null;
 };
 
 /** Gemini 분석 결과. `summary_lines`는 순서대로 [공시 의도 → 재무 영향 → 최종 결론] 한 줄씩. */

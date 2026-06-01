@@ -1,4 +1,5 @@
-import { Header } from "@/components/Header";
+import { AdBannerSlot } from "@/components/layout/AdBannerSlot";
+import { SiteHeader } from "@/components/layout/SiteHeader";
 
 export default function MainSiteLayout({
   children,
@@ -6,9 +7,10 @@ export default function MainSiteLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <>
-      <Header />
-      <div className="mx-auto max-w-3xl px-4 pb-16 pt-6 sm:px-6 sm:pt-8">{children}</div>
-    </>
+    <div className="min-h-screen bg-background">
+      <SiteHeader />
+      <AdBannerSlot />
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</div>
+    </div>
   );
 }
