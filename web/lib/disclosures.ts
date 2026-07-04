@@ -19,6 +19,19 @@ export type ListDisclosuresResult = {
 };
 
 const SELECT = "*, stocks(name, ticker, sector)";
+const QUERY_TIMEOUT_MS = 4000;
+
+async function withQueryTimeout<T>(
+  run: () => PromiseLike<T>,
+  ms: number
+): Promise<T | "timeout"> {
+  return Promise.race([
+    Promise.resolve(run()),
+    new Promise<"timeout">((resolve) => {
+      setTimeout(() => resolve("timeout"), ms);
+    }),
+  ]);
+}
 
 export async function listDisclosures(limit = 50): Promise<DisclosureWithStock[]> {
   const { items } = await listDisclosuresPaginated({ limit, sort: "latest", market: "all" });
@@ -55,10 +68,17 @@ export async function listDisclosuresPaginated(
     return q.limit(Math.min(limit * 4, 80));
   };
 
-  let { data, error } = await buildQuery(sort !== "latest");
+  const first = await withQueryTimeout(() => buildQuery(sort !== "latest"), QUERY_TIMEOUT_MS);
+  if (first === "timeout") {
+    return { items: [], nextCursor: null };
+  }
+
+  let { data, error } = first;
 
   if (error && (sort === "all_views" || sort === "hour_views")) {
-    ({ data, error } = await buildQuery(false));
+    const retry = await withQueryTimeout(() => buildQuery(false), QUERY_TIMEOUT_MS);
+    if (retry === "timeout") return { items: [], nextCursor: null };
+    ({ data, error } = retry);
   }
 
   if (error) {

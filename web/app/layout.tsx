@@ -8,7 +8,7 @@ import {
   getSiteUrl,
 } from "@/lib/site";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={`${inter.variable} min-h-screen bg-[#f7f9fc] font-sans antialiased`}>
+      <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
         {children}
       </body>
     </html>

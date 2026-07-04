@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
-import { NewsFeedGrid } from "@/components/news/NewsFeedGrid";
-import { listDisclosuresPaginated } from "@/lib/disclosures";
+import { FeedPageHeader } from "@/components/news/FeedPageHeader";
+import { FeedGridSkeleton } from "@/components/news/FeedSkeleton";
+import { FeedListLoader } from "@/components/news/FeedListLoader";
 import { parseMarketKey, parseSortKey } from "@/lib/news-sort";
+import type { Metadata } from "next";
 import { SITE_NAME_EN, SITE_NAME_KO, SITE_TAGLINE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -25,39 +26,16 @@ function paramFirst(value: string | string[] | undefined): string {
   return "";
 }
 
-export default async function FeedPage({ searchParams }: FeedPageProps) {
+export default function FeedPage({ searchParams }: FeedPageProps) {
   const sort = parseSortKey(paramFirst(searchParams.sort) || undefined);
   const market = parseMarketKey(paramFirst(searchParams.market) || undefined);
   const q = paramFirst(searchParams.q);
 
-  const { items, nextCursor } = await listDisclosuresPaginated({
-    sort,
-    market,
-    q: q || undefined,
-    limit: 20,
-  });
-
   return (
-    <main>
-      <Suspense
-        fallback={
-          <div className="space-y-4">
-            <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
-            <div className="grid gap-4 md:grid-cols-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-36 animate-pulse rounded-xl bg-muted" />
-              ))}
-            </div>
-          </div>
-        }
-      >
-        <NewsFeedGrid
-          initialItems={items}
-          initialCursor={nextCursor}
-          sort={sort}
-          market={market}
-          q={q}
-        />
+    <main className="space-y-6">
+      <FeedPageHeader q={q} />
+      <Suspense fallback={<FeedGridSkeleton />}>
+        <FeedListLoader sort={sort} market={market} q={q} />
       </Suspense>
     </main>
   );
