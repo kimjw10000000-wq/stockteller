@@ -6,7 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-export function AdminLoginForm() {
+type AdminLoginFormProps = {
+  nextPath?: string;
+};
+
+function safeAdminNextPath(raw: string | undefined): string {
+  if (!raw || !raw.startsWith("/admin") || raw.startsWith("//")) {
+    return "/admin/dashboard";
+  }
+  return raw;
+}
+
+export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +42,15 @@ export function AdminLoginForm() {
         return;
       }
 
-      router.replace("/admin/dashboard");
+      const sessionRes = await fetch("/api/admin/session");
+      if (!sessionRes.ok) {
+        await supabase.auth.signOut();
+        setStatus("err");
+        setError("등록된 관리자 계정이 아닙니다. ADMIN_EMAILS에 등록된 이메일만 접근할 수 있습니다.");
+        return;
+      }
+
+      router.replace(safeAdminNextPath(nextPath));
       router.refresh();
     } catch {
       setStatus("err");
@@ -54,7 +73,7 @@ export function AdminLoginForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Supabase에 등록한 이메일"
+          placeholder="Supabase Authentication에 등록한 이메일"
           required
         />
       </div>
@@ -71,6 +90,9 @@ export function AdminLoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        <p className="text-xs text-muted-foreground">
+          비밀번호는 Supabase 대시보드(Authentication → Users)에서 설정한 값을 사용하세요.
+        </p>
       </div>
 
       {error ? (
