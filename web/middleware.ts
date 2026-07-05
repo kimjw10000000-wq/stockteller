@@ -1,49 +1,38 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminGateCookieValue, timingSafeEqualHex } from "@/lib/admin-gate";
+import { isAdminEmail } from "@/lib/admin-auth";
+import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware-client";
 
 export async function middleware(request: NextRequest) {
-  const secret = process.env.ADMIN_NEWS_SECRET?.trim();
-  const accessSlug = process.env.ADMIN_ACCESS_SLUG?.trim();
-
-  const gateEnabled = Boolean(
-    secret && secret.length >= 12 && accessSlug && accessSlug.length >= 8
-  );
-
-  if (!gateEnabled) {
-    if (secret && secret.length >= 12 && (!accessSlug || accessSlug.length < 8)) {
-      console.warn(
-        "[middleware] ADMIN_ACCESS_SLUG(8자 이상)를 설정해야 /admin 잠금이 켜집니다. 지금은 /admin 이 공개 동작합니다."
-      );
-    }
-    return NextResponse.next();
-  }
-
-  /* gateEnabled 이면 secret·accessSlug는 위 조건상 항상 정의된 문자열 */
-  const adminSecret = secret as string;
-
   const { pathname } = request.nextUrl;
+
   if (!pathname.startsWith("/admin")) {
     return NextResponse.next();
   }
 
-  /* 예전 공개 주소 — 방문자에게 비밀번호 칸을 보이지 않고 뉴스 피드로만 보냄 */
-  if (pathname === "/admin/unlock") {
-    return NextResponse.redirect(new URL("/feed", request.url));
+  const response = NextResponse.next({ request });
+  const supabase = createSupabaseMiddlewareClient(request, response);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isLoginPage = pathname === "/admin" || pathname === "/admin/";
+
+  if (isLoginPage) {
+    if (user && isAdminEmail(user.email)) {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+    return response;
   }
 
-  /* 관리자만 아는 경로: 실제 비밀번호 폼은 여기서만 페이지로 렌더됨 */
-  if (pathname.startsWith("/admin/access/")) {
-    return NextResponse.next();
+  if (!user || !isAdminEmail(user.email)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/admin";
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  const cookieVal = request.cookies.get("whyup_admin_gate")?.value ?? "";
-  const expected = await adminGateCookieValue(adminSecret);
-  if (cookieVal && timingSafeEqualHex(cookieVal, expected)) {
-    return NextResponse.next();
-  }
-
-  return NextResponse.redirect(new URL("/feed", request.url));
+  return response;
 }
 
 export const config = {

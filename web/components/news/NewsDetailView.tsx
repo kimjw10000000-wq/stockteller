@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
-import { isManualEditorPost } from "@/lib/manual-post";
+import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 
 type NewsDetailViewProps = {
@@ -17,6 +17,7 @@ export function NewsDetailView({ item }: NewsDetailViewProps) {
   const trend = disclosureTrend(item.sentiment);
   const title = item.title ?? "제목 없음";
   const summaryLines = item.summary?.split("\n").filter((l) => l.trim()) ?? [];
+  const cover = getCoverImageUrl(item);
 
   return (
     <article className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -45,6 +46,14 @@ export function NewsDetailView({ item }: NewsDetailViewProps) {
         </div>
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{title}</h1>
+        {cover ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cover}
+            alt=""
+            className="mt-6 max-h-96 w-full rounded-lg object-cover"
+          />
+        ) : null}
         {item.analysis_score != null ? (
           <p className="mt-3 text-sm text-muted-foreground">AI 점수 {item.analysis_score}</p>
         ) : null}

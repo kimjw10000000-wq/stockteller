@@ -55,3 +55,20 @@ create policy "disclosures_select_public"
 -- alter table public.disclosures add column if not exists views_1h int not null default 0;
 -- create index if not exists disclosures_view_count_idx on public.disclosures (view_count desc);
 -- create index if not exists disclosures_views_1h_idx on public.disclosures (views_1h desc);
+
+-- ========== 관리자 뉴스 발행 (Supabase Auth + Storage) ==========
+-- 1) Supabase Dashboard → Authentication → Users 에 관리자 계정 생성
+-- 2) .env / Vercel 에 ADMIN_EMAILS=your@email.com 설정
+-- 3) Storage → New bucket: news-images (Public bucket 체크)
+-- 4) Database → Replication → disclosures 테이블 Realtime 활성화
+--    또는 아래 SQL:
+-- alter publication supabase_realtime add table public.disclosures;
+
+-- Storage bucket (이미 있으면 무시)
+-- insert into storage.buckets (id, name, public) values ('news-images', 'news-images', true)
+-- on conflict (id) do nothing;
+
+-- 공개 읽기 정책 (이미 있으면 스킵)
+-- create policy "news_images_public_read"
+--   on storage.objects for select
+--   using (bucket_id = 'news-images');

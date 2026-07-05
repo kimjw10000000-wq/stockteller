@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
+import { getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 
 type NewsCardProps = {
@@ -17,12 +18,16 @@ export function NewsCard({ item }: NewsCardProps) {
   const trend = disclosureTrend(item.sentiment);
   const title = item.title ?? "제목 없음";
   const preview = item.summary?.split("\n").filter(Boolean)[0] ?? "";
+  const cover = getCoverImageUrl(item);
 
   return (
     <Link href={`/disclosure/${item.id}`} className="block h-full">
-      <Card className="h-full cursor-pointer gap-0 p-4 transition-all hover:border-primary/50 hover:shadow-md">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
+      <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
+        {cover ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={cover} alt="" className="h-36 w-full object-cover" />
+        ) : null}
+        <div className="p-4">
             <div className="mb-2 flex items-center gap-2">
               <Badge variant="secondary" className="font-mono">
                 {stock}
@@ -41,7 +46,6 @@ export function NewsCard({ item }: NewsCardProps) {
               <Clock className="h-3 w-3 shrink-0" aria-hidden />
               <span>{formatNewsDate(item.created_at)}</span>
             </div>
-          </div>
         </div>
       </Card>
     </Link>

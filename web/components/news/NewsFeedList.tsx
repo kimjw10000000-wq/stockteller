@@ -2,6 +2,7 @@
 
 import { FileWarning } from "lucide-react";
 import { NewsCard } from "@/components/news/NewsCard";
+import { useFeedRealtime } from "@/hooks/use-feed-realtime";
 import { useInfiniteDisclosures } from "@/hooks/use-infinite-disclosures";
 import type { DisclosureWithStock } from "@/lib/types";
 import type { NewsMarketKey, NewsSortKey } from "@/lib/news-sort";
@@ -21,6 +22,7 @@ export function NewsFeedList({
   market,
   q,
 }: NewsFeedListProps) {
+  useFeedRealtime();
   const { items, loading, done, sentinelRef } = useInfiniteDisclosures(
     initialItems,
     initialCursor,
