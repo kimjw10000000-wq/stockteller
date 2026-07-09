@@ -4,6 +4,8 @@ import { NewsDetailView } from "@/components/news/NewsDetailView";
 import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
 import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
 import { disclosureStockLabel } from "@/lib/news-display";
+import { canViewDisclosureBody } from "@/lib/membership";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SITE_NAME_KO } from "@/lib/site";
 
 type PageProps = { params: { id: string } };
@@ -26,6 +28,12 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
   const row = await getDisclosureById(params.id);
   if (!row) notFound();
 
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const canViewBody = canViewDisclosureBody(row, user);
+
   const { items: olderItems, nextCursor } = await listDisclosuresPaginated({
     sort: "latest",
     market: "all",
@@ -36,7 +44,7 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
 
   return (
     <main className="space-y-12">
-      <NewsDetailView item={row} />
+      <NewsDetailView item={row} canViewBody={canViewBody} />
       <section className="border-t border-border pt-10">
         <NewsOlderInfiniteList
           currentId={row.id}

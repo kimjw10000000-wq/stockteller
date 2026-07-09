@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { getCoverImageUrl } from "@/lib/manual-post";
+import { isPremiumDisclosure } from "@/lib/membership";
 import { formatNewsDate } from "@/lib/news-sort";
 
 type NewsCardProps = {
@@ -19,6 +20,7 @@ export function NewsCard({ item }: NewsCardProps) {
   const title = item.title ?? "제목 없음";
   const preview = item.summary?.split("\n").filter(Boolean)[0] ?? "";
   const cover = getCoverImageUrl(item);
+  const premium = isPremiumDisclosure(item);
 
   return (
     <Link href={`/disclosure/${item.id}`} className="block h-full">
@@ -32,6 +34,11 @@ export function NewsCard({ item }: NewsCardProps) {
               <Badge variant="secondary" className="font-mono">
                 {stock}
               </Badge>
+              {premium ? (
+                <Badge variant="default" className="text-[10px]">
+                  유료
+                </Badge>
+              ) : null}
               {trend === "up" ? (
                 <TrendingUp className="h-4 w-4 shrink-0 text-green-500" aria-label="상승" />
               ) : trend === "down" ? (

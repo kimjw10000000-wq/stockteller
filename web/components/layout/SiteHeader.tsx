@@ -41,9 +41,9 @@ export function SiteHeader() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="종목 검색..."
+            placeholder="티커 · 종목명 · 종목코드"
             className="border-border pl-10"
-            aria-label="종목 검색"
+            aria-label="티커·종목명·종목코드 검색"
           />
         </form>
 

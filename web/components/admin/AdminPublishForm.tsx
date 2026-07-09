@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
+import type { AdminEditDraft } from "@/lib/admin-edit-draft";
+import type { MembershipType } from "@/lib/membership";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const MARKET_OPTIONS: { key: AdminMarketType; label: string }[] = [
@@ -13,30 +15,85 @@ const MARKET_OPTIONS: { key: AdminMarketType; label: string }[] = [
   { key: "kr", label: "한국주식" },
 ];
 
-export function AdminPublishForm() {
+const MEMBERSHIP_OPTIONS: { key: MembershipType; label: string }[] = [
+  { key: "free", label: "무료회원용" },
+  { key: "premium", label: "유료회원용" },
+];
+
+type AdminPublishFormProps = {
+  editDraft: AdminEditDraft | null;
+  onCancelEdit: () => void;
+  onSaved: () => void;
+};
+
+export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPublishFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [marketType, setMarketType] = useState<AdminMarketType>("us");
   const [stockName, setStockName] = useState("");
   const [stockCode, setStockCode] = useState("");
+  const [membershipType, setMembershipType] = useState<MembershipType>("free");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [existingCoverUrl, setExistingCoverUrl] = useState<string | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
   const [status, setStatus] = useState<"idle" | "publishing" | "ok" | "err">("idle");
   const [message, setMessage] = useState("");
   const [publishedId, setPublishedId] = useState<string | null>(null);
 
+  const isEditing = Boolean(editDraft?.id);
+
+  const applyDraft = useCallback((draft: AdminEditDraft | null) => {
+    if (!draft) {
+      setTitle("");
+      setBody("");
+      setMarketType("us");
+      setStockName("");
+      setStockCode("");
+      setMembershipType("free");
+      setImage(null);
+      setExistingCoverUrl(null);
+      setRemoveImage(false);
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    setTitle(draft.title);
+    setBody(draft.body);
+    setMarketType(draft.marketType);
+    setStockName(draft.stockName);
+    setStockCode(draft.stockCode);
+    setMembershipType(draft.membershipType);
+    setExistingCoverUrl(draft.coverImageUrl);
+    setImage(null);
+    setRemoveImage(false);
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    applyDraft(editDraft);
+  }, [editDraft, applyDraft]);
+
   function onImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     setImage(file);
+    setRemoveImage(false);
     if (preview) URL.revokeObjectURL(preview);
     setPreview(file ? URL.createObjectURL(file) : null);
   }
 
   function onMarketChange(next: AdminMarketType) {
     setMarketType(next);
-    setStockName("");
-    setStockCode("");
+    if (!isEditing) {
+      setStockName("");
+      setStockCode("");
+    }
   }
 
   function onKrCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -45,17 +102,6 @@ export function AdminPublishForm() {
 
   function onUsTickerChange(e: React.ChangeEvent<HTMLInputElement>) {
     setStockCode(e.target.value.toUpperCase().replace(/[^A-Z0-9.-]/g, "").slice(0, 12));
-  }
-
-  function resetForm() {
-    setTitle("");
-    setBody("");
-    setMarketType("us");
-    setStockName("");
-    setStockCode("");
-    setImage(null);
-    if (preview) URL.revokeObjectURL(preview);
-    setPreview(null);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -70,25 +116,28 @@ export function AdminPublishForm() {
     formData.set("market_type", marketType);
     formData.set("stock_name", stockName);
     formData.set("stock_code", stockCode);
+    formData.set("membership_type", membershipType);
     if (image) formData.set("image", image);
+    if (removeImage) formData.set("remove_image", "1");
+
+    const url = isEditing ? `/api/admin/publish/${editDraft!.id}` : "/api/admin/publish";
+    const method = isEditing ? "PUT" : "POST";
 
     try {
-      const res = await fetch("/api/admin/publish", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(url, { method, body: formData });
       const j = (await res.json()) as { ok?: boolean; error?: string; id?: string };
 
       if (!res.ok || !j.ok) {
         setStatus("err");
-        setMessage(j.error ?? "발행에 실패했습니다.");
+        setMessage(j.error ?? (isEditing ? "수정에 실패했습니다." : "발행에 실패했습니다."));
         return;
       }
 
       setStatus("ok");
-      setMessage("발행되었습니다. 메인 피드에 곧 표시됩니다.");
+      setMessage(isEditing ? "수정되었습니다." : "발행되었습니다. 메인 피드에 곧 반영됩니다.");
       setPublishedId(typeof j.id === "string" ? j.id : null);
-      resetForm();
+      if (!isEditing) applyDraft(null);
+      onSaved();
       router.refresh();
     } catch {
       setStatus("err");
@@ -103,12 +152,13 @@ export function AdminPublishForm() {
     router.refresh();
   }
 
+  const coverPreview = preview ?? (!removeImage ? existingCoverUrl : null);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          뉴스 기사를 작성하고 [발행]하면 /feed에 즉시 반영됩니다. 시장(미국·한국)을 선택하면 피드 필터와
-          연동됩니다.
+          {isEditing ? "선택한 기사를 수정한 뒤 [수정 저장]을 누르세요." : "시장을 먼저 선택하고 기사를 작성하세요."}
         </p>
         <Button type="button" variant="outline" size="sm" onClick={onLogout}>
           로그아웃
@@ -116,52 +166,7 @@ export function AdminPublishForm() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="space-y-2">
-          <label htmlFor="publish-title" className="block text-sm font-medium text-foreground">
-            제목
-          </label>
-          <Input
-            id="publish-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="뉴스 제목"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="publish-body" className="block text-sm font-medium text-foreground">
-            본문
-          </label>
-          <textarea
-            id="publish-body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={14}
-            spellCheck
-            className="w-full resize-y rounded-md border border-border bg-input-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-            placeholder="기사 본문 (복사·붙여넣기 가능)"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="publish-image" className="block text-sm font-medium text-foreground">
-            대표 이미지 (선택)
-          </label>
-          <Input
-            id="publish-image"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            onChange={onImageChange}
-          />
-          {preview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="미리보기" className="mt-2 max-h-48 rounded-lg border border-border object-cover" />
-          ) : null}
-        </div>
-
-        <div className="space-y-3 border-t border-border pt-5">
+        <div className="space-y-3">
           <p className="text-sm font-medium text-foreground">시장 · 종목</p>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="시장 선택">
             {MARKET_OPTIONS.map(({ key, label }) => (
@@ -235,10 +240,93 @@ export function AdminPublishForm() {
                   className="font-mono"
                   required
                 />
-                <p className="text-xs text-muted-foreground">숫자 4~6자리만 입력됩니다.</p>
               </div>
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="publish-title" className="block text-sm font-medium text-foreground">
+            제목
+          </label>
+          <Input
+            id="publish-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="뉴스 제목"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="publish-body" className="block text-sm font-medium text-foreground">
+            본문
+          </label>
+          <textarea
+            id="publish-body"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={14}
+            spellCheck
+            className="w-full resize-y rounded-md border border-border bg-input-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+            placeholder="기사 본문 (복사·붙여넣기 가능)"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="publish-image" className="block text-sm font-medium text-foreground">
+            대표 이미지 (선택)
+          </label>
+          <Input
+            id="publish-image"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={onImageChange}
+          />
+          {coverPreview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverPreview} alt="미리보기" className="mt-2 max-h-48 rounded-lg border border-border object-cover" />
+          ) : null}
+          {isEditing && existingCoverUrl ? (
+            <label className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={removeImage}
+                onChange={(e) => {
+                  setRemoveImage(e.target.checked);
+                  if (e.target.checked) {
+                    setImage(null);
+                    if (preview) URL.revokeObjectURL(preview);
+                    setPreview(null);
+                  }
+                }}
+              />
+              기존 이미지 제거
+            </label>
+          ) : null}
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-5">
+          <p className="text-sm font-medium text-foreground">회원 등급</p>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="회원 등급 선택">
+            {MEMBERSHIP_OPTIONS.map(({ key, label }) => (
+              <Button
+                key={key}
+                type="button"
+                variant={membershipType === key ? "default" : "outline"}
+                size="sm"
+                role="radio"
+                aria-checked={membershipType === key}
+                onClick={() => setMembershipType(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            유료회원용은 제목만 공개되며, 본문은 유료 회원만 열람할 수 있습니다.
+          </p>
         </div>
 
         {message ? (
@@ -252,9 +340,16 @@ export function AdminPublishForm() {
           </div>
         ) : null}
 
-        <Button type="submit" disabled={status === "publishing"} size="lg">
-          {status === "publishing" ? "발행 중…" : "발행"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={status === "publishing"} size="lg">
+            {status === "publishing" ? "저장 중…" : isEditing ? "수정 저장" : "발행"}
+          </Button>
+          {isEditing ? (
+            <Button type="button" variant="outline" size="lg" onClick={onCancelEdit}>
+              수정 취소
+            </Button>
+          ) : null}
+        </div>
       </form>
     </div>
   );

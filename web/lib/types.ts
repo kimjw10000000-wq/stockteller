@@ -26,6 +26,7 @@ export type DisclosureRow = {
   market_type?: MarketType | null;
   stock_name?: string | null;
   stock_code?: string | null;
+  membership_type?: "free" | "premium" | null;
   created_at: string;
 };
 

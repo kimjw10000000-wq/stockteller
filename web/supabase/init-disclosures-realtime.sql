@@ -35,6 +35,7 @@ create table if not exists public.disclosures (
   market_type text,
   stock_name text,
   stock_code text,
+  membership_type text not null default 'free',
   created_at timestamptz not null default now(),
   constraint disclosures_sentiment_check check (
     sentiment is null
@@ -42,6 +43,9 @@ create table if not exists public.disclosures (
   ),
   constraint disclosures_market_type_check check (
     market_type is null or market_type in ('us', 'kr')
+  ),
+  constraint disclosures_membership_type_check check (
+    membership_type in ('free', 'premium')
   )
 );
 

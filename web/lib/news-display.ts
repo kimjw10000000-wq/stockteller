@@ -49,21 +49,18 @@ export function disclosureStockLabel(item: DisclosureWithStock): {
   return { stock: ticker, name, market };
 }
 
-export function matchesSearchQuery(item: DisclosureWithStock, qLower: string): boolean {
+/** 종목 필드만 검색 (제목·본문 제외) */
+export function matchesStockSearchQuery(item: DisclosureWithStock, qLower: string): boolean {
   if (!qLower) return true;
-  const blob = [
-    item.title,
-    item.summary,
-    item.raw_content,
-    item.stock_name,
-    item.stock_code,
-    item.stocks?.name,
-    item.stocks?.ticker,
-  ]
+  const fields = [item.stock_name, item.stock_code, item.stocks?.name, item.stocks?.ticker]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return blob.includes(qLower);
+    .map((v) => String(v).toLowerCase());
+  return fields.some((v) => v.includes(qLower));
+}
+
+/** @deprecated matchesStockSearchQuery 사용 */
+export function matchesSearchQuery(item: DisclosureWithStock, qLower: string): boolean {
+  return matchesStockSearchQuery(item, qLower);
 }
 
 export function matchesMarketFilter(

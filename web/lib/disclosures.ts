@@ -1,6 +1,6 @@
 import type { DisclosureWithStock } from "@/lib/types";
 import { createPublicClient } from "@/lib/supabase/public";
-import { matchesMarketFilter, matchesSearchQuery } from "@/lib/news-display";
+import { matchesMarketFilter, matchesStockSearchQuery } from "@/lib/news-display";
 import type { NewsMarketKey, NewsSortKey } from "@/lib/news-sort";
 
 export type ListDisclosuresOptions = {
@@ -88,7 +88,7 @@ export async function listDisclosuresPaginated(
 
   let items = (data ?? []) as DisclosureWithStock[];
   items = items.filter((item) => matchesMarketFilter(item, market));
-  if (qLower) items = items.filter((item) => matchesSearchQuery(item, qLower));
+  if (qLower) items = items.filter((item) => matchesStockSearchQuery(item, qLower));
   items = items.slice(0, limit);
 
   const nextCursor =
