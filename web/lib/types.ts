@@ -1,5 +1,7 @@
 export type Sentiment = "positive" | "negative" | "neutral";
 
+export type MarketType = "us" | "kr";
+
 export type StockRow = {
   id: string;
   name: string;
@@ -21,6 +23,9 @@ export type DisclosureRow = {
   gemini_metadata: Record<string, unknown> | null;
   view_count?: number | null;
   views_1h?: number | null;
+  market_type?: MarketType | null;
+  stock_name?: string | null;
+  stock_code?: string | null;
   created_at: string;
 };
 

@@ -18,7 +18,7 @@ export type ListDisclosuresResult = {
   nextCursor: string | null;
 };
 
-const SELECT = "*, stocks(name, ticker, sector)";
+const SELECT = "*, stocks(name, ticker, sector, market)";
 const QUERY_TIMEOUT_MS = 4000;
 
 async function withQueryTimeout<T>(
