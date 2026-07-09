@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isAdminEmail } from "@/lib/admin-auth";
+import { getAdminEmails, isAdminEmail, logAdminAuthDebug } from "@/lib/admin-auth";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware-client";
 
 export async function middleware(request: NextRequest) {
@@ -26,6 +26,14 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!user || !isAdminEmail(user.email)) {
+    if (!user) {
+      console.log("[middleware/admin] no user", {
+        pathname,
+        adminEmailsConfigured: getAdminEmails().length,
+      });
+    } else {
+      logAdminAuthDebug("middleware denied", user.email, { pathname });
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/admin";
     loginUrl.searchParams.set("next", pathname);

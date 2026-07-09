@@ -17,6 +17,23 @@ function safeAdminNextPath(raw: string | undefined): string {
   return raw;
 }
 
+type SessionErrorBody = {
+  reason?: string;
+};
+
+function sessionErrorMessage(reason: string | undefined): string {
+  switch (reason) {
+    case "no_user":
+      return "로그인 세션이 서버에 전달되지 않았습니다. 브라우저 쿠키를 허용한 뒤 다시 시도해 주세요.";
+    case "admin_emails_not_configured":
+      return "서버에 ADMIN_EMAILS 환경 변수가 설정되어 있지 않습니다. .env.local 또는 Vercel 설정을 확인하세요.";
+    case "not_admin":
+      return "등록된 관리자 계정이 아닙니다. ADMIN_EMAILS에 등록된 이메일만 접근할 수 있습니다.";
+    default:
+      return "관리자 인증에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+}
+
 export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -31,22 +48,43 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
-      if (signInError) {
+      if (signInError || !signInData.session) {
         setStatus("err");
         setError("이메일 또는 비밀번호가 올바르지 않습니다.");
         return;
       }
 
-      const sessionRes = await fetch("/api/admin/session");
+      const sessionRes = await fetch("/api/admin/session", {
+        credentials: "include",
+        cache: "no-store",
+      });
+
       if (!sessionRes.ok) {
-        await supabase.auth.signOut();
+        let reason: string | undefined;
+        try {
+          const body = (await sessionRes.json()) as SessionErrorBody;
+          reason = body.reason;
+        } catch {
+          /* ignore */
+        }
+
+        if (reason === "no_user" && signInData.session) {
+          router.replace(safeAdminNextPath(nextPath));
+          router.refresh();
+          return;
+        }
+
+        if (reason === "not_admin" || reason === "admin_emails_not_configured") {
+          await supabase.auth.signOut();
+        }
+
         setStatus("err");
-        setError("등록된 관리자 계정이 아닙니다. ADMIN_EMAILS에 등록된 이메일만 접근할 수 있습니다.");
+        setError(sessionErrorMessage(reason));
         return;
       }
 
