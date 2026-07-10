@@ -31,7 +31,7 @@ export async function PATCH(req: Request, { params }: RouteContext) {
 
   if (!isSignalStatus(body.signal_status)) {
     return NextResponse.json(
-      { ok: false, error: "signal_status는 positive, caution, danger 중 하나여야 합니다." },
+      { ok: false, error: "signal_status는 positive, neutral, caution, danger 중 하나여야 합니다." },
       { status: 400 }
     );
   }

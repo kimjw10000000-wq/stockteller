@@ -1,25 +1,23 @@
 "use client";
 
 import { useMemo } from "react";
-import { SIGNAL_LABELS, type SignalStatus } from "@/lib/signal-status";
+import {
+  SIGNAL_DESCRIPTIONS,
+  SIGNAL_LABELS,
+  SIGNAL_NEEDLE_ROTATE,
+  type SignalStatus,
+} from "@/lib/signal-status";
 
 type SignalGaugeProps = {
   status: SignalStatus;
 };
 
-/** 가로 반원 게이지 — 0°=위(주의), -90°=왼쪽(긍정), +90°=오른쪽(위험) */
-const NEEDLE_ROTATE: Record<SignalStatus, number> = {
-  positive: -90,
-  caution: 0,
-  danger: 90,
-};
-
 const CX = 140;
 const CY = 132;
 const R = 96;
-const STROKE = 16;
+const STROKE = 14;
 
-/** 0°=오른쪽, 90°=위, 180°=왼쪽 (속도계·압력계 좌표계) */
+/** 0°=오른쪽, 90°=위, 180°=왼쪽 */
 function polar(deg: number) {
   const rad = (deg * Math.PI) / 180;
   return { x: CX + R * Math.cos(rad), y: CY - R * Math.sin(rad) };
@@ -33,29 +31,33 @@ function arcPath(startDeg: number, endDeg: number): string {
   return `M ${start.x} ${start.y} A ${R} ${R} 0 ${large} ${sweep} ${end.x} ${end.y}`;
 }
 
+const ZONE_DEFS: { start: number; end: number; color: string; label: string; labelClass: string }[] = [
+  { start: 180, end: 135, color: "#22c55e", label: "순항", labelClass: "fill-green-600" },
+  { start: 135, end: 90, color: "#e2e8f0", label: "관망", labelClass: "fill-slate-500" },
+  { start: 90, end: 45, color: "#eab308", label: "암초", labelClass: "fill-yellow-600" },
+  { start: 45, end: 0, color: "#ef4444", label: "위기", labelClass: "fill-red-600" },
+];
+
+const TICK_ANGLES = [157.5, 112.5, 67.5, 22.5];
+
 export function SignalGauge({ status }: SignalGaugeProps) {
-  const needleDeg = NEEDLE_ROTATE[status];
+  const needleDeg = SIGNAL_NEEDLE_ROTATE[status];
   const label = SIGNAL_LABELS[status];
+  const description = SIGNAL_DESCRIPTIONS[status];
 
   const zones = useMemo(
-    () => [
-      { d: arcPath(180, 120), color: "#22c55e", opacity: 0.95 },
-      { d: arcPath(120, 60), color: "#eab308", opacity: 0.95 },
-      { d: arcPath(60, 0), color: "#ef4444", opacity: 0.95 },
-    ],
+    () => ZONE_DEFS.map((z) => ({ d: arcPath(z.start, z.end), ...z })),
     []
   );
 
-  const tickAngles = [150, 120, 90, 60, 30];
-
   return (
-    <div className="flex w-full max-w-md flex-col items-center" aria-live="polite">
-      <div className="relative w-full max-w-[320px]">
+    <div className="flex w-full max-w-lg flex-col items-center" aria-live="polite">
+      <div className="relative w-full max-w-[340px]">
         <svg
-          viewBox="0 0 280 150"
+          viewBox="0 0 280 155"
           className="h-auto w-full drop-shadow-sm"
           role="img"
-          aria-label={`공시·뉴스 시그널: ${label}`}
+          aria-label={`공시·뉴스 항해 레이더: ${label}`}
         >
           <defs>
             <filter id="gauge-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -67,7 +69,6 @@ export function SignalGauge({ status }: SignalGaugeProps) {
             </filter>
           </defs>
 
-          {/* 바닥 베이스 라인 */}
           <line
             x1={CX - R - 8}
             y1={CY + 2}
@@ -79,7 +80,6 @@ export function SignalGauge({ status }: SignalGaugeProps) {
             className="text-muted/40"
           />
 
-          {/* 배경 트랙 — 왼쪽(초록) → 위(돔) → 오른쪽(빨강) */}
           <path
             d={arcPath(180, 0)}
             fill="none"
@@ -89,7 +89,6 @@ export function SignalGauge({ status }: SignalGaugeProps) {
             className="text-muted/30"
           />
 
-          {/* 3구역 무지개 게이지 */}
           {zones.map((z, i) => (
             <path
               key={i}
@@ -98,49 +97,44 @@ export function SignalGauge({ status }: SignalGaugeProps) {
               stroke={z.color}
               strokeWidth={STROKE}
               strokeLinecap="butt"
-              opacity={z.opacity}
+              opacity={z.color === "#e2e8f0" ? 1 : 0.95}
             />
           ))}
 
-          {/* 눈금 */}
-          {tickAngles.map((deg) => {
-            const outerR = R + STROKE / 2 + 4;
+          {TICK_ANGLES.map((deg) => {
             const rad = (deg * Math.PI) / 180;
-            const outer = {
-              x: CX + outerR * Math.cos(rad),
-              y: CY - outerR * Math.sin(rad),
-            };
             const innerR = R - STROKE / 2 - 2;
-            const innerPt = {
-              x: CX + innerR * Math.cos(rad),
-              y: CY - innerR * Math.sin(rad),
-            };
+            const outerR = R + STROKE / 2 + 4;
             return (
               <line
                 key={deg}
-                x1={innerPt.x}
-                y1={innerPt.y}
-                x2={outer.x}
-                y2={outer.y}
+                x1={CX + innerR * Math.cos(rad)}
+                y1={CY - innerR * Math.sin(rad)}
+                x2={CX + outerR * Math.cos(rad)}
+                y2={CY - outerR * Math.sin(rad)}
                 stroke="currentColor"
-                strokeWidth={deg === 90 ? 2 : 1}
+                strokeWidth={1.5}
                 className="text-foreground/25"
               />
             );
           })}
 
-          {/* 구역 라벨 */}
-          <text x={polar(165).x} y={polar(165).y + 4} textAnchor="middle" className="fill-green-600 text-[9px] font-medium">
-            긍정
-          </text>
-          <text x={polar(90).x} y={polar(90).y - 10} textAnchor="middle" className="fill-yellow-600 text-[9px] font-medium">
-            주의
-          </text>
-          <text x={polar(15).x} y={polar(15).y + 4} textAnchor="middle" className="fill-red-600 text-[9px] font-medium">
-            위험
-          </text>
+          {zones.map((z) => {
+            const mid = (z.start + z.end) / 2;
+            const pt = polar(mid);
+            return (
+              <text
+                key={z.label}
+                x={pt.x}
+                y={pt.y + (mid > 90 ? 6 : -8)}
+                textAnchor="middle"
+                className={`text-[8px] font-medium ${z.labelClass}`}
+              >
+                {z.label}
+              </text>
+            );
+          })}
 
-          {/* 바늘 — 기본 방향 위(0°), 좌/우로 회전 */}
           <g
             style={{
               transform: `rotate(${needleDeg}deg)`,
@@ -165,11 +159,9 @@ export function SignalGauge({ status }: SignalGaugeProps) {
             />
           </g>
 
-          {/* 중앙 허브 */}
           <circle cx={CX} cy={CY} r={10} className="fill-card stroke-foreground/20" strokeWidth={2} />
           <circle cx={CX} cy={CY} r={4} className="fill-foreground/80" />
 
-          {/* 바늘 끝 ping */}
           <g
             style={{
               transform: `rotate(${needleDeg}deg)`,
@@ -181,7 +173,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
               cx={CX}
               cy={CY - R + 14}
               r={5}
-              className="fill-emerald-500/30 animate-ping"
+              className="fill-sky-500/30 animate-ping"
               style={{ animationDuration: "2s" }}
             />
             <circle cx={CX} cy={CY - R + 14} r={3} className="fill-foreground/60" />
@@ -190,9 +182,12 @@ export function SignalGauge({ status }: SignalGaugeProps) {
       </div>
 
       <p className="mt-1 text-center text-sm font-semibold tracking-tight text-foreground">
-        공시·뉴스 시그널
+        공시·뉴스 항해 레이더
       </p>
-      <p className="text-center text-sm text-muted-foreground">{label}</p>
+      <p className="text-center text-sm font-medium text-foreground">{label}</p>
+      <p className="mt-2 max-w-md text-center text-sm leading-relaxed text-muted-foreground">
+        {description}
+      </p>
     </div>
   );
 }

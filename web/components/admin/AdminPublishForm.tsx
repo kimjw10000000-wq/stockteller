@@ -11,6 +11,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   DEFAULT_SIGNAL_STATUS,
   SIGNAL_LABELS,
+  SIGNAL_STATUSES,
   type SignalStatus,
 } from "@/lib/signal-status";
 
@@ -19,11 +20,12 @@ const MARKET_OPTIONS: { key: AdminMarketType; label: string }[] = [
   { key: "kr", label: "한국주식" },
 ];
 
-const SIGNAL_OPTIONS: { key: SignalStatus; label: string; ring: string }[] = [
-  { key: "positive", label: SIGNAL_LABELS.positive, ring: "ring-green-500/60" },
-  { key: "caution", label: SIGNAL_LABELS.caution, ring: "ring-yellow-500/60" },
-  { key: "danger", label: SIGNAL_LABELS.danger, ring: "ring-red-500/60" },
-];
+const SIGNAL_RING: Record<SignalStatus, string> = {
+  positive: "ring-green-500/60",
+  neutral: "ring-slate-400/60",
+  caution: "ring-yellow-500/60",
+  danger: "ring-red-500/60",
+};
 
 type AdminPublishFormProps = {
   editDraft: AdminEditDraft | null;
@@ -251,9 +253,9 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-medium text-foreground">공시·뉴스 시그널</p>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="시그널 등급">
-            {SIGNAL_OPTIONS.map(({ key, label, ring }) => (
+          <p className="text-sm font-medium text-foreground">공시·뉴스 항해 레이더</p>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="항해 레이더 등급">
+            {SIGNAL_STATUSES.map((key) => (
               <Button
                 key={key}
                 type="button"
@@ -261,10 +263,10 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
                 size="sm"
                 role="radio"
                 aria-checked={signalStatus === key}
-                className={signalStatus === key ? `ring-2 ${ring}` : undefined}
+                className={signalStatus === key ? `ring-2 ${SIGNAL_RING[key]}` : undefined}
                 onClick={() => setSignalStatus(key)}
               >
-                {label}
+                {SIGNAL_LABELS[key]}
               </Button>
             ))}
           </div>

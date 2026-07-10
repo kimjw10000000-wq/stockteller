@@ -7,6 +7,7 @@ import { formatNewsDate } from "@/lib/news-sort";
 import {
   resolveDisclosureSignalStatus,
   SIGNAL_LABELS,
+  SIGNAL_STATUSES,
   type SignalStatus,
 } from "@/lib/signal-status";
 import { Button } from "@/components/ui/button";
@@ -176,9 +177,11 @@ export function AdminNewsManageList({
                     }
                     className="h-9 rounded-md border border-border bg-input-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                   >
-                    <option value="positive">{SIGNAL_LABELS.positive}</option>
-                    <option value="caution">{SIGNAL_LABELS.caution}</option>
-                    <option value="danger">{SIGNAL_LABELS.danger}</option>
+                    {SIGNAL_STATUSES.map((key) => (
+                      <option key={key} value={key}>
+                        {SIGNAL_LABELS[key]}
+                      </option>
+                    ))}
                   </select>
                   <Button
                     type="button"

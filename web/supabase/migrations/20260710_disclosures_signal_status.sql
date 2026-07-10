@@ -4,7 +4,7 @@ alter table public.disclosures
 
 alter table public.disclosures drop constraint if exists disclosures_signal_status_check;
 alter table public.disclosures add constraint disclosures_signal_status_check check (
-  signal_status in ('positive', 'caution', 'danger')
+  signal_status in ('positive', 'neutral', 'caution', 'danger')
 );
 
 create index if not exists disclosures_signal_status_idx
