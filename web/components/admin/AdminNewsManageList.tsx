@@ -1,8 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureMarket } from "@/lib/news-display";
 import { formatNewsDate } from "@/lib/news-sort";
+import {
+  resolveDisclosureSignalStatus,
+  SIGNAL_LABELS,
+  type SignalStatus,
+} from "@/lib/signal-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -25,12 +31,62 @@ export function AdminNewsManageList({
   onEdit,
   editingId,
 }: AdminNewsManageListProps) {
+  const [signalDrafts, setSignalDrafts] = useState<Record<string, SignalStatus>>({});
+  const [savedSignals, setSavedSignals] = useState<Record<string, SignalStatus>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [signalMessage, setSignalMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next: Record<string, SignalStatus> = {};
+    for (const item of items) {
+      next[item.id] = resolveDisclosureSignalStatus(item);
+    }
+    setSignalDrafts(next);
+    setSavedSignals(next);
+  }, [items]);
+
+  function getDraftSignal(item: DisclosureWithStock): SignalStatus {
+    return signalDrafts[item.id] ?? resolveDisclosureSignalStatus(item);
+  }
+
+  function isSignalDirty(item: DisclosureWithStock): boolean {
+    const draft = getDraftSignal(item);
+    const saved = savedSignals[item.id] ?? resolveDisclosureSignalStatus(item);
+    return draft !== saved;
+  }
+
+  async function onSaveSignal(item: DisclosureWithStock) {
+    const signal_status = getDraftSignal(item);
+    setSavingId(item.id);
+    setSignalMessage(null);
+    try {
+      const res = await fetch(`/api/admin/publish/${item.id}/signal`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signal_status }),
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string; signal_status?: SignalStatus };
+      if (!res.ok || !j.ok) {
+        setSignalMessage(j.error ?? "시그널 저장에 실패했습니다.");
+        return;
+      }
+      const next = j.signal_status ?? signal_status;
+      setSavedSignals((prev) => ({ ...prev, [item.id]: next }));
+      setSignalDrafts((prev) => ({ ...prev, [item.id]: next }));
+      setSignalMessage("시그널이 저장되었습니다. 상세 페이지에 실시간 반영됩니다.");
+    } catch {
+      setSignalMessage("네트워크 오류입니다.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   return (
     <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
       <header className="mb-4 space-y-1">
         <h2 className="text-lg font-semibold text-foreground">뉴스 관리 목록</h2>
         <p className="text-xs text-muted-foreground">
-          티커 · 주식 이름 · 종목 코드로만 검색됩니다. (제목·본문은 검색되지 않음)
+          티커 · 주식 이름 · 종목 코드로만 검색됩니다. 시그널은 목록에서 바로 변경 후 [저장]하세요.
         </p>
       </header>
 
@@ -47,6 +103,12 @@ export function AdminNewsManageList({
         </Button>
       </form>
 
+      {signalMessage ? (
+        <p className="mb-3 text-xs text-muted-foreground" role="status">
+          {signalMessage}
+        </p>
+      ) : null}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">불러오는 중…</p>
       ) : items.length === 0 ? (
@@ -62,9 +124,10 @@ export function AdminNewsManageList({
                   ? "미국"
                   : "—";
             const stockLabel = [name, stock].filter((v) => v && v !== "—").join(" · ") || "—";
+            const draftSignal = getDraftSignal(item);
 
             return (
-              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <li key={item.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="truncate font-medium text-foreground">{item.title ?? "제목 없음"}</p>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -75,14 +138,44 @@ export function AdminNewsManageList({
                     <span className="font-mono">{stockLabel}</span>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant={editingId === item.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => onEdit(item)}
-                >
-                  {editingId === item.id ? "수정 중" : "수정"}
-                </Button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="sr-only" htmlFor={`signal-${item.id}`}>
+                    시그널 등급
+                  </label>
+                  <select
+                    id={`signal-${item.id}`}
+                    value={draftSignal}
+                    onChange={(e) =>
+                      setSignalDrafts((prev) => ({
+                        ...prev,
+                        [item.id]: e.target.value as SignalStatus,
+                      }))
+                    }
+                    className="h-9 rounded-md border border-border bg-input-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                  >
+                    <option value="positive">{SIGNAL_LABELS.positive}</option>
+                    <option value="caution">{SIGNAL_LABELS.caution}</option>
+                    <option value="danger">{SIGNAL_LABELS.danger}</option>
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingId === item.id || !isSignalDirty(item)}
+                    onClick={() => void onSaveSignal(item)}
+                  >
+                    {savingId === item.id ? "저장 중…" : "저장"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={editingId === item.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => onEdit(item)}
+                  >
+                    {editingId === item.id ? "수정 중" : "수정"}
+                  </Button>
+                </div>
               </li>
             );
           })}

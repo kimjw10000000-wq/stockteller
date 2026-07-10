@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
 import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
+import {
+  isSignalStatus,
+  signalStatusFromForm,
+  type SignalStatus,
+} from "@/lib/signal-status";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DisclosureWithStock } from "@/lib/types";
 
@@ -13,6 +18,7 @@ export type PublishFormPayload = {
   marketType: "us" | "kr";
   stockName: string;
   stockCode: string;
+  signalStatus: SignalStatus;
   coverImageUrl: string | null;
 };
 
@@ -43,6 +49,7 @@ export function parsePublishFormData(formData: FormData): {
       marketType: marketCheck.marketType,
       stockName: marketCheck.stockName,
       stockCode: marketCheck.stockCode,
+      signalStatus: signalStatusFromForm(formData.get("signal_status")),
       image: image instanceof File && image.size > 0 ? image : null,
       removeImage,
     },
@@ -109,19 +116,20 @@ function buildGeminiMetadata(
     market_type: payload.marketType,
     stock_name: payload.stockName,
     stock_code: payload.stockCode,
+    signal_status: payload.signalStatus,
   };
 }
 
 type SupabaseError = { code?: string; message?: string };
 
-/** DB에 market_type 등 컬럼이 아직 없을 때(PGRST204) fallback insert */
-function isMissingMarketColumnError(error: SupabaseError): boolean {
-  if (error.code === "PGRST204") return true;
+function isMissingOptionalColumnError(error: SupabaseError): boolean {
+  if (error.code === "PGRST204" || error.code === "42703") return true;
   const msg = error.message ?? "";
   return (
     msg.includes("market_type") ||
     msg.includes("stock_name") ||
-    msg.includes("stock_code")
+    msg.includes("stock_code") ||
+    msg.includes("signal_status")
   );
 }
 
@@ -131,6 +139,14 @@ function marketColumnFields(payload: PublishFormPayload) {
     stock_name: payload.stockName,
     stock_code: payload.stockCode,
   };
+}
+
+function signalColumnField(payload: PublishFormPayload) {
+  return { signal_status: payload.signalStatus };
+}
+
+function extendedColumnFields(payload: PublishFormPayload) {
+  return { ...marketColumnFields(payload), ...signalColumnField(payload) };
 }
 
 export async function insertAdminDisclosure(
@@ -160,13 +176,13 @@ export async function insertAdminDisclosure(
 
   let { data, error } = await admin
     .from("disclosures")
-    .insert({ ...baseRow, ...marketColumnFields(payload) })
+    .insert({ ...baseRow, ...extendedColumnFields(payload) })
     .select("id, created_at")
     .maybeSingle();
 
-  if (error && isMissingMarketColumnError(error)) {
+  if (error && isMissingOptionalColumnError(error)) {
     console.warn(
-      "[admin/publish] disclosures.market_type columns missing — storing market/stock in gemini_metadata + stocks only"
+      "[admin/publish] optional columns missing — storing market/signal in gemini_metadata + stocks"
     );
     ({ data, error } = await admin
       .from("disclosures")
@@ -208,13 +224,13 @@ export async function updateAdminDisclosure(
 
   let { data, error } = await admin
     .from("disclosures")
-    .update({ ...baseRow, ...marketColumnFields(payload) })
+    .update({ ...baseRow, ...extendedColumnFields(payload) })
     .eq("id", id)
     .select("id, created_at")
     .maybeSingle();
 
-  if (error && isMissingMarketColumnError(error)) {
-    console.warn("[admin/publish] market columns missing on update — fallback");
+  if (error && isMissingOptionalColumnError(error)) {
+    console.warn("[admin/publish] optional columns missing on update — fallback");
     ({ data, error } = await admin
       .from("disclosures")
       .update(baseRow)
@@ -229,6 +245,51 @@ export async function updateAdminDisclosure(
   }
   if (!data?.id) throw new Error("UPDATE_FAILED");
   return data;
+}
+
+export async function updateAdminDisclosureSignal(
+  id: string,
+  signalStatus: SignalStatus
+): Promise<{ id: string; signal_status: SignalStatus }> {
+  if (!isSignalStatus(signalStatus)) {
+    throw new Error("INVALID_SIGNAL");
+  }
+
+  const admin = createAdminClient();
+  const existing = await getAdminDisclosureById(id);
+  if (!existing) throw new Error("NOT_FOUND");
+
+  const gemini_metadata = {
+    ...(existing.gemini_metadata ?? {}),
+    signal_status: signalStatus,
+  };
+
+  let { data, error } = await admin
+    .from("disclosures")
+    .update({ signal_status: signalStatus, gemini_metadata })
+    .eq("id", id)
+    .select("id, signal_status")
+    .maybeSingle();
+
+  if (error && isMissingOptionalColumnError(error)) {
+    ({ data, error } = await admin
+      .from("disclosures")
+      .update({ gemini_metadata })
+      .eq("id", id)
+      .select("id, signal_status")
+      .maybeSingle());
+  }
+
+  if (error) {
+    console.error("[admin/publish/signal]", error.code, error.message);
+    throw new Error(error.message);
+  }
+  if (!data?.id) throw new Error("UPDATE_FAILED");
+
+  return {
+    id: data.id,
+    signal_status: isSignalStatus(data.signal_status) ? data.signal_status : signalStatus,
+  };
 }
 
 export async function getAdminDisclosureById(id: string): Promise<DisclosureWithStock | null> {

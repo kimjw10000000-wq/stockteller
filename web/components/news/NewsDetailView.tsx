@@ -7,6 +7,8 @@ import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
+import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
+import { resolveDisclosureSignalStatus } from "@/lib/signal-status";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
@@ -19,6 +21,7 @@ export function NewsDetailView({ item }: NewsDetailViewProps) {
   const title = item.title ?? "제목 없음";
   const summaryLines = item.summary?.split("\n").filter((l) => l.trim()) ?? [];
   const cover = getCoverImageUrl(item);
+  const signalStatus = resolveDisclosureSignalStatus(item);
 
   return (
     <article className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -47,6 +50,7 @@ export function NewsDetailView({ item }: NewsDetailViewProps) {
         </div>
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{title}</h1>
+        <NewsSignalGaugePanel disclosureId={item.id} initialStatus={signalStatus} />
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

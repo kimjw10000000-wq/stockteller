@@ -68,6 +68,7 @@ export async function PUT(req: Request, { params }: RouteContext) {
         marketType: parsed.data.marketType,
         stockName: parsed.data.stockName,
         stockCode: parsed.data.stockCode,
+        signalStatus: parsed.data.signalStatus,
         coverImageUrl,
       },
       user.email ?? "",

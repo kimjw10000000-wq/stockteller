@@ -2,6 +2,10 @@ export type Sentiment = "positive" | "negative" | "neutral";
 
 export type MarketType = "us" | "kr";
 
+import type { SignalStatus } from "@/lib/signal-status";
+
+export type { SignalStatus } from "@/lib/signal-status";
+
 export type StockRow = {
   id: string;
   name: string;
@@ -27,6 +31,7 @@ export type DisclosureRow = {
   stock_name?: string | null;
   stock_code?: string | null;
   membership_type?: "free" | "premium" | null;
+  signal_status?: SignalStatus | null;
   created_at: string;
 };
 

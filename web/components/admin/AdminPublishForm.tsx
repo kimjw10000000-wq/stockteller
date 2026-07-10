@@ -8,10 +8,21 @@ import { Input } from "@/components/ui/input";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import type { AdminEditDraft } from "@/lib/admin-edit-draft";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  DEFAULT_SIGNAL_STATUS,
+  SIGNAL_LABELS,
+  type SignalStatus,
+} from "@/lib/signal-status";
 
 const MARKET_OPTIONS: { key: AdminMarketType; label: string }[] = [
   { key: "us", label: "미국주식" },
   { key: "kr", label: "한국주식" },
+];
+
+const SIGNAL_OPTIONS: { key: SignalStatus; label: string; ring: string }[] = [
+  { key: "positive", label: SIGNAL_LABELS.positive, ring: "ring-green-500/60" },
+  { key: "caution", label: SIGNAL_LABELS.caution, ring: "ring-yellow-500/60" },
+  { key: "danger", label: SIGNAL_LABELS.danger, ring: "ring-red-500/60" },
 ];
 
 type AdminPublishFormProps = {
@@ -27,6 +38,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
   const [marketType, setMarketType] = useState<AdminMarketType>("us");
   const [stockName, setStockName] = useState("");
   const [stockCode, setStockCode] = useState("");
+  const [signalStatus, setSignalStatus] = useState<SignalStatus>(DEFAULT_SIGNAL_STATUS);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [existingCoverUrl, setExistingCoverUrl] = useState<string | null>(null);
@@ -44,6 +56,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
       setMarketType("us");
       setStockName("");
       setStockCode("");
+      setSignalStatus(DEFAULT_SIGNAL_STATUS);
       setImage(null);
       setExistingCoverUrl(null);
       setRemoveImage(false);
@@ -58,6 +71,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
     setMarketType(draft.marketType);
     setStockName(draft.stockName);
     setStockCode(draft.stockCode);
+    setSignalStatus(draft.signalStatus);
     setExistingCoverUrl(draft.coverImageUrl);
     setImage(null);
     setRemoveImage(false);
@@ -107,6 +121,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
     formData.set("market_type", marketType);
     formData.set("stock_name", stockName);
     formData.set("stock_code", stockCode);
+    formData.set("signal_status", signalStatus);
     if (image) formData.set("image", image);
     if (removeImage) formData.set("remove_image", "1");
 
@@ -233,6 +248,26 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
               </div>
             </div>
           )}
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-foreground">공시·뉴스 시그널</p>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="시그널 등급">
+            {SIGNAL_OPTIONS.map(({ key, label, ring }) => (
+              <Button
+                key={key}
+                type="button"
+                variant={signalStatus === key ? "default" : "outline"}
+                size="sm"
+                role="radio"
+                aria-checked={signalStatus === key}
+                className={signalStatus === key ? `ring-2 ${ring}` : undefined}
+                onClick={() => setSignalStatus(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">

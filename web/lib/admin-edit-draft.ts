@@ -3,6 +3,7 @@
 import type { DisclosureWithStock } from "@/lib/types";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import { getCoverImageUrl } from "@/lib/manual-post";
+import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
 
 export type AdminEditDraft = {
   id: string;
@@ -11,6 +12,7 @@ export type AdminEditDraft = {
   marketType: AdminMarketType;
   stockName: string;
   stockCode: string;
+  signalStatus: SignalStatus;
   coverImageUrl: string | null;
 };
 
@@ -37,6 +39,7 @@ export function disclosureToEditDraft(item: DisclosureWithStock): AdminEditDraft
       item.stocks?.name ??
       (typeof meta?.stock_name === "string" ? meta.stock_name : ""),
     stockCode: code,
+    signalStatus: resolveDisclosureSignalStatus(item),
     coverImageUrl: getCoverImageUrl(item),
   };
 }

@@ -34,15 +34,22 @@ alter table public.disclosures
   add column if not exists market_type text,
   add column if not exists stock_name text,
   add column if not exists stock_code text,
-  add column if not exists membership_type text not null default 'free';
+  add column if not exists membership_type text not null default 'free',
+  add column if not exists signal_status text not null default 'positive';
 
 alter table public.disclosures drop constraint if exists disclosures_market_type_check;
 alter table public.disclosures add constraint disclosures_market_type_check check (
   market_type is null or market_type in ('us', 'kr')
 );
 
+alter table public.disclosures drop constraint if exists disclosures_signal_status_check;
+alter table public.disclosures add constraint disclosures_signal_status_check check (
+  signal_status in ('positive', 'caution', 'danger')
+);
+
 create index if not exists disclosures_created_at_idx on public.disclosures (created_at desc);
 create index if not exists disclosures_market_type_idx on public.disclosures (market_type);
+create index if not exists disclosures_signal_status_idx on public.disclosures (signal_status);
 
 alter table public.stocks enable row level security;
 alter table public.disclosures enable row level security;
