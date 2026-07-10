@@ -5,27 +5,24 @@ export type SignalStatus = "positive" | "neutral" | "caution" | "danger";
 export const SIGNAL_STATUSES: SignalStatus[] = ["positive", "neutral", "caution", "danger"];
 
 export const SIGNAL_LABELS: Record<SignalStatus, string> = {
-  positive: "🟢 순항 중",
+  positive: "🟢 긍정",
   neutral: "⚪ 관망",
-  caution: "🟡 전방에 암초 감지",
-  danger: "🚨 난파선 위기",
+  caution: "🟡 주의",
+  danger: "🚨 위험",
 };
 
 export const SIGNAL_SHORT_LABELS: Record<SignalStatus, string> = {
-  positive: "순항 중",
+  positive: "긍정",
   neutral: "관망",
-  caution: "암초 감지",
-  danger: "난파선 위기",
+  caution: "주의",
+  danger: "위험",
 };
 
 export const SIGNAL_DESCRIPTIONS: Record<SignalStatus, string> = {
-  positive:
-    "강력한 호재 공시가 확인되어, 상승 에너지를 얻고 돛을 올린 상태입니다.",
-  neutral: "특이사항 없는 평온한 상태입니다. 흐름을 관망하며 다음 시그널을 대기하세요.",
-  caution:
-    "주가가 이미 많이 올랐거나 리스크 요인이 앞에 포착되어 신중한 주의가 필요한 상태입니다.",
-  danger:
-    "치명적인 악재를 정면으로 들이받아 침몰 위험이 매우 높은 위험천만한 상태입니다.",
+  positive: "기업 가치에 이로운 호재성 내용이 확인된 상태입니다.",
+  neutral: "특이사항이 없는 평온한 상태입니다. 흐름을 지켜보세요.",
+  caution: "주가가 이미 많이 올랐거나 리스크 요인이 감지되어 유의가 필요합니다.",
+  danger: "치명적인 악재 공시나 폭락 징후가 감지되어 위험도가 높은 상태입니다.",
 };
 
 /** 가로 반원 4구역 바늘 CSS 회전각 (0°=위, -90°=왼쪽 끝, +90°=오른쪽 끝) */
@@ -46,12 +43,23 @@ export function parseSignalStatus(value: unknown): SignalStatus {
   return isSignalStatus(value) ? value : DEFAULT_SIGNAL_STATUS;
 }
 
+/** gemini_metadata.signal_status 단일 소스 (관리자 저장 경로) */
+export function readSignalFromGeminiMetadata(
+  meta: Record<string, unknown> | null | undefined
+): SignalStatus | null {
+  if (!meta || typeof meta !== "object") return null;
+  return isSignalStatus(meta.signal_status) ? meta.signal_status : null;
+}
+
+/** 상세·목록 공통 — gemini_metadata 우선, 없을 때만 DB 컬럼 fallback */
 export function resolveDisclosureSignalStatus(item: {
   signal_status?: string | null;
   gemini_metadata?: Record<string, unknown> | null;
 }): SignalStatus {
+  const fromMeta = readSignalFromGeminiMetadata(item.gemini_metadata);
+  if (fromMeta) return fromMeta;
   if (isSignalStatus(item.signal_status)) return item.signal_status;
-  return parseSignalStatus(item.gemini_metadata?.signal_status);
+  return DEFAULT_SIGNAL_STATUS;
 }
 
 export function signalStatusFromForm(value: FormDataEntryValue | null): SignalStatus {

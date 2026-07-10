@@ -6,6 +6,9 @@ import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
 import { disclosureStockLabel } from "@/lib/news-display";
 import { SITE_NAME_KO } from "@/lib/site";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type PageProps = { params: { id: string } };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

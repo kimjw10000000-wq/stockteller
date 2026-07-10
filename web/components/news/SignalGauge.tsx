@@ -5,6 +5,7 @@ import {
   SIGNAL_DESCRIPTIONS,
   SIGNAL_LABELS,
   SIGNAL_NEEDLE_ROTATE,
+  SIGNAL_SHORT_LABELS,
   type SignalStatus,
 } from "@/lib/signal-status";
 
@@ -17,7 +18,6 @@ const CY = 132;
 const R = 96;
 const STROKE = 14;
 
-/** 0°=오른쪽, 90°=위, 180°=왼쪽 */
 function polar(deg: number) {
   const rad = (deg * Math.PI) / 180;
   return { x: CX + R * Math.cos(rad), y: CY - R * Math.sin(rad) };
@@ -31,11 +31,11 @@ function arcPath(startDeg: number, endDeg: number): string {
   return `M ${start.x} ${start.y} A ${R} ${R} 0 ${large} ${sweep} ${end.x} ${end.y}`;
 }
 
-const ZONE_DEFS: { start: number; end: number; color: string; label: string; labelClass: string }[] = [
-  { start: 180, end: 135, color: "#22c55e", label: "순항", labelClass: "fill-green-600" },
-  { start: 135, end: 90, color: "#e2e8f0", label: "관망", labelClass: "fill-slate-500" },
-  { start: 90, end: 45, color: "#eab308", label: "암초", labelClass: "fill-yellow-600" },
-  { start: 45, end: 0, color: "#ef4444", label: "위기", labelClass: "fill-red-600" },
+const ZONE_DEFS: { start: number; end: number; color: string; key: SignalStatus }[] = [
+  { start: 180, end: 135, color: "#22c55e", key: "positive" },
+  { start: 135, end: 90, color: "#e2e8f0", key: "neutral" },
+  { start: 90, end: 45, color: "#eab308", key: "caution" },
+  { start: 45, end: 0, color: "#ef4444", key: "danger" },
 ];
 
 const TICK_ANGLES = [157.5, 112.5, 67.5, 22.5];
@@ -54,10 +54,10 @@ export function SignalGauge({ status }: SignalGaugeProps) {
     <div className="flex w-full max-w-lg flex-col items-center" aria-live="polite">
       <div className="relative w-full max-w-[340px]">
         <svg
-          viewBox="0 0 280 155"
+          viewBox="0 0 280 165"
           className="h-auto w-full drop-shadow-sm"
           role="img"
-          aria-label={`공시·뉴스 항해 레이더: ${label}`}
+          aria-label={`공시·뉴스 시그널: ${label}`}
         >
           <defs>
             <filter id="gauge-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -122,16 +122,29 @@ export function SignalGauge({ status }: SignalGaugeProps) {
           {zones.map((z) => {
             const mid = (z.start + z.end) / 2;
             const pt = polar(mid);
+            const text = SIGNAL_SHORT_LABELS[z.key];
             return (
-              <text
-                key={z.label}
-                x={pt.x}
-                y={pt.y + (mid > 90 ? 6 : -8)}
-                textAnchor="middle"
-                className={`text-[8px] font-medium ${z.labelClass}`}
-              >
-                {z.label}
-              </text>
+              <g key={z.key}>
+                <rect
+                  x={pt.x - 18}
+                  y={pt.y + (mid > 90 ? -2 : -14)}
+                  width={36}
+                  height={14}
+                  rx={3}
+                  fill="white"
+                  fillOpacity={0.92}
+                />
+                <text
+                  x={pt.x}
+                  y={pt.y + (mid > 90 ? 9 : -3)}
+                  textAnchor="middle"
+                  fill="#000000"
+                  fontSize={10}
+                  fontWeight={700}
+                >
+                  {text}
+                </text>
+              </g>
             );
           })}
 
@@ -182,7 +195,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
       </div>
 
       <p className="mt-1 text-center text-sm font-semibold tracking-tight text-foreground">
-        공시·뉴스 항해 레이더
+        공시·뉴스 시그널
       </p>
       <p className="text-center text-sm font-medium text-foreground">{label}</p>
       <p className="mt-2 max-w-md text-center text-sm leading-relaxed text-muted-foreground">

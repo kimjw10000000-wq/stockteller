@@ -2,19 +2,39 @@
 
 import { useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { isSignalStatus, type SignalStatus } from "@/lib/signal-status";
+import {
+  readSignalFromGeminiMetadata,
+  type SignalStatus,
+} from "@/lib/signal-status";
 
-/** 뉴스 상세 — disclosures.signal_status UPDATE 실시간 구독 */
+/** 뉴스 상세 — gemini_metadata.signal_status UPDATE 실시간 구독 */
 export function useSignalRealtime(
   disclosureId: string,
   onStatusChange: (status: SignalStatus) => void
 ) {
   useEffect(() => {
-    let supabase;
+    let supabase: ReturnType<typeof createSupabaseBrowserClient>;
     try {
       supabase = createSupabaseBrowserClient();
     } catch {
       return;
+    }
+
+    async function fetchSignalFromDb(): Promise<SignalStatus | null> {
+      const { data, error } = await supabase
+        .from("disclosures")
+        .select("gemini_metadata")
+        .eq("id", disclosureId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[signal-realtime] fetch failed:", error.code, error.message);
+        return null;
+      }
+
+      return readSignalFromGeminiMetadata(
+        data?.gemini_metadata as Record<string, unknown> | null | undefined
+      );
     }
 
     const channel = supabase
@@ -28,17 +48,15 @@ export function useSignalRealtime(
           filter: `id=eq.${disclosureId}`,
         },
         (payload) => {
-          const row = payload.new as {
-            signal_status?: unknown;
-            gemini_metadata?: { signal_status?: unknown } | null;
-          };
-          if (isSignalStatus(row.signal_status)) {
-            onStatusChange(row.signal_status);
+          const row = payload.new as { gemini_metadata?: Record<string, unknown> | null };
+          const fromPayload = readSignalFromGeminiMetadata(row.gemini_metadata);
+          if (fromPayload) {
+            onStatusChange(fromPayload);
             return;
           }
-          if (isSignalStatus(row.gemini_metadata?.signal_status)) {
-            onStatusChange(row.gemini_metadata.signal_status);
-          }
+          void fetchSignalFromDb().then((status) => {
+            if (status) onStatusChange(status);
+          });
         }
       )
       .subscribe();

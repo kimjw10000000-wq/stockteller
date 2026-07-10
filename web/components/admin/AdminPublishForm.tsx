@@ -253,7 +253,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-medium text-foreground">공시·뉴스 항해 레이더</p>
+          <p className="text-sm font-medium text-foreground">공시·뉴스 시그널</p>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="항해 레이더 등급">
             {SIGNAL_STATUSES.map((key) => (
               <Button
