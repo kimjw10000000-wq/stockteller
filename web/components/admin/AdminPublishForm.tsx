@@ -7,17 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import type { AdminEditDraft } from "@/lib/admin-edit-draft";
-import type { MembershipType } from "@/lib/membership";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const MARKET_OPTIONS: { key: AdminMarketType; label: string }[] = [
   { key: "us", label: "미국주식" },
   { key: "kr", label: "한국주식" },
-];
-
-const MEMBERSHIP_OPTIONS: { key: MembershipType; label: string }[] = [
-  { key: "free", label: "무료회원용" },
-  { key: "premium", label: "유료회원용" },
 ];
 
 type AdminPublishFormProps = {
@@ -33,7 +27,6 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
   const [marketType, setMarketType] = useState<AdminMarketType>("us");
   const [stockName, setStockName] = useState("");
   const [stockCode, setStockCode] = useState("");
-  const [membershipType, setMembershipType] = useState<MembershipType>("free");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [existingCoverUrl, setExistingCoverUrl] = useState<string | null>(null);
@@ -51,7 +44,6 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
       setMarketType("us");
       setStockName("");
       setStockCode("");
-      setMembershipType("free");
       setImage(null);
       setExistingCoverUrl(null);
       setRemoveImage(false);
@@ -66,7 +58,6 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
     setMarketType(draft.marketType);
     setStockName(draft.stockName);
     setStockCode(draft.stockCode);
-    setMembershipType(draft.membershipType);
     setExistingCoverUrl(draft.coverImageUrl);
     setImage(null);
     setRemoveImage(false);
@@ -116,7 +107,6 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
     formData.set("market_type", marketType);
     formData.set("stock_name", stockName);
     formData.set("stock_code", stockCode);
-    formData.set("membership_type", membershipType);
     if (image) formData.set("image", image);
     if (removeImage) formData.set("remove_image", "1");
 
@@ -305,28 +295,6 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
               기존 이미지 제거
             </label>
           ) : null}
-        </div>
-
-        <div className="space-y-3 border-t border-border pt-5">
-          <p className="text-sm font-medium text-foreground">회원 등급</p>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="회원 등급 선택">
-            {MEMBERSHIP_OPTIONS.map(({ key, label }) => (
-              <Button
-                key={key}
-                type="button"
-                variant={membershipType === key ? "default" : "outline"}
-                size="sm"
-                role="radio"
-                aria-checked={membershipType === key}
-                onClick={() => setMembershipType(key)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            유료회원용은 제목만 공개되며, 본문은 유료 회원만 열람할 수 있습니다.
-          </p>
         </div>
 
         {message ? (

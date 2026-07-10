@@ -1,9 +1,7 @@
 "use client";
 
 import type { DisclosureWithStock } from "@/lib/types";
-import { disclosureMembershipType } from "@/lib/membership";
 import { formatNewsDate } from "@/lib/news-sort";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -55,7 +53,6 @@ export function AdminNewsManageList({
       ) : (
         <ul className="divide-y divide-border">
           {items.map((item) => {
-            const tier = disclosureMembershipType(item);
             const market = item.market_type === "kr" ? "한국" : item.market_type === "us" ? "미국" : "—";
             const stockLabel = [item.stock_name, item.stock_code].filter(Boolean).join(" · ") || "—";
 
@@ -69,9 +66,6 @@ export function AdminNewsManageList({
                     <span>{market}</span>
                     <span>·</span>
                     <span className="font-mono">{stockLabel}</span>
-                    <Badge variant={tier === "premium" ? "default" : "secondary"} className="text-[10px]">
-                      {tier === "premium" ? "유료" : "무료"}
-                    </Badge>
                   </div>
                 </div>
                 <Button

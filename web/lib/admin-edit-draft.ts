@@ -2,8 +2,6 @@
 
 import type { DisclosureWithStock } from "@/lib/types";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
-import type { MembershipType } from "@/lib/membership";
-import { disclosureMembershipType } from "@/lib/membership";
 import { getCoverImageUrl } from "@/lib/manual-post";
 
 export type AdminEditDraft = {
@@ -13,7 +11,6 @@ export type AdminEditDraft = {
   marketType: AdminMarketType;
   stockName: string;
   stockCode: string;
-  membershipType: MembershipType;
   coverImageUrl: string | null;
 };
 
@@ -32,7 +29,6 @@ export function disclosureToEditDraft(item: DisclosureWithStock): AdminEditDraft
     marketType,
     stockName: item.stock_name ?? item.stocks?.name ?? "",
     stockCode: item.stock_code ?? item.stocks?.ticker ?? "",
-    membershipType: disclosureMembershipType(item),
     coverImageUrl: getCoverImageUrl(item),
   };
 }

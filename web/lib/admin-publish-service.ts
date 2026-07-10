@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
-import { normalizeMembershipType, type MembershipType } from "@/lib/membership";
 import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DisclosureWithStock } from "@/lib/types";
@@ -14,7 +13,6 @@ export type PublishFormPayload = {
   marketType: "us" | "kr";
   stockName: string;
   stockCode: string;
-  membershipType: MembershipType;
   coverImageUrl: string | null;
 };
 
@@ -24,7 +22,6 @@ export function parsePublishFormData(formData: FormData): {
 } | { ok: false; error: string } {
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
-  const membershipType = normalizeMembershipType(String(formData.get("membership_type") ?? "free"));
   const image = formData.get("image");
   const removeImage = String(formData.get("remove_image") ?? "") === "1";
 
@@ -43,7 +40,6 @@ export function parsePublishFormData(formData: FormData): {
     data: {
       title,
       body,
-      membershipType,
       marketType: marketCheck.marketType,
       stockName: marketCheck.stockName,
       stockCode: marketCheck.stockCode,
@@ -103,7 +99,8 @@ function buildGeminiMetadata(
   authorEmail: string,
   existing?: DisclosureWithStock | null
 ) {
-  const prev = (existing?.gemini_metadata ?? {}) as Record<string, unknown>;
+  const prev = { ...(existing?.gemini_metadata ?? {}) } as Record<string, unknown>;
+  delete prev.membership_type;
   return {
     ...prev,
     source: "admin_publish",
@@ -112,7 +109,6 @@ function buildGeminiMetadata(
     market_type: payload.marketType,
     stock_name: payload.stockName,
     stock_code: payload.stockCode,
-    membership_type: payload.membershipType,
   };
 }
 
@@ -143,7 +139,6 @@ export async function insertAdminDisclosure(
       market_type: payload.marketType,
       stock_name: payload.stockName,
       stock_code: payload.stockCode,
-      membership_type: payload.membershipType,
       gemini_metadata: buildGeminiMetadata(payload, authorEmail),
     })
     .select("id, created_at")
@@ -179,7 +174,6 @@ export async function updateAdminDisclosure(
       market_type: payload.marketType,
       stock_name: payload.stockName,
       stock_code: payload.stockCode,
-      membership_type: payload.membershipType,
       gemini_metadata: buildGeminiMetadata(payload, authorEmail, existing),
     })
     .eq("id", id)

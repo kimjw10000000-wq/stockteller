@@ -58,7 +58,6 @@ export async function POST(req: Request) {
         marketType: parsed.data.marketType,
         stockName: parsed.data.stockName,
         stockCode: parsed.data.stockCode,
-        membershipType: parsed.data.membershipType,
         coverImageUrl,
       },
       user.email ?? ""
