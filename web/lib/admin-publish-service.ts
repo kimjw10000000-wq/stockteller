@@ -3,6 +3,7 @@ import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
 import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
 import {
   isSignalStatus,
+  parseSignalStatus,
   signalStatusFromForm,
   type SignalStatus,
 } from "@/lib/signal-status";
@@ -268,28 +269,35 @@ export async function updateAdminDisclosureSignal(
     .from("disclosures")
     .update({ signal_status: signalStatus, gemini_metadata })
     .eq("id", id)
-    .select("id, signal_status")
+    .select("id, signal_status, gemini_metadata")
     .maybeSingle();
 
   if (error && isMissingOptionalColumnError(error)) {
+    console.warn(
+      "[admin/publish/signal] signal_status column missing — storing in gemini_metadata only"
+    );
     ({ data, error } = await admin
       .from("disclosures")
       .update({ gemini_metadata })
       .eq("id", id)
-      .select("id, signal_status")
+      .select("id, gemini_metadata")
       .maybeSingle());
   }
 
   if (error) {
-    console.error("[admin/publish/signal]", error.code, error.message);
+    console.error("[admin/publish/signal] update failed", error.code, error.message);
     throw new Error(error.message);
   }
   if (!data?.id) throw new Error("UPDATE_FAILED");
 
-  return {
-    id: data.id,
-    signal_status: isSignalStatus(data.signal_status) ? data.signal_status : signalStatus,
-  };
+  const resolved =
+    "signal_status" in data && isSignalStatus(data.signal_status)
+      ? data.signal_status
+      : parseSignalStatus(
+          (data.gemini_metadata as Record<string, unknown> | null)?.signal_status
+        );
+
+  return { id: data.id, signal_status: resolved };
 }
 
 export async function getAdminDisclosureById(id: string): Promise<DisclosureWithStock | null> {

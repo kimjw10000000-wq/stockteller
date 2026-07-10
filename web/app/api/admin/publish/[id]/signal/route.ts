@@ -44,7 +44,10 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     if (msg === "NOT_FOUND") {
       return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다." }, { status: 404 });
     }
-    console.error("[admin/publish/signal]", msg);
-    return NextResponse.json({ ok: false, error: "시그널 저장에 실패했습니다." }, { status: 500 });
+    console.error("[admin/publish/signal] PATCH failed:", msg, { id: params.id, signal_status: body.signal_status });
+    return NextResponse.json(
+      { ok: false, error: "시그널 저장에 실패했습니다.", detail: msg },
+      { status: 500 }
+    );
   }
 }

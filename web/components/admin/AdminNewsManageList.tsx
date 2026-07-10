@@ -34,7 +34,7 @@ export function AdminNewsManageList({
   const [signalDrafts, setSignalDrafts] = useState<Record<string, SignalStatus>>({});
   const [savedSignals, setSavedSignals] = useState<Record<string, SignalStatus>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [signalMessage, setSignalMessage] = useState<string | null>(null);
+  const [signalMessage, setSignalMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     const next: Record<string, SignalStatus> = {};
@@ -65,17 +65,31 @@ export function AdminNewsManageList({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signal_status }),
       });
-      const j = (await res.json()) as { ok?: boolean; error?: string; signal_status?: SignalStatus };
+      const j = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        detail?: string;
+        signal_status?: SignalStatus;
+      };
       if (!res.ok || !j.ok) {
-        setSignalMessage(j.error ?? "시그널 저장에 실패했습니다.");
+        const detail = j.detail ? ` (${j.detail})` : "";
+        console.error("[admin/signal save]", j.error ?? res.statusText, detail, {
+          id: item.id,
+          signal_status,
+        });
+        setSignalMessage({
+          ok: false,
+          text: j.error ?? "시그널 저장에 실패했습니다.",
+        });
         return;
       }
       const next = j.signal_status ?? signal_status;
       setSavedSignals((prev) => ({ ...prev, [item.id]: next }));
       setSignalDrafts((prev) => ({ ...prev, [item.id]: next }));
-      setSignalMessage("시그널이 저장되었습니다. 상세 페이지에 실시간 반영됩니다.");
-    } catch {
-      setSignalMessage("네트워크 오류입니다.");
+      setSignalMessage({ ok: true, text: "성공적으로 저장되었습니다." });
+    } catch (err) {
+      console.error("[admin/signal save] network", err, { id: item.id, signal_status });
+      setSignalMessage({ ok: false, text: "네트워크 오류입니다." });
     } finally {
       setSavingId(null);
     }
@@ -104,8 +118,11 @@ export function AdminNewsManageList({
       </form>
 
       {signalMessage ? (
-        <p className="mb-3 text-xs text-muted-foreground" role="status">
-          {signalMessage}
+        <p
+          className={`mb-3 text-sm ${signalMessage.ok ? "text-green-600" : "text-destructive"}`}
+          role="status"
+        >
+          {signalMessage.text}
         </p>
       ) : null}
 
