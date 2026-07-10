@@ -1,6 +1,7 @@
 "use client";
 
 import type { DisclosureWithStock } from "@/lib/types";
+import { disclosureStockLabel, disclosureMarket } from "@/lib/news-display";
 import { formatNewsDate } from "@/lib/news-sort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,8 +54,14 @@ export function AdminNewsManageList({
       ) : (
         <ul className="divide-y divide-border">
           {items.map((item) => {
-            const market = item.market_type === "kr" ? "한국" : item.market_type === "us" ? "미국" : "—";
-            const stockLabel = [item.stock_name, item.stock_code].filter(Boolean).join(" · ") || "—";
+            const { stock, name } = disclosureStockLabel(item);
+            const marketLabel =
+              disclosureMarket(item) === "kr"
+                ? "한국"
+                : disclosureMarket(item) === "us"
+                  ? "미국"
+                  : "—";
+            const stockLabel = [name, stock].filter((v) => v && v !== "—").join(" · ") || "—";
 
             return (
               <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -63,7 +70,7 @@ export function AdminNewsManageList({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{formatNewsDate(item.created_at)}</span>
                     <span>·</span>
-                    <span>{market}</span>
+                    <span>{marketLabel}</span>
                     <span>·</span>
                     <span className="font-mono">{stockLabel}</span>
                   </div>

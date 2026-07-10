@@ -2,6 +2,8 @@ import type { DisclosureWithStock } from "@/lib/types";
 import { isManualEditorPost } from "@/lib/manual-post";
 import { inferStockMarket } from "@/lib/news-sort";
 
+export { matchesStockSearchQuery } from "@/lib/stock-search";
+
 export type NewsTrend = "up" | "down" | "neutral";
 
 function adminPublishStockMeta(item: DisclosureWithStock): {
@@ -77,28 +79,6 @@ export function disclosureStockLabel(item: DisclosureWithStock): {
   const name = item.stocks?.name ?? "종목 미상";
   const market = disclosureMarket(item);
   return { stock: ticker, name, market };
-}
-
-/** 종목 필드만 검색 (제목·본문 제외) */
-export function matchesStockSearchQuery(item: DisclosureWithStock, qLower: string): boolean {
-  if (!qLower) return true;
-  const adminMeta = adminPublishStockMeta(item);
-  const fields = [
-    item.stock_name,
-    item.stock_code,
-    adminMeta?.name,
-    adminMeta?.stock,
-    item.stocks?.name,
-    item.stocks?.ticker,
-  ]
-    .filter(Boolean)
-    .map((v) => String(v).toLowerCase());
-  return fields.some((v) => v.includes(qLower));
-}
-
-/** @deprecated matchesStockSearchQuery 사용 */
-export function matchesSearchQuery(item: DisclosureWithStock, qLower: string): boolean {
-  return matchesStockSearchQuery(item, qLower);
 }
 
 export function matchesMarketFilter(

@@ -15,8 +15,13 @@ export type AdminEditDraft = {
 };
 
 export function disclosureToEditDraft(item: DisclosureWithStock): AdminEditDraft {
-  const code = item.stock_code ?? item.stocks?.ticker ?? "";
-  const marketRaw = item.market_type ?? item.stocks?.market ?? item.gemini_metadata?.market_type;
+  const meta = item.gemini_metadata;
+  const code =
+    item.stock_code ??
+    item.stocks?.ticker ??
+    (typeof meta?.stock_code === "string" ? meta.stock_code : "");
+  const marketRaw =
+    item.market_type ?? item.stocks?.market ?? meta?.market_type;
   let marketType: AdminMarketType = "us";
   if (marketRaw === "kr") marketType = "kr";
   else if (marketRaw === "us") marketType = "us";
@@ -27,8 +32,11 @@ export function disclosureToEditDraft(item: DisclosureWithStock): AdminEditDraft
     title: item.title ?? "",
     body: item.raw_content ?? "",
     marketType,
-    stockName: item.stock_name ?? item.stocks?.name ?? "",
-    stockCode: item.stock_code ?? item.stocks?.ticker ?? "",
+    stockName:
+      item.stock_name ??
+      item.stocks?.name ??
+      (typeof meta?.stock_name === "string" ? meta.stock_name : ""),
+    stockCode: code,
     coverImageUrl: getCoverImageUrl(item),
   };
 }
