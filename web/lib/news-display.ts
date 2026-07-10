@@ -4,6 +4,21 @@ import { inferStockMarket } from "@/lib/news-sort";
 
 export type NewsTrend = "up" | "down" | "neutral";
 
+function adminPublishStockMeta(item: DisclosureWithStock): {
+  stock: string;
+  name: string;
+  market: "us" | "kr" | null;
+} | null {
+  const meta = item.gemini_metadata;
+  if (meta?.source !== "admin_publish") return null;
+  const code = typeof meta.stock_code === "string" ? meta.stock_code : null;
+  if (!code) return null;
+  const name = typeof meta.stock_name === "string" ? meta.stock_name : code;
+  const mt = meta.market_type;
+  const market = mt === "us" || mt === "kr" ? mt : null;
+  return { stock: code, name, market };
+}
+
 export function disclosureTrend(sentiment: DisclosureWithStock["sentiment"]): NewsTrend {
   if (sentiment === "positive") return "up";
   if (sentiment === "negative") return "down";
@@ -23,6 +38,12 @@ export function disclosureMarket(item: DisclosureWithStock): "us" | "kr" | "unkn
     return inferStockMarket(item.stock_code, item.market_type ?? null);
   }
 
+  const adminMeta = adminPublishStockMeta(item);
+  if (adminMeta?.market) return adminMeta.market;
+  if (adminMeta?.stock) {
+    return inferStockMarket(adminMeta.stock, adminMeta.market);
+  }
+
   return "unknown";
 }
 
@@ -39,6 +60,15 @@ export function disclosureStockLabel(item: DisclosureWithStock): {
     };
   }
 
+  const adminMeta = adminPublishStockMeta(item);
+  if (adminMeta) {
+    return {
+      stock: adminMeta.stock,
+      name: adminMeta.name,
+      market: adminMeta.market ?? disclosureMarket(item),
+    };
+  }
+
   if (isManualEditorPost(item)) {
     return { stock: "편집", name: "사이트 소식", market: "unknown" };
   }
@@ -52,7 +82,15 @@ export function disclosureStockLabel(item: DisclosureWithStock): {
 /** 종목 필드만 검색 (제목·본문 제외) */
 export function matchesStockSearchQuery(item: DisclosureWithStock, qLower: string): boolean {
   if (!qLower) return true;
-  const fields = [item.stock_name, item.stock_code, item.stocks?.name, item.stocks?.ticker]
+  const adminMeta = adminPublishStockMeta(item);
+  const fields = [
+    item.stock_name,
+    item.stock_code,
+    adminMeta?.name,
+    adminMeta?.stock,
+    item.stocks?.name,
+    item.stocks?.ticker,
+  ]
     .filter(Boolean)
     .map((v) => String(v).toLowerCase());
   return fields.some((v) => v.includes(qLower));

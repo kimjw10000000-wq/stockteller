@@ -112,6 +112,27 @@ function buildGeminiMetadata(
   };
 }
 
+type SupabaseError = { code?: string; message?: string };
+
+/** DB에 market_type 등 컬럼이 아직 없을 때(PGRST204) fallback insert */
+function isMissingMarketColumnError(error: SupabaseError): boolean {
+  if (error.code === "PGRST204") return true;
+  const msg = error.message ?? "";
+  return (
+    msg.includes("market_type") ||
+    msg.includes("stock_name") ||
+    msg.includes("stock_code")
+  );
+}
+
+function marketColumnFields(payload: PublishFormPayload) {
+  return {
+    market_type: payload.marketType,
+    stock_name: payload.stockName,
+    stock_code: payload.stockCode,
+  };
+}
+
 export async function insertAdminDisclosure(
   payload: PublishFormPayload,
   authorEmail: string
@@ -126,25 +147,38 @@ export async function insertAdminDisclosure(
   const summary = previewSummaryFromBody(payload.body);
   const externalId = `admin:${crypto.randomUUID()}`;
 
-  const { data, error } = await admin
+  const baseRow = {
+    stock_id: stockId,
+    external_id: externalId,
+    title: payload.title,
+    raw_content: payload.body,
+    summary,
+    sentiment: null,
+    analysis_score: null,
+    gemini_metadata: buildGeminiMetadata(payload, authorEmail),
+  };
+
+  let { data, error } = await admin
     .from("disclosures")
-    .insert({
-      stock_id: stockId,
-      external_id: externalId,
-      title: payload.title,
-      raw_content: payload.body,
-      summary,
-      sentiment: null,
-      analysis_score: null,
-      market_type: payload.marketType,
-      stock_name: payload.stockName,
-      stock_code: payload.stockCode,
-      gemini_metadata: buildGeminiMetadata(payload, authorEmail),
-    })
+    .insert({ ...baseRow, ...marketColumnFields(payload) })
     .select("id, created_at")
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error && isMissingMarketColumnError(error)) {
+    console.warn(
+      "[admin/publish] disclosures.market_type columns missing — storing market/stock in gemini_metadata + stocks only"
+    );
+    ({ data, error } = await admin
+      .from("disclosures")
+      .insert(baseRow)
+      .select("id, created_at")
+      .maybeSingle());
+  }
+
+  if (error) {
+    console.error("[admin/publish] insert", error.code, error.message);
+    throw new Error(error.message);
+  }
   if (!data?.id) throw new Error("INSERT_FAILED");
   return data;
 }
@@ -164,23 +198,35 @@ export async function updateAdminDisclosure(
   );
   const summary = previewSummaryFromBody(payload.body);
 
-  const { data, error } = await admin
+  const baseRow = {
+    stock_id: stockId,
+    title: payload.title,
+    raw_content: payload.body,
+    summary,
+    gemini_metadata: buildGeminiMetadata(payload, authorEmail, existing),
+  };
+
+  let { data, error } = await admin
     .from("disclosures")
-    .update({
-      stock_id: stockId,
-      title: payload.title,
-      raw_content: payload.body,
-      summary,
-      market_type: payload.marketType,
-      stock_name: payload.stockName,
-      stock_code: payload.stockCode,
-      gemini_metadata: buildGeminiMetadata(payload, authorEmail, existing),
-    })
+    .update({ ...baseRow, ...marketColumnFields(payload) })
     .eq("id", id)
     .select("id, created_at")
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error && isMissingMarketColumnError(error)) {
+    console.warn("[admin/publish] market columns missing on update — fallback");
+    ({ data, error } = await admin
+      .from("disclosures")
+      .update(baseRow)
+      .eq("id", id)
+      .select("id, created_at")
+      .maybeSingle());
+  }
+
+  if (error) {
+    console.error("[admin/publish] update", error.code, error.message);
+    throw new Error(error.message);
+  }
   if (!data?.id) throw new Error("UPDATE_FAILED");
   return data;
 }
