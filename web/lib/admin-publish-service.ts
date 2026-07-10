@@ -142,12 +142,8 @@ function marketColumnFields(payload: PublishFormPayload) {
   };
 }
 
-function signalColumnField(payload: PublishFormPayload) {
-  return { signal_status: payload.signalStatus };
-}
-
 function extendedColumnFields(payload: PublishFormPayload) {
-  return { ...marketColumnFields(payload), ...signalColumnField(payload) };
+  return marketColumnFields(payload);
 }
 
 export async function insertAdminDisclosure(
@@ -260,42 +256,45 @@ export async function updateAdminDisclosureSignal(
   const existing = await getAdminDisclosureById(id);
   if (!existing) throw new Error("NOT_FOUND");
 
-  const gemini_metadata = {
-    ...(existing.gemini_metadata ?? {}),
+  const prevMeta = (existing.gemini_metadata ?? {}) as Record<string, unknown>;
+  const gemini_metadata: Record<string, unknown> = {
+    ...prevMeta,
     signal_status: signalStatus,
   };
 
-  let { data, error } = await admin
+  console.log("[admin/publish/signal] updating gemini_metadata only", {
+    id,
+    signalStatus,
+    prevKeys: Object.keys(prevMeta),
+  });
+
+  const { data, error } = await admin
     .from("disclosures")
-    .update({ signal_status: signalStatus, gemini_metadata })
+    .update({ gemini_metadata })
     .eq("id", id)
-    .select("id, signal_status, gemini_metadata")
+    .select("id, gemini_metadata")
     .maybeSingle();
 
-  if (error && isMissingOptionalColumnError(error)) {
-    console.warn(
-      "[admin/publish/signal] signal_status column missing — storing in gemini_metadata only"
-    );
-    ({ data, error } = await admin
-      .from("disclosures")
-      .update({ gemini_metadata })
-      .eq("id", id)
-      .select("id, gemini_metadata")
-      .maybeSingle());
-  }
-
   if (error) {
-    console.error("[admin/publish/signal] update failed", error.code, error.message);
-    throw new Error(error.message);
+    console.error(
+      "[admin/publish/signal] Supabase update failed:",
+      error.code,
+      error.message,
+      error.details,
+      error.hint
+    );
+    throw new Error(`${error.code ?? "DB_ERROR"}: ${error.message}`);
   }
-  if (!data?.id) throw new Error("UPDATE_FAILED");
+  if (!data?.id) {
+    console.error("[admin/publish/signal] no row returned after update", { id });
+    throw new Error("UPDATE_FAILED: no matching row");
+  }
 
-  const resolved =
-    "signal_status" in data && isSignalStatus(data.signal_status)
-      ? data.signal_status
-      : parseSignalStatus(
-          (data.gemini_metadata as Record<string, unknown> | null)?.signal_status
-        );
+  const resolved = parseSignalStatus(
+    (data.gemini_metadata as Record<string, unknown> | null)?.signal_status
+  );
+
+  console.log("[admin/publish/signal] saved OK", { id: data.id, signal_status: resolved });
 
   return { id: data.id, signal_status: resolved };
 }

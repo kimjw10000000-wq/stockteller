@@ -72,14 +72,16 @@ export function AdminNewsManageList({
         signal_status?: SignalStatus;
       };
       if (!res.ok || !j.ok) {
-        const detail = j.detail ? ` (${j.detail})` : "";
-        console.error("[admin/signal save]", j.error ?? res.statusText, detail, {
-          id: item.id,
-          signal_status,
-        });
+        const detail = j.detail ? ` — ${j.detail}` : "";
+        console.error(
+          "[admin/signal save] 구체적 에러 원인:",
+          j.error ?? res.statusText,
+          detail,
+          { status: res.status, id: item.id, signal_status, response: j }
+        );
         setSignalMessage({
           ok: false,
-          text: j.error ?? "시그널 저장에 실패했습니다.",
+          text: `${j.error ?? "시그널 저장에 실패했습니다."}${detail}`,
         });
         return;
       }
@@ -88,7 +90,10 @@ export function AdminNewsManageList({
       setSignalDrafts((prev) => ({ ...prev, [item.id]: next }));
       setSignalMessage({ ok: true, text: "성공적으로 저장되었습니다." });
     } catch (err) {
-      console.error("[admin/signal save] network", err, { id: item.id, signal_status });
+      console.error("[admin/signal save] network — 구체적 에러 원인:", err, {
+        id: item.id,
+        signal_status,
+      });
       setSignalMessage({ ok: false, text: "네트워크 오류입니다." });
     } finally {
       setSavingId(null);
