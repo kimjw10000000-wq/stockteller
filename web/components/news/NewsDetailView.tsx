@@ -6,6 +6,7 @@ import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
+import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
@@ -81,6 +82,7 @@ export function NewsDetailView({ item }: NewsDetailViewProps) {
         <pre className="mt-3 max-h-[480px] overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
           {item.raw_content}
         </pre>
+        <InvestDisclaimer />
       </section>
     </article>
   );
