@@ -25,12 +25,20 @@ export const SIGNAL_DESCRIPTIONS: Record<SignalStatus, string> = {
   danger: "치명적인 악재 공시나 폭락 징후가 감지되어 위험도가 높은 상태입니다.",
 };
 
-/** 가로 반원 4구역 바늘 CSS 회전각 (0°=위, -90°=왼쪽 끝, +90°=오른쪽 끝) */
+/** 게이지 4구역 중심 극좌표(°): 0=오른쪽, 90=위, 180=왼쪽 */
+export const SIGNAL_NEEDLE_POLAR_DEG: Record<SignalStatus, number> = {
+  positive: 157.5,
+  neutral: 112.5,
+  caution: 67.5,
+  danger: 22.5,
+};
+
+/** 바늘 기본 방향(위) → 구역 중심. CSS rotate = 90° − 극좌표 */
 export const SIGNAL_NEEDLE_ROTATE: Record<SignalStatus, number> = {
-  positive: -90,
-  neutral: -30,
-  caution: 30,
-  danger: 90,
+  positive: 90 - SIGNAL_NEEDLE_POLAR_DEG.positive,
+  neutral: 90 - SIGNAL_NEEDLE_POLAR_DEG.neutral,
+  caution: 90 - SIGNAL_NEEDLE_POLAR_DEG.caution,
+  danger: 90 - SIGNAL_NEEDLE_POLAR_DEG.danger,
 };
 
 export const DEFAULT_SIGNAL_STATUS: SignalStatus = "positive";
