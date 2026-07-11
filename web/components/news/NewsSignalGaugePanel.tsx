@@ -3,58 +3,42 @@
 import { useCallback, useEffect, useState } from "react";
 import { SignalGauge } from "@/components/news/SignalGauge";
 import { useSignalRealtime } from "@/hooks/use-signal-realtime";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import {
-  readSignalFromGeminiMetadata,
-  type SignalStatus,
-} from "@/lib/signal-status";
+import { getSignalStatusForStockCode } from "@/lib/stock-signal-sync";
+import type { SignalStatus } from "@/lib/signal-status";
 
 type NewsSignalGaugePanelProps = {
-  disclosureId: string;
+  stockCode: string | null;
   initialStatus: SignalStatus;
 };
 
-export function NewsSignalGaugePanel({ disclosureId, initialStatus }: NewsSignalGaugePanelProps) {
+export function NewsSignalGaugePanel({ stockCode, initialStatus }: NewsSignalGaugePanelProps) {
   const [status, setStatus] = useState<SignalStatus>(initialStatus);
 
   const onRealtime = useCallback((next: SignalStatus) => {
     setStatus(next);
   }, []);
 
-  useSignalRealtime(disclosureId, onRealtime);
+  useSignalRealtime(stockCode, onRealtime);
 
-  /** SSR 캐시와 무관하게 마운트 시 gemini_metadata에서 최신 시그널 동기화 */
+  /** 종목코드 기준 최신 시그널 동기화 */
   useEffect(() => {
+    if (!stockCode) return;
     let cancelled = false;
 
-    async function syncFromDb() {
+    async function syncFromStock() {
       try {
-        const supabase = createSupabaseBrowserClient();
-        const { data, error } = await supabase
-          .from("disclosures")
-          .select("gemini_metadata")
-          .eq("id", disclosureId)
-          .maybeSingle();
-
-        if (cancelled || error) {
-          if (error) console.error("[signal-gauge] sync failed:", error.code, error.message);
-          return;
-        }
-
-        const fromMeta = readSignalFromGeminiMetadata(
-          data?.gemini_metadata as Record<string, unknown> | null | undefined
-        );
-        if (fromMeta) setStatus(fromMeta);
+        const next = await getSignalStatusForStockCode(stockCode!);
+        if (!cancelled) setStatus(next);
       } catch (err) {
-        console.error("[signal-gauge] sync error:", err);
+        console.error("[signal-gauge] stock sync error:", err);
       }
     }
 
-    void syncFromDb();
+    void syncFromStock();
     return () => {
       cancelled = true;
     };
-  }, [disclosureId]);
+  }, [stockCode]);
 
   return (
     <div className="mt-6 flex justify-center rounded-xl border border-border/80 bg-muted/20 px-4 py-6">

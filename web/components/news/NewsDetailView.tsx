@@ -8,20 +8,24 @@ import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
 import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
-import { resolveDisclosureSignalStatus } from "@/lib/signal-status";
+import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
+import { resolveDisclosureStockCode } from "@/lib/stock-signal-sync";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
+  stockCode?: string | null;
+  signalStatus?: SignalStatus;
 };
 
-export function NewsDetailView({ item }: NewsDetailViewProps) {
+export function NewsDetailView({ item, stockCode: stockCodeProp, signalStatus: signalStatusProp }: NewsDetailViewProps) {
   const manual = isManualEditorPost(item);
   const { stock, name } = disclosureStockLabel(item);
   const trend = disclosureTrend(item.sentiment);
   const title = item.title ?? "제목 없음";
   const summaryLines = item.summary?.split("\n").filter((l) => l.trim()) ?? [];
   const cover = getCoverImageUrl(item);
-  const signalStatus = resolveDisclosureSignalStatus(item);
+  const stockCode = stockCodeProp ?? resolveDisclosureStockCode(item);
+  const signalStatus = signalStatusProp ?? resolveDisclosureSignalStatus(item);
 
   return (
     <article className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -50,7 +54,7 @@ export function NewsDetailView({ item }: NewsDetailViewProps) {
         </div>
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{title}</h1>
-        <NewsSignalGaugePanel disclosureId={item.id} initialStatus={signalStatus} />
+        <NewsSignalGaugePanel stockCode={stockCode} initialStatus={signalStatus} />
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

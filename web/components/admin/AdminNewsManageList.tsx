@@ -10,6 +10,7 @@ import {
   SIGNAL_STATUSES,
   type SignalStatus,
 } from "@/lib/signal-status";
+import { resolveDisclosureStockCode } from "@/lib/stock-signal-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -71,6 +72,8 @@ export function AdminNewsManageList({
         error?: string;
         detail?: string;
         signal_status?: SignalStatus;
+        stockCode?: string;
+        updatedCount?: number;
       };
       if (!res.ok || !j.ok) {
         const detail = j.detail ? ` — ${j.detail}` : "";
@@ -87,9 +90,28 @@ export function AdminNewsManageList({
         return;
       }
       const next = j.signal_status ?? signal_status;
-      setSavedSignals((prev) => ({ ...prev, [item.id]: next }));
-      setSignalDrafts((prev) => ({ ...prev, [item.id]: next }));
-      setSignalMessage({ ok: true, text: "성공적으로 저장되었습니다." });
+      const stockCode = j.stockCode ?? resolveDisclosureStockCode(item);
+
+      const applyToSameStock = (prev: Record<string, SignalStatus>) => {
+        const updated = { ...prev };
+        for (const row of items) {
+          if (stockCode && resolveDisclosureStockCode(row) === stockCode) {
+            updated[row.id] = next;
+          } else if (row.id === item.id) {
+            updated[row.id] = next;
+          }
+        }
+        return updated;
+      };
+
+      setSavedSignals(applyToSameStock);
+      setSignalDrafts(applyToSameStock);
+
+      const count = j.updatedCount ?? 1;
+      setSignalMessage({
+        ok: true,
+        text: count > 1 ? `동일 종목 ${count}건 일괄 저장되었습니다.` : "성공적으로 저장되었습니다.",
+      });
     } catch (err) {
       console.error("[admin/signal save] network — 구체적 에러 원인:", err, {
         id: item.id,

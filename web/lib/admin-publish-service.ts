@@ -3,10 +3,10 @@ import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
 import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
 import {
   isSignalStatus,
-  parseSignalStatus,
   signalStatusFromForm,
   type SignalStatus,
 } from "@/lib/signal-status";
+import { resolveDisclosureStockCode } from "@/lib/stock-signal-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DisclosureWithStock } from "@/lib/types";
 
@@ -118,6 +118,7 @@ function buildGeminiMetadata(
     stock_name: payload.stockName,
     stock_code: payload.stockCode,
     signal_status: payload.signalStatus,
+    signal_updated_at: new Date().toISOString(),
   };
 }
 
@@ -193,6 +194,13 @@ export async function insertAdminDisclosure(
     throw new Error(error.message);
   }
   if (!data?.id) throw new Error("INSERT_FAILED");
+
+  try {
+    await bulkUpdateSignalStatusByStockCode(payload.stockCode, payload.signalStatus);
+  } catch (err) {
+    console.warn("[admin/publish] post-insert stock signal sync", err);
+  }
+
   return data;
 }
 
@@ -241,62 +249,78 @@ export async function updateAdminDisclosure(
     throw new Error(error.message);
   }
   if (!data?.id) throw new Error("UPDATE_FAILED");
+
+  try {
+    await bulkUpdateSignalStatusByStockCode(payload.stockCode, payload.signalStatus);
+  } catch (err) {
+    console.warn("[admin/publish] post-update stock signal sync", err);
+  }
+
   return data;
+}
+
+/** 동일 종목 전체 gemini_metadata.signal_status 일괄 갱신 */
+export async function bulkUpdateSignalStatusByStockCode(
+  stockCode: string,
+  signalStatus: SignalStatus
+): Promise<{ updatedCount: number; stockCode: string; signal_status: SignalStatus }> {
+  const admin = createAdminClient();
+  const { findDisclosuresByStockCode, normalizeStockCode } = await import("@/lib/stock-signal-sync");
+  const key = normalizeStockCode(stockCode);
+  const rows = await findDisclosuresByStockCode(key, admin);
+
+  if (rows.length === 0) {
+    throw new Error("NO_MATCHING_STOCK");
+  }
+
+  let updatedCount = 0;
+  for (const row of rows) {
+    const gemini_metadata: Record<string, unknown> = {
+      ...(row.gemini_metadata ?? {}),
+      signal_status: signalStatus,
+      stock_code: key,
+      signal_updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await admin
+      .from("disclosures")
+      .update({ gemini_metadata })
+      .eq("id", row.id);
+
+    if (error) {
+      console.error("[stock-signal] bulk update failed", row.id, error.code, error.message);
+      throw new Error(`${error.code ?? "DB_ERROR"}: ${error.message}`);
+    }
+    updatedCount += 1;
+  }
+
+  console.log("[stock-signal] bulk updated", { stockCode: key, signalStatus, updatedCount });
+
+  return { updatedCount, stockCode: key, signal_status: signalStatus };
 }
 
 export async function updateAdminDisclosureSignal(
   id: string,
   signalStatus: SignalStatus
-): Promise<{ id: string; signal_status: SignalStatus }> {
+): Promise<{ id: string; signal_status: SignalStatus; updatedCount: number; stockCode: string }> {
   if (!isSignalStatus(signalStatus)) {
     throw new Error("INVALID_SIGNAL");
   }
 
-  const admin = createAdminClient();
   const existing = await getAdminDisclosureById(id);
   if (!existing) throw new Error("NOT_FOUND");
 
-  const prevMeta = (existing.gemini_metadata ?? {}) as Record<string, unknown>;
-  const gemini_metadata: Record<string, unknown> = {
-    ...prevMeta,
-    signal_status: signalStatus,
-  };
+  const stockCode = resolveDisclosureStockCode(existing);
+  if (!stockCode) throw new Error("NO_STOCK_CODE");
 
-  console.log("[admin/publish/signal] updating gemini_metadata only", {
+  const result = await bulkUpdateSignalStatusByStockCode(stockCode, signalStatus);
+
+  return {
     id,
-    signalStatus,
-    prevKeys: Object.keys(prevMeta),
-  });
-
-  const { data, error } = await admin
-    .from("disclosures")
-    .update({ gemini_metadata })
-    .eq("id", id)
-    .select("id, gemini_metadata")
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      "[admin/publish/signal] Supabase update failed:",
-      error.code,
-      error.message,
-      error.details,
-      error.hint
-    );
-    throw new Error(`${error.code ?? "DB_ERROR"}: ${error.message}`);
-  }
-  if (!data?.id) {
-    console.error("[admin/publish/signal] no row returned after update", { id });
-    throw new Error("UPDATE_FAILED: no matching row");
-  }
-
-  const resolved = parseSignalStatus(
-    (data.gemini_metadata as Record<string, unknown> | null)?.signal_status
-  );
-
-  console.log("[admin/publish/signal] saved OK", { id: data.id, signal_status: resolved });
-
-  return { id: data.id, signal_status: resolved };
+    signal_status: result.signal_status,
+    updatedCount: result.updatedCount,
+    stockCode: result.stockCode,
+  };
 }
 
 export async function getAdminDisclosureById(id: string): Promise<DisclosureWithStock | null> {

@@ -4,6 +4,7 @@ import { NewsDetailView } from "@/components/news/NewsDetailView";
 import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
 import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
 import { disclosureStockLabel } from "@/lib/news-display";
+import { getSignalStatusForStockCode, resolveDisclosureStockCode } from "@/lib/stock-signal-sync";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -37,9 +38,12 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
     excludeId: row.id,
   });
 
+  const stockCode = resolveDisclosureStockCode(row);
+  const signalStatus = stockCode ? await getSignalStatusForStockCode(stockCode) : undefined;
+
   return (
     <main className="space-y-12">
-      <NewsDetailView item={row} />
+      <NewsDetailView item={row} stockCode={stockCode} signalStatus={signalStatus} />
       <section className="border-t border-border pt-10">
         <NewsOlderInfiniteList
           currentId={row.id}

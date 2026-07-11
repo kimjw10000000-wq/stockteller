@@ -38,11 +38,29 @@ export async function PATCH(req: Request, { params }: RouteContext) {
 
   try {
     const data = await updateAdminDisclosureSignal(params.id, body.signal_status);
-    return NextResponse.json({ ok: true, id: data.id, signal_status: data.signal_status });
+    return NextResponse.json({
+      ok: true,
+      id: data.id,
+      signal_status: data.signal_status,
+      stockCode: data.stockCode,
+      updatedCount: data.updatedCount,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === "NOT_FOUND" || msg.includes("NOT_FOUND")) {
       return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다.", detail: msg }, { status: 404 });
+    }
+    if (msg === "NO_STOCK_CODE") {
+      return NextResponse.json(
+        { ok: false, error: "종목코드를 확인할 수 없어 시그널을 저장할 수 없습니다.", detail: msg },
+        { status: 400 }
+      );
+    }
+    if (msg === "NO_MATCHING_STOCK") {
+      return NextResponse.json(
+        { ok: false, error: "동일 종목 뉴스를 찾을 수 없습니다.", detail: msg },
+        { status: 404 }
+      );
     }
     console.error(
       "[admin/publish/signal] PATCH failed — 구체적 에러 원인:",
