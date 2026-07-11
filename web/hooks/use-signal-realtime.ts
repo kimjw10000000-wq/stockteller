@@ -6,15 +6,23 @@ import {
   readSignalFromGeminiMetadata,
   type SignalStatus,
 } from "@/lib/signal-status";
-import { getSignalStatusForStockCode, rowMatchesStockCode } from "@/lib/stock-signal-sync";
+import {
+  getSignalStatusForStockIdentity,
+  rowMatchesStockIdentity,
+  stockIdentityHasKeys,
+  stockIdentityKey,
+  type StockIdentity,
+} from "@/lib/stock-signal-sync";
 
-/** 종목코드 기준 — 동일 종목 disclosures UPDATE 실시간 구독 */
+/** 종목코드 · 주식이름 · 티커 OR — 동일 종목 disclosures UPDATE 실시간 구독 */
 export function useSignalRealtime(
-  stockCode: string | null,
+  stockIdentity: StockIdentity | null,
   onStatusChange: (status: SignalStatus) => void
 ) {
+  const identityKey = stockIdentity ? stockIdentityKey(stockIdentity) : null;
+
   useEffect(() => {
-    if (!stockCode) return;
+    if (!stockIdentity || !stockIdentityHasKeys(stockIdentity)) return;
 
     let supabase: ReturnType<typeof createSupabaseBrowserClient>;
     try {
@@ -25,7 +33,7 @@ export function useSignalRealtime(
 
     async function fetchSignalForStock(): Promise<SignalStatus | null> {
       try {
-        return await getSignalStatusForStockCode(stockCode!);
+        return await getSignalStatusForStockIdentity(stockIdentity!);
       } catch (err) {
         console.error("[signal-realtime] stock fetch failed:", err);
         return null;
@@ -33,7 +41,7 @@ export function useSignalRealtime(
     }
 
     const channel = supabase
-      .channel(`stock-signal-${stockCode}`)
+      .channel(`stock-signal-${identityKey}`)
       .on(
         "postgres_changes",
         {
@@ -43,12 +51,13 @@ export function useSignalRealtime(
         },
         (payload) => {
           const row = payload.new as {
-            gemini_metadata?: Record<string, unknown> | null;
             stock_code?: string | null;
-            stocks?: { ticker?: string | null } | null;
+            stock_name?: string | null;
+            gemini_metadata?: Record<string, unknown> | null;
+            stocks?: { name?: string | null; ticker?: string | null } | null;
           };
 
-          if (!rowMatchesStockCode(row, stockCode!)) return;
+          if (!rowMatchesStockIdentity(row, stockIdentity!)) return;
 
           const fromPayload = readSignalFromGeminiMetadata(row.gemini_metadata);
           if (fromPayload) {
@@ -65,5 +74,5 @@ export function useSignalRealtime(
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [stockCode, onStatusChange]);
+  }, [identityKey, stockIdentity, onStatusChange]);
 }

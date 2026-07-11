@@ -6,7 +6,7 @@ import {
   signalStatusFromForm,
   type SignalStatus,
 } from "@/lib/signal-status";
-import { resolveDisclosureStockCode } from "@/lib/stock-signal-sync";
+import { enrichStockIdentity } from "@/lib/stock-signal-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DisclosureWithStock } from "@/lib/types";
 
@@ -196,7 +196,10 @@ export async function insertAdminDisclosure(
   if (!data?.id) throw new Error("INSERT_FAILED");
 
   try {
-    await bulkUpdateSignalStatusByStockCode(payload.stockCode, payload.signalStatus);
+    await bulkUpdateSignalStatusByStockIdentity(
+      { stockCode: payload.stockCode, stockName: payload.stockName, ticker: payload.stockCode },
+      payload.signalStatus
+    );
   } catch (err) {
     console.warn("[admin/publish] post-insert stock signal sync", err);
   }
@@ -251,7 +254,10 @@ export async function updateAdminDisclosure(
   if (!data?.id) throw new Error("UPDATE_FAILED");
 
   try {
-    await bulkUpdateSignalStatusByStockCode(payload.stockCode, payload.signalStatus);
+    await bulkUpdateSignalStatusByStockIdentity(
+      { stockCode: payload.stockCode, stockName: payload.stockName, ticker: payload.stockCode },
+      payload.signalStatus
+    );
   } catch (err) {
     console.warn("[admin/publish] post-update stock signal sync", err);
   }
@@ -259,28 +265,54 @@ export async function updateAdminDisclosure(
   return data;
 }
 
-/** 동일 종목 전체 gemini_metadata.signal_status 일괄 갱신 */
-export async function bulkUpdateSignalStatusByStockCode(
-  stockCode: string,
+/** 동일 종목(코드·이름·티커 OR) 전체 gemini_metadata.signal_status 일괄 갱신 */
+export async function bulkUpdateSignalStatusByStockIdentity(
+  identity: import("@/lib/stock-signal-sync").StockIdentity,
   signalStatus: SignalStatus
-): Promise<{ updatedCount: number; stockCode: string; signal_status: SignalStatus }> {
+): Promise<{
+  updatedCount: number;
+  stockCode: string | null;
+  stockName: string | null;
+  ticker: string | null;
+  signal_status: SignalStatus;
+}> {
   const admin = createAdminClient();
-  const { findDisclosuresByStockCode, normalizeStockCode } = await import("@/lib/stock-signal-sync");
-  const key = normalizeStockCode(stockCode);
-  const rows = await findDisclosuresByStockCode(key, admin);
+  const {
+    findDisclosuresByStockIdentity,
+    normalizeStockCode,
+    stockIdentityHasKeys,
+  } = await import("@/lib/stock-signal-sync");
+
+  if (!stockIdentityHasKeys(identity)) {
+    throw new Error("NO_STOCK_IDENTITY");
+  }
+
+  const rows = await findDisclosuresByStockIdentity(identity, admin);
 
   if (rows.length === 0) {
     throw new Error("NO_MATCHING_STOCK");
   }
 
+  const keyCode = identity.stockCode ?? identity.ticker;
+  const keyName = identity.stockName;
+  const updatedAt = new Date().toISOString();
+
   let updatedCount = 0;
   for (const row of rows) {
+    const prev = (row.gemini_metadata ?? {}) as Record<string, unknown>;
     const gemini_metadata: Record<string, unknown> = {
-      ...(row.gemini_metadata ?? {}),
+      ...prev,
       signal_status: signalStatus,
-      stock_code: key,
-      signal_updated_at: new Date().toISOString(),
+      signal_updated_at: updatedAt,
     };
+
+    if (keyCode) {
+      gemini_metadata.stock_code = keyCode;
+      gemini_metadata.ticker = normalizeStockCode(keyCode);
+    }
+    if (keyName) {
+      gemini_metadata.stock_name = keyName;
+    }
 
     const { error } = await admin
       .from("disclosures")
@@ -294,15 +326,56 @@ export async function bulkUpdateSignalStatusByStockCode(
     updatedCount += 1;
   }
 
-  console.log("[stock-signal] bulk updated", { stockCode: key, signalStatus, updatedCount });
+  console.log("[stock-signal] bulk updated", {
+    stockCode: identity.stockCode,
+    stockName: identity.stockName,
+    ticker: identity.ticker,
+    signalStatus,
+    updatedCount,
+  });
 
-  return { updatedCount, stockCode: key, signal_status: signalStatus };
+  return {
+    updatedCount,
+    stockCode: identity.stockCode,
+    stockName: identity.stockName,
+    ticker: identity.ticker,
+    signal_status: signalStatus,
+  };
+}
+
+/** @deprecated bulkUpdateSignalStatusByStockIdentity 사용 */
+export async function bulkUpdateSignalStatusByStockCode(
+  stockCode: string,
+  signalStatus: SignalStatus
+): Promise<{ updatedCount: number; stockCode: string; signal_status: SignalStatus }> {
+  const result = await bulkUpdateSignalStatusByStockIdentity(
+    { stockCode, stockName: null, ticker: null },
+    signalStatus
+  );
+  return {
+    updatedCount: result.updatedCount,
+    stockCode: result.stockCode ?? stockCode,
+    signal_status: result.signal_status,
+  };
+}
+
+function enrichStockIdentityFromDisclosure(
+  existing: DisclosureWithStock
+): import("@/lib/stock-signal-sync").StockIdentity {
+  return enrichStockIdentity(existing);
 }
 
 export async function updateAdminDisclosureSignal(
   id: string,
   signalStatus: SignalStatus
-): Promise<{ id: string; signal_status: SignalStatus; updatedCount: number; stockCode: string }> {
+): Promise<{
+  id: string;
+  signal_status: SignalStatus;
+  updatedCount: number;
+  stockCode: string | null;
+  stockName: string | null;
+  ticker: string | null;
+}> {
   if (!isSignalStatus(signalStatus)) {
     throw new Error("INVALID_SIGNAL");
   }
@@ -310,16 +383,20 @@ export async function updateAdminDisclosureSignal(
   const existing = await getAdminDisclosureById(id);
   if (!existing) throw new Error("NOT_FOUND");
 
-  const stockCode = resolveDisclosureStockCode(existing);
-  if (!stockCode) throw new Error("NO_STOCK_CODE");
+  const identity = enrichStockIdentityFromDisclosure(existing);
+  if (!identity.stockCode && !identity.stockName && !identity.ticker) {
+    throw new Error("NO_STOCK_IDENTITY");
+  }
 
-  const result = await bulkUpdateSignalStatusByStockCode(stockCode, signalStatus);
+  const result = await bulkUpdateSignalStatusByStockIdentity(identity, signalStatus);
 
   return {
     id,
     signal_status: result.signal_status,
     updatedCount: result.updatedCount,
     stockCode: result.stockCode,
+    stockName: result.stockName,
+    ticker: result.ticker,
   };
 }
 
