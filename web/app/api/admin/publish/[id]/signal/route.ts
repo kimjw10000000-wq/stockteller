@@ -52,18 +52,6 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     if (msg === "NOT_FOUND" || msg.includes("NOT_FOUND")) {
       return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다.", detail: msg }, { status: 404 });
     }
-    if (msg === "NO_STOCK_CODE" || msg === "NO_STOCK_IDENTITY") {
-      return NextResponse.json(
-        { ok: false, error: "종목 정보를 확인할 수 없어 시그널을 저장할 수 없습니다.", detail: msg },
-        { status: 400 }
-      );
-    }
-    if (msg === "NO_MATCHING_STOCK") {
-      return NextResponse.json(
-        { ok: false, error: "동일 종목 뉴스를 찾을 수 없습니다.", detail: msg },
-        { status: 404 }
-      );
-    }
     console.error(
       "[admin/publish/signal] PATCH failed — 구체적 에러 원인:",
       msg,
