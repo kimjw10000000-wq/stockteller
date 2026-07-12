@@ -10,7 +10,7 @@ import {
   SIGNAL_STATUSES,
   type SignalStatus,
 } from "@/lib/signal-status";
-import { enrichStockIdentity, rowMatchesStockIdentity, type StockIdentity } from "@/lib/stock-signal-sync";
+import { enrichStockMatchContext, rowMatchesStockContext, type StockMatchContext } from "@/lib/stock-signal-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -92,17 +92,18 @@ export function AdminNewsManageList({
         return;
       }
       const next = j.signal_status ?? signal_status;
-      const itemIdentity = enrichStockIdentity(item);
-      const savedIdentity: StockIdentity = {
-        stockCode: j.stockCode ?? itemIdentity.stockCode,
-        stockName: j.stockName ?? itemIdentity.stockName,
-        ticker: j.ticker ?? itemIdentity.ticker,
+      const itemContext = enrichStockMatchContext(item);
+      const savedContext: StockMatchContext = {
+        market: itemContext.market,
+        stockCode: j.stockCode ?? itemContext.stockCode,
+        stockName: j.stockName ?? itemContext.stockName,
+        ticker: j.ticker ?? itemContext.ticker,
       };
 
       const applyToSameStock = (prev: Record<string, SignalStatus>) => {
         const updated = { ...prev };
         for (const row of items) {
-          if (rowMatchesStockIdentity(row, savedIdentity)) {
+          if (rowMatchesStockContext(row, savedContext)) {
             updated[row.id] = next;
           } else if (row.id === item.id) {
             updated[row.id] = next;

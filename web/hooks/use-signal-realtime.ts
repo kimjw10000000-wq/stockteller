@@ -7,22 +7,22 @@ import {
   type SignalStatus,
 } from "@/lib/signal-status";
 import {
-  getSignalStatusForStockIdentity,
-  rowMatchesStockIdentity,
-  stockIdentityHasKeys,
+  getSignalStatusForStockContext,
+  matchContextIsComplete,
+  rowMatchesStockContext,
   stockIdentityKey,
-  type StockIdentity,
+  type StockMatchContext,
 } from "@/lib/stock-signal-sync";
 
-/** 종목코드 · 주식이름 · 티커 OR — 동일 종목 disclosures UPDATE 실시간 구독 */
+/** KR: 코드+이름 / US: 티커+이름 — 동일 종목 disclosures UPDATE 실시간 구독 */
 export function useSignalRealtime(
-  stockIdentity: StockIdentity | null,
+  stockContext: StockMatchContext | null,
   onStatusChange: (status: SignalStatus) => void
 ) {
-  const identityKey = stockIdentity ? stockIdentityKey(stockIdentity) : null;
+  const contextKey = stockContext ? stockIdentityKey(stockContext) : null;
 
   useEffect(() => {
-    if (!stockIdentity || !stockIdentityHasKeys(stockIdentity)) return;
+    if (!stockContext || !matchContextIsComplete(stockContext)) return;
 
     let supabase: ReturnType<typeof createSupabaseBrowserClient>;
     try {
@@ -33,7 +33,7 @@ export function useSignalRealtime(
 
     async function fetchSignalForStock(): Promise<SignalStatus | null> {
       try {
-        return await getSignalStatusForStockIdentity(stockIdentity!);
+        return await getSignalStatusForStockContext(stockContext!);
       } catch (err) {
         console.error("[signal-realtime] stock fetch failed:", err);
         return null;
@@ -41,7 +41,7 @@ export function useSignalRealtime(
     }
 
     const channel = supabase
-      .channel(`stock-signal-${identityKey}`)
+      .channel(`stock-signal-${contextKey}`)
       .on(
         "postgres_changes",
         {
@@ -57,7 +57,7 @@ export function useSignalRealtime(
             stocks?: { name?: string | null; ticker?: string | null } | null;
           };
 
-          if (!rowMatchesStockIdentity(row, stockIdentity!)) return;
+          if (!rowMatchesStockContext(row, stockContext!)) return;
 
           const fromPayload = readSignalFromGeminiMetadata(row.gemini_metadata);
           if (fromPayload) {
@@ -74,5 +74,5 @@ export function useSignalRealtime(
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [identityKey, stockIdentity, onStatusChange]);
+  }, [contextKey, stockContext, onStatusChange]);
 }

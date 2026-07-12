@@ -5,9 +5,9 @@ import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
 import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
 import { disclosureStockLabel } from "@/lib/news-display";
 import {
-  enrichStockIdentity,
-  getSignalStatusForStockIdentity,
-  stockIdentityHasKeys,
+  enrichStockMatchContext,
+  getSignalStatusForStockContext,
+  matchContextIsComplete,
 } from "@/lib/stock-signal-sync";
 import { SITE_NAME_KO } from "@/lib/site";
 
@@ -42,14 +42,14 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
     excludeId: row.id,
   });
 
-  const stockIdentity = enrichStockIdentity(row);
-  const signalStatus = stockIdentityHasKeys(stockIdentity)
-    ? await getSignalStatusForStockIdentity(stockIdentity)
+  const stockContext = enrichStockMatchContext(row);
+  const signalStatus = matchContextIsComplete(stockContext)
+    ? await getSignalStatusForStockContext(stockContext, row.id)
     : undefined;
 
   return (
     <main className="space-y-12">
-      <NewsDetailView item={row} stockIdentity={stockIdentity} signalStatus={signalStatus} />
+      <NewsDetailView item={row} stockContext={stockContext} signalStatus={signalStatus} />
       <section className="border-t border-border pt-10">
         <NewsOlderInfiniteList
           currentId={row.id}

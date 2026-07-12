@@ -6,7 +6,7 @@ import {
   signalStatusFromForm,
   type SignalStatus,
 } from "@/lib/signal-status";
-import { enrichStockIdentity } from "@/lib/stock-signal-sync";
+import { enrichStockMatchContext } from "@/lib/stock-signal-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DisclosureWithStock } from "@/lib/types";
 
@@ -100,6 +100,20 @@ export async function uploadCoverImage(image: File): Promise<string | null> {
 
   const { data: publicUrl } = admin.storage.from("news-images").getPublicUrl(path);
   return publicUrl.publicUrl;
+}
+
+function publishStockMatchContext(payload: PublishFormPayload) {
+  const code = payload.stockCode.trim();
+  return {
+    market: payload.marketType,
+    stockCode: payload.marketType === "kr" ? code : null,
+    stockName: normalizePublishStockName(payload.stockName),
+    ticker: payload.marketType === "us" ? code.toUpperCase() : code,
+  } satisfies import("@/lib/stock-signal-sync").StockMatchContext;
+}
+
+function normalizePublishStockName(name: string): string {
+  return name.trim().replace(/\s+/g, " ");
 }
 
 function buildGeminiMetadata(
@@ -196,8 +210,8 @@ export async function insertAdminDisclosure(
   if (!data?.id) throw new Error("INSERT_FAILED");
 
   try {
-    await bulkUpdateSignalStatusByStockIdentity(
-      { stockCode: payload.stockCode, stockName: payload.stockName, ticker: payload.stockCode },
+    await bulkUpdateSignalStatusByStockContext(
+      publishStockMatchContext(payload),
       payload.signalStatus
     );
   } catch (err) {
@@ -254,8 +268,8 @@ export async function updateAdminDisclosure(
   if (!data?.id) throw new Error("UPDATE_FAILED");
 
   try {
-    await bulkUpdateSignalStatusByStockIdentity(
-      { stockCode: payload.stockCode, stockName: payload.stockName, ticker: payload.stockCode },
+    await bulkUpdateSignalStatusByStockContext(
+      publishStockMatchContext(payload),
       payload.signalStatus
     );
   } catch (err) {
@@ -265,36 +279,38 @@ export async function updateAdminDisclosure(
   return data;
 }
 
-/** 동일 종목(코드·이름·티커 OR) 전체 gemini_metadata.signal_status 일괄 갱신 */
-export async function bulkUpdateSignalStatusByStockIdentity(
-  identity: import("@/lib/stock-signal-sync").StockIdentity,
-  signalStatus: SignalStatus
+/** 동일 종목(KR: 코드+이름 / US: 티커+이름) gemini_metadata.signal_status 일괄 갱신 */
+export async function bulkUpdateSignalStatusByStockContext(
+  ctx: import("@/lib/stock-signal-sync").StockMatchContext,
+  signalStatus: SignalStatus,
+  fallbackId?: string
 ): Promise<{
   updatedCount: number;
   stockCode: string | null;
   stockName: string | null;
   ticker: string | null;
+  market: "us" | "kr" | "unknown";
   signal_status: SignalStatus;
 }> {
   const admin = createAdminClient();
   const {
-    findDisclosuresByStockIdentity,
+    findDisclosuresByStockContext,
+    matchContextIsComplete,
     normalizeStockCode,
-    stockIdentityHasKeys,
+    resolveEffectiveMarket,
   } = await import("@/lib/stock-signal-sync");
 
-  if (!stockIdentityHasKeys(identity)) {
+  if (!matchContextIsComplete(ctx)) {
     throw new Error("NO_STOCK_IDENTITY");
   }
 
-  const rows = await findDisclosuresByStockIdentity(identity, admin);
+  const rows = await findDisclosuresByStockContext(ctx, admin, fallbackId);
 
   if (rows.length === 0) {
     throw new Error("NO_MATCHING_STOCK");
   }
 
-  const keyCode = identity.stockCode ?? identity.ticker;
-  const keyName = identity.stockName;
+  const market = resolveEffectiveMarket(ctx);
   const updatedAt = new Date().toISOString();
 
   let updatedCount = 0;
@@ -304,14 +320,19 @@ export async function bulkUpdateSignalStatusByStockIdentity(
       ...prev,
       signal_status: signalStatus,
       signal_updated_at: updatedAt,
+      market_type: market,
     };
 
-    if (keyCode) {
-      gemini_metadata.stock_code = keyCode;
-      gemini_metadata.ticker = normalizeStockCode(keyCode);
+    if (ctx.stockName) {
+      gemini_metadata.stock_name = ctx.stockName;
     }
-    if (keyName) {
-      gemini_metadata.stock_name = keyName;
+    if (market === "kr" && ctx.stockCode) {
+      gemini_metadata.stock_code = ctx.stockCode;
+      gemini_metadata.ticker = ctx.stockCode;
+    }
+    if (market === "us" && ctx.ticker) {
+      gemini_metadata.ticker = normalizeStockCode(ctx.ticker);
+      gemini_metadata.stock_code = normalizeStockCode(ctx.ticker);
     }
 
     const { error } = await admin
@@ -327,20 +348,42 @@ export async function bulkUpdateSignalStatusByStockIdentity(
   }
 
   console.log("[stock-signal] bulk updated", {
-    stockCode: identity.stockCode,
-    stockName: identity.stockName,
-    ticker: identity.ticker,
+    market: ctx.market,
+    stockCode: ctx.stockCode,
+    stockName: ctx.stockName,
+    ticker: ctx.ticker,
     signalStatus,
     updatedCount,
   });
 
   return {
     updatedCount,
-    stockCode: identity.stockCode,
-    stockName: identity.stockName,
-    ticker: identity.ticker,
+    stockCode: ctx.stockCode,
+    stockName: ctx.stockName,
+    ticker: ctx.ticker,
+    market: ctx.market,
     signal_status: signalStatus,
   };
+}
+
+/** @deprecated bulkUpdateSignalStatusByStockContext 사용 */
+export async function bulkUpdateSignalStatusByStockIdentity(
+  identity: import("@/lib/stock-signal-sync").StockIdentity,
+  signalStatus: SignalStatus,
+  fallbackId?: string
+): Promise<{
+  updatedCount: number;
+  stockCode: string | null;
+  stockName: string | null;
+  ticker: string | null;
+  signal_status: SignalStatus;
+}> {
+  const result = await bulkUpdateSignalStatusByStockContext(
+    { market: "unknown", ...identity },
+    signalStatus,
+    fallbackId
+  );
+  return result;
 }
 
 /** @deprecated bulkUpdateSignalStatusByStockIdentity 사용 */
@@ -361,8 +404,8 @@ export async function bulkUpdateSignalStatusByStockCode(
 
 function enrichStockIdentityFromDisclosure(
   existing: DisclosureWithStock
-): import("@/lib/stock-signal-sync").StockIdentity {
-  return enrichStockIdentity(existing);
+): import("@/lib/stock-signal-sync").StockMatchContext {
+  return enrichStockMatchContext(existing);
 }
 
 export async function updateAdminDisclosureSignal(
@@ -383,12 +426,13 @@ export async function updateAdminDisclosureSignal(
   const existing = await getAdminDisclosureById(id);
   if (!existing) throw new Error("NOT_FOUND");
 
-  const identity = enrichStockIdentityFromDisclosure(existing);
-  if (!identity.stockCode && !identity.stockName && !identity.ticker) {
+  const ctx = enrichStockIdentityFromDisclosure(existing);
+  const { matchContextIsComplete } = await import("@/lib/stock-signal-sync");
+  if (!matchContextIsComplete(ctx)) {
     throw new Error("NO_STOCK_IDENTITY");
   }
 
-  const result = await bulkUpdateSignalStatusByStockIdentity(identity, signalStatus);
+  const result = await bulkUpdateSignalStatusByStockContext(ctx, signalStatus, id);
 
   return {
     id,

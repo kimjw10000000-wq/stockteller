@@ -9,17 +9,17 @@ import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
 import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
 import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
-import { enrichStockIdentity, type StockIdentity } from "@/lib/stock-signal-sync";
+import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-signal-sync";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
-  stockIdentity?: StockIdentity | null;
+  stockContext?: StockMatchContext | null;
   signalStatus?: SignalStatus;
 };
 
 export function NewsDetailView({
   item,
-  stockIdentity: stockIdentityProp,
+  stockContext: stockContextProp,
   signalStatus: signalStatusProp,
 }: NewsDetailViewProps) {
   const manual = isManualEditorPost(item);
@@ -28,7 +28,7 @@ export function NewsDetailView({
   const title = item.title ?? "제목 없음";
   const summaryLines = item.summary?.split("\n").filter((l) => l.trim()) ?? [];
   const cover = getCoverImageUrl(item);
-  const stockIdentity = stockIdentityProp ?? enrichStockIdentity(item);
+  const stockContext = stockContextProp ?? enrichStockMatchContext(item);
   const signalStatus = signalStatusProp ?? resolveDisclosureSignalStatus(item);
 
   return (
@@ -58,7 +58,11 @@ export function NewsDetailView({
         </div>
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{title}</h1>
-        <NewsSignalGaugePanel stockIdentity={stockIdentity} initialStatus={signalStatus} />
+        <NewsSignalGaugePanel
+          stockContext={stockContext}
+          initialStatus={signalStatus}
+          disclosureId={item.id}
+        />
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

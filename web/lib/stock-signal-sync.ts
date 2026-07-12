@@ -1,5 +1,5 @@
 import { createPublicClient } from "@/lib/supabase/public";
-import { disclosureStockLabel } from "@/lib/news-display";
+import { disclosureMarket, disclosureStockLabel } from "@/lib/news-display";
 import {
   DEFAULT_SIGNAL_STATUS,
   readSignalFromGeminiMetadata,
@@ -14,21 +14,27 @@ export type StockIdentity = {
   ticker: string | null;
 };
 
+/** 국가별 동일 종목 매칭 컨텍스트 — KR: 코드+이름 / US: 티커+이름 */
+export type StockMatchContext = StockIdentity & {
+  market: "us" | "kr" | "unknown";
+};
+
 type DisclosureLike = {
   stock_code?: string | null;
   stock_name?: string | null;
+  market_type?: string | null;
   gemini_metadata?: Record<string, unknown> | null;
-  stocks?: { name?: string | null; ticker?: string | null } | null;
+  stocks?: { name?: string | null; ticker?: string | null; market?: string | null } | null;
 };
 
-type DisclosureSignalRow = {
+type DisclosureSignalRow = DisclosureLike & {
   id: string;
   gemini_metadata: Record<string, unknown> | null;
-  stock_code?: string | null;
-  stock_name?: string | null;
   created_at?: string | null;
-  stocks?: { name?: string | null; ticker?: string | null } | null;
 };
+
+const SELECT_FIELDS =
+  "id, gemini_metadata, stock_code, stock_name, market_type, created_at, stocks(name, ticker, market)" as const;
 
 /** 종목코드/티커 비교용 정규화 (KR 숫자 코드 · US 티커) */
 export function normalizeStockCode(code: string): string {
@@ -42,6 +48,13 @@ export function normalizeStockName(name: string): string {
   return name.trim().replace(/\s+/g, " ");
 }
 
+export function stockNamesEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const left = normalizeStockName(a);
+  const right = normalizeStockName(b);
+  return left === right || left.toLowerCase() === right.toLowerCase();
+}
+
 /** disclosures 행에서 종목코드(티커) 추출 */
 export function resolveDisclosureStockCode(item: DisclosureLike): string | null {
   return resolveDisclosureStockIdentity(item).stockCode;
@@ -53,7 +66,6 @@ export function resolveDisclosureStockIdentity(item: DisclosureLike): StockIdent
 
   const rawCode =
     item.stock_code ??
-    item.stocks?.ticker ??
     (typeof meta?.stock_code === "string" ? meta.stock_code : null);
 
   const rawName =
@@ -63,9 +75,9 @@ export function resolveDisclosureStockIdentity(item: DisclosureLike): StockIdent
 
   const rawTicker =
     item.stocks?.ticker ??
-    item.stock_code ??
-    (typeof meta?.stock_code === "string" ? meta.stock_code : null) ??
-    (typeof meta?.ticker === "string" ? meta.ticker : null);
+    (typeof meta?.ticker === "string" ? meta.ticker : null) ??
+    rawCode ??
+    (typeof meta?.stock_code === "string" ? meta.stock_code : null);
 
   return {
     stockCode: rawCode && String(rawCode).trim() ? normalizeStockCode(String(rawCode)) : null,
@@ -85,49 +97,94 @@ export function enrichStockIdentity(item: DisclosureWithStock): StockIdentity {
   if (!identity.stockCode && stock && stock !== "—" && stock !== "편집") {
     identity.stockCode = normalizeStockCode(stock);
   }
-  if (!identity.ticker && identity.stockCode) {
-    identity.ticker = identity.stockCode;
+  if (!identity.ticker && stock && stock !== "—" && stock !== "편집") {
+    identity.ticker = normalizeStockCode(stock);
   }
 
   return identity;
 }
 
-export function stockIdentityHasKeys(identity: StockIdentity): boolean {
-  return !!(identity.stockCode || identity.stockName || identity.ticker);
-}
+/** 국가 + 종목 식별자 보강 */
+export function enrichStockMatchContext(item: DisclosureWithStock): StockMatchContext {
+  const identity = enrichStockIdentity(item);
+  const market = disclosureMarket(item);
+  const { stock, name } = disclosureStockLabel(item);
 
-export function stockIdentityKey(identity: StockIdentity): string {
-  return [identity.stockCode ?? "", identity.stockName ?? "", identity.ticker ?? ""].join("|");
-}
-
-export function rowMatchesStockCode(row: DisclosureLike, stockCode: string): boolean {
-  return rowMatchesStockIdentity(row, { stockCode, stockName: null, ticker: null });
-}
-
-/** 종목코드 · 주식이름 · 티커 중 하나라도 일치하면 동일 종목 */
-export function rowMatchesStockIdentity(row: DisclosureLike, identity: StockIdentity): boolean {
-  if (!stockIdentityHasKeys(identity)) return false;
-
-  const rowIdentity = resolveDisclosureStockIdentity(row);
-
-  const codes = new Set(
-    [identity.stockCode, identity.ticker].filter((v): v is string => !!v)
-  );
-  const rowCodes = new Set(
-    [rowIdentity.stockCode, rowIdentity.ticker].filter((v): v is string => !!v)
-  );
-
-  for (const code of Array.from(codes)) {
-    if (rowCodes.has(code)) return true;
-  }
-
-  if (identity.stockName && rowIdentity.stockName) {
-    if (normalizeStockName(identity.stockName) === normalizeStockName(rowIdentity.stockName)) {
-      return true;
+  if (market === "kr") {
+    if (!identity.stockCode && stock && stock !== "—" && stock !== "편집") {
+      identity.stockCode = normalizeStockCode(stock);
+    }
+    if (!identity.stockName && name) {
+      identity.stockName = normalizeStockName(name);
+    }
+    if (!identity.ticker && identity.stockCode) {
+      identity.ticker = identity.stockCode;
+    }
+  } else if (market === "us") {
+    if (!identity.ticker && stock && stock !== "—" && stock !== "편집") {
+      identity.ticker = normalizeStockCode(stock);
+    }
+    if (!identity.stockName && name) {
+      identity.stockName = normalizeStockName(name);
     }
   }
 
-  return false;
+  return { market, ...identity };
+}
+
+export function resolveEffectiveMarket(ctx: StockMatchContext): "us" | "kr" {
+  if (ctx.market === "us" || ctx.market === "kr") return ctx.market;
+  if (ctx.stockCode && /^\d+$/.test(ctx.stockCode)) return "kr";
+  return "us";
+}
+
+export function matchContextIsComplete(ctx: StockMatchContext): boolean {
+  if (!ctx.stockName) return false;
+  const market = resolveEffectiveMarket(ctx);
+  if (market === "kr") return !!ctx.stockCode;
+  return !!ctx.ticker;
+}
+
+export function stockIdentityHasKeys(identity: StockIdentity): boolean {
+  return matchContextIsComplete({ market: "unknown", ...identity });
+}
+
+export function stockIdentityKey(identity: StockIdentity | StockMatchContext): string {
+  const market = "market" in identity ? identity.market : "unknown";
+  return [market, identity.stockCode ?? "", identity.stockName ?? "", identity.ticker ?? ""].join("|");
+}
+
+export function rowMatchesStockCode(row: DisclosureLike, stockCode: string): boolean {
+  const ctx: StockMatchContext = {
+    market: /^\d+$/.test(stockCode) ? "kr" : "us",
+    stockCode: normalizeStockCode(stockCode),
+    stockName: null,
+    ticker: normalizeStockCode(stockCode),
+  };
+  return rowMatchesStockContext(row, ctx);
+}
+
+/** KR: 코드+이름 / US: 티커+이름 AND 매칭 */
+export function rowMatchesStockContext(row: DisclosureLike, ctx: StockMatchContext): boolean {
+  if (!matchContextIsComplete(ctx)) return false;
+
+  const rowIdentity = resolveDisclosureStockIdentity(row);
+  if (!stockNamesEqual(ctx.stockName, rowIdentity.stockName)) return false;
+
+  const market = resolveEffectiveMarket(ctx);
+
+  if (market === "kr") {
+    const rowCode = rowIdentity.stockCode ?? rowIdentity.ticker;
+    return !!rowCode && normalizeStockCode(rowCode) === ctx.stockCode;
+  }
+
+  const rowTicker = rowIdentity.ticker ?? rowIdentity.stockCode;
+  return !!rowTicker && normalizeStockCode(rowTicker) === ctx.ticker;
+}
+
+/** @deprecated rowMatchesStockContext 사용 */
+export function rowMatchesStockIdentity(row: DisclosureLike, identity: StockIdentity): boolean {
+  return rowMatchesStockContext(row, { market: "unknown", ...identity });
 }
 
 function resolveLatestSignalFromRows(rows: DisclosureSignalRow[]): SignalStatus {
@@ -155,99 +212,105 @@ function mergeRows(seen: Map<string, DisclosureSignalRow>, rows: DisclosureSigna
   }
 }
 
-/** 종목코드 · 주식이름 · 티커 OR 조건으로 disclosures 조회 */
-export async function findDisclosuresByStockIdentity(
-  identity: StockIdentity,
-  client: SupabaseClient
+async function queryDisclosures(
+  client: SupabaseClient,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  apply: (q: any) => any
+): Promise<DisclosureSignalRow[]> {
+  const { data, error } = await apply(client.from("disclosures").select(SELECT_FIELDS));
+
+  if (error) {
+    console.error("[stock-signal] query", error.code, error.message);
+    return [];
+  }
+
+  return (data ?? []) as DisclosureSignalRow[];
+}
+
+/** 국가별 AND 조건으로 disclosures 조회 후 클라이언트 필터 */
+export async function findDisclosuresByStockContext(
+  ctx: StockMatchContext,
+  client: SupabaseClient,
+  fallbackId?: string
 ): Promise<DisclosureSignalRow[]> {
   const seen = new Map<string, DisclosureSignalRow>();
-  const select =
-    "id, gemini_metadata, stock_code, stock_name, created_at, stocks(name, ticker)" as const;
+  const market = resolveEffectiveMarket(ctx);
 
-  if (identity.stockCode) {
-    const code = identity.stockCode;
-
-    const { data, error } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("gemini_metadata->>stock_code", code);
-    if (error) console.error("[stock-signal] meta stock_code", error.code, error.message);
-    else mergeRows(seen, data as DisclosureSignalRow[]);
-
-    const { data: byCol, error: colErr } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("stock_code", code);
-    if (!colErr) mergeRows(seen, byCol as DisclosureSignalRow[]);
-
-    const { data: byTicker, error: tickerErr } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("stocks.ticker", code);
-    if (tickerErr) console.error("[stock-signal] stocks.ticker=code", tickerErr.code, tickerErr.message);
-    else mergeRows(seen, byTicker as DisclosureSignalRow[]);
-  }
-
-  if (identity.ticker && identity.ticker !== identity.stockCode) {
-    const ticker = identity.ticker;
-
-    const { data, error } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("stocks.ticker", ticker);
-    if (error) console.error("[stock-signal] stocks.ticker", error.code, error.message);
-    else mergeRows(seen, data as DisclosureSignalRow[]);
-
-    const { data: byMetaTicker, error: metaTickerErr } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("gemini_metadata->>ticker", ticker);
-    if (!metaTickerErr) mergeRows(seen, byMetaTicker as DisclosureSignalRow[]);
-  }
-
-  if (identity.stockName) {
-    const name = identity.stockName;
-
-    const { data, error } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("gemini_metadata->>stock_name", name);
-    if (error) console.error("[stock-signal] meta stock_name", error.code, error.message);
-    else mergeRows(seen, data as DisclosureSignalRow[]);
-
-    const { data: byCol, error: colErr } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("stock_name", name);
-    if (!colErr) mergeRows(seen, byCol as DisclosureSignalRow[]);
-
-    const { data: byStockName, error: stockNameErr } = await client
-      .from("disclosures")
-      .select(select)
-      .eq("stocks.name", name);
-    if (stockNameErr) {
-      console.error("[stock-signal] stocks.name", stockNameErr.code, stockNameErr.message);
-    } else {
-      mergeRows(seen, byStockName as DisclosureSignalRow[]);
+  if (market === "kr" && ctx.stockCode) {
+    const code = ctx.stockCode;
+    for (const rows of await Promise.all([
+      queryDisclosures(client, (q) => q.eq("gemini_metadata->>stock_code", code)),
+      queryDisclosures(client, (q) => q.eq("stock_code", code)),
+      queryDisclosures(client, (q) => q.eq("stocks.ticker", code)),
+    ])) {
+      mergeRows(seen, rows);
+    }
+  } else if (ctx.ticker) {
+    const ticker = ctx.ticker;
+    for (const rows of await Promise.all([
+      queryDisclosures(client, (q) => q.eq("stocks.ticker", ticker)),
+      queryDisclosures(client, (q) => q.eq("gemini_metadata->>stock_code", ticker)),
+      queryDisclosures(client, (q) => q.eq("gemini_metadata->>ticker", ticker)),
+      queryDisclosures(client, (q) => q.eq("stock_code", ticker)),
+    ])) {
+      mergeRows(seen, rows);
     }
   }
 
-  return Array.from(seen.values());
+  if (ctx.stockName) {
+    const name = normalizeStockName(ctx.stockName);
+    for (const rows of await Promise.all([
+      queryDisclosures(client, (q) => q.eq("gemini_metadata->>stock_name", name)),
+      queryDisclosures(client, (q) => q.eq("stock_name", name)),
+      queryDisclosures(client, (q) => q.eq("stocks.name", name)),
+    ])) {
+      mergeRows(seen, rows);
+    }
+  }
+
+  let matched = Array.from(seen.values()).filter((row) => rowMatchesStockContext(row, ctx));
+
+  if (matched.length === 0 && fallbackId) {
+    const { data, error } = await client
+      .from("disclosures")
+      .select(SELECT_FIELDS)
+      .eq("id", fallbackId)
+      .maybeSingle();
+
+    if (!error && data) {
+      matched = [data as DisclosureSignalRow];
+    }
+  }
+
+  return matched;
 }
 
-/** @deprecated findDisclosuresByStockIdentity 사용 */
+/** @deprecated findDisclosuresByStockContext 사용 */
+export async function findDisclosuresByStockIdentity(
+  identity: StockIdentity,
+  client: SupabaseClient,
+  fallbackId?: string
+): Promise<DisclosureSignalRow[]> {
+  return findDisclosuresByStockContext({ market: "unknown", ...identity }, client, fallbackId);
+}
+
+/** @deprecated findDisclosuresByStockContext 사용 */
 export async function findDisclosuresByStockCode(
   stockCode: string,
   client: SupabaseClient
 ): Promise<DisclosureSignalRow[]> {
-  return findDisclosuresByStockIdentity({ stockCode, stockName: null, ticker: null }, client);
+  return findDisclosuresByStockContext(
+    { market: /^\d+$/.test(stockCode) ? "kr" : "us", stockCode, stockName: null, ticker: stockCode },
+    client
+  );
 }
 
-/** 종목 식별자(코드·이름·티커 OR) 기준 최신 시그널 */
-export async function getSignalStatusForStockIdentity(
-  identity: StockIdentity
+/** 국가별 AND 매칭 그룹의 최신 시그널 */
+export async function getSignalStatusForStockContext(
+  ctx: StockMatchContext,
+  fallbackId?: string
 ): Promise<SignalStatus> {
-  if (!stockIdentityHasKeys(identity)) return DEFAULT_SIGNAL_STATUS;
+  if (!matchContextIsComplete(ctx)) return DEFAULT_SIGNAL_STATUS;
 
   let client;
   try {
@@ -256,11 +319,19 @@ export async function getSignalStatusForStockIdentity(
     return DEFAULT_SIGNAL_STATUS;
   }
 
-  const rows = await findDisclosuresByStockIdentity(identity, client);
+  const rows = await findDisclosuresByStockContext(ctx, client, fallbackId);
   return resolveLatestSignalFromRows(rows);
 }
 
-/** @deprecated getSignalStatusForStockIdentity 사용 */
+/** @deprecated getSignalStatusForStockContext 사용 */
+export async function getSignalStatusForStockIdentity(
+  identity: StockIdentity,
+  fallbackId?: string
+): Promise<SignalStatus> {
+  return getSignalStatusForStockContext({ market: "unknown", ...identity }, fallbackId);
+}
+
+/** @deprecated getSignalStatusForStockContext 사용 */
 export async function getSignalStatusForStockCode(stockCode: string): Promise<SignalStatus> {
-  return getSignalStatusForStockIdentity({ stockCode, stockName: null, ticker: null });
+  return getSignalStatusForStockIdentity({ stockCode, stockName: null, ticker: stockCode });
 }
