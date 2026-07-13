@@ -53,6 +53,20 @@ export function SignalGauge({ status }: SignalGaugeProps) {
   return (
     <div className="flex w-full max-w-lg flex-col items-center" aria-live="polite">
       <div className="relative w-full max-w-[340px]">
+        {/* 실시간 스트리밍형 LIVE 배지 — 계기판 상단 우측 */}
+        <div
+          className="absolute right-0 top-0 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2 py-1 shadow-sm ring-1 ring-black/5"
+          aria-label="실시간"
+        >
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 animate-pulse rounded-full bg-green-500" />
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-700">
+            LIVE
+          </span>
+        </div>
+
         <svg
           viewBox="0 0 280 165"
           className="h-auto w-full drop-shadow-sm"
