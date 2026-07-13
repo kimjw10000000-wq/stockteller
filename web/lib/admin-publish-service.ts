@@ -467,6 +467,23 @@ export async function getAdminDisclosureById(id: string): Promise<DisclosureWith
   return data as DisclosureWithStock | null;
 }
 
+export async function deleteAdminDisclosure(id: string): Promise<{ id: string }> {
+  const admin = createAdminClient();
+  const existing = await getAdminDisclosureById(id);
+  if (!existing) {
+    throw new Error("ARTICLE_NOT_FOUND");
+  }
+
+  const { error } = await admin.from("disclosures").delete().eq("id", id);
+  if (error) {
+    console.error("[admin/publish] delete", id, error.code, error.message);
+    throw new Error(`${error.code ?? "DB_ERROR"}: ${error.message}`);
+  }
+
+  console.log("[admin/publish] deleted", { id, title: existing.title });
+  return { id };
+}
+
 export function resolveCoverImageUrl(
   parsed: { image: File | null; removeImage: boolean },
   existing: DisclosureWithStock | null

@@ -58,6 +58,11 @@ export function AdminDashboardShell() {
     if (editDraft) setEditDraft(null);
   }
 
+  function onDeleted(id: string) {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    if (editDraft?.id === id) setEditDraft(null);
+  }
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
       <AdminPublishForm editDraft={editDraft} onCancelEdit={onCancelEdit} onSaved={onSaved} />
@@ -69,6 +74,7 @@ export function AdminDashboardShell() {
         onSearchSubmit={onSearchSubmit}
         onEdit={onEdit}
         onSignalSaved={() => void loadList(searchQuery)}
+        onDeleted={onDeleted}
         editingId={editDraft?.id ?? null}
       />
     </div>

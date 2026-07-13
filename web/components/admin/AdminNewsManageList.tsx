@@ -28,6 +28,7 @@ type AdminNewsManageListProps = {
   onSearchSubmit: (e: React.FormEvent) => void;
   onEdit: (item: DisclosureWithStock) => void;
   onSignalSaved?: () => void;
+  onDeleted?: (id: string) => void;
   editingId: string | null;
 };
 
@@ -39,11 +40,13 @@ export function AdminNewsManageList({
   onSearchSubmit,
   onEdit,
   onSignalSaved,
+  onDeleted,
   editingId,
 }: AdminNewsManageListProps) {
   const [signalDrafts, setSignalDrafts] = useState<Record<string, SignalStatus>>({});
   const [savedSignals, setSavedSignals] = useState<Record<string, SignalStatus>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [signalMessage, setSignalMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
@@ -152,6 +155,36 @@ export function AdminNewsManageList({
     }
   }
 
+  async function onDeleteItem(item: DisclosureWithStock) {
+    const title = item.title ?? "제목 없음";
+    const confirmed = window.confirm(`정말 이 기사를 삭제하시겠습니까?\n\n"${title}"`);
+    if (!confirmed) return;
+
+    setDeletingId(item.id);
+    setSignalMessage(null);
+    try {
+      const res = await fetch(`/api/admin/publish/${item.id}`, { method: "DELETE" });
+      const j = (await res.json()) as { ok?: boolean; error?: string; detail?: string; id?: string };
+      if (!res.ok || !j.ok) {
+        console.error("[admin/delete] failed:", j.error ?? res.statusText, {
+          status: res.status,
+          id: item.id,
+          detail: j.detail,
+          response: j,
+        });
+        setSignalMessage({ ok: false, text: j.error ?? "기사 삭제에 실패했습니다." });
+        return;
+      }
+      setSignalMessage({ ok: true, text: "기사가 삭제되었습니다." });
+      onDeleted?.(item.id);
+    } catch (err) {
+      console.error("[admin/delete] network error:", err, { id: item.id });
+      setSignalMessage({ ok: false, text: "네트워크 오류입니다." });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
       <header className="mb-4 space-y-1">
@@ -250,6 +283,16 @@ export function AdminNewsManageList({
                     onClick={() => onEdit(item)}
                   >
                     {editingId === item.id ? "수정 중" : "수정"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={deletingId === item.id || savingId === item.id}
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => void onDeleteItem(item)}
+                  >
+                    {deletingId === item.id ? "삭제 중…" : "삭제"}
                   </Button>
                 </div>
               </li>

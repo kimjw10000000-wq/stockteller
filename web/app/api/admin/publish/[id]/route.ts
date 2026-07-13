@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/admin-auth";
 import {
+  deleteAdminDisclosure,
   getAdminDisclosureById,
   parsePublishFormData,
   resolveCoverImageUrl,
@@ -102,4 +103,32 @@ export async function GET(_req: Request, { params }: RouteContext) {
   }
 
   return NextResponse.json({ ok: true, item: row });
+}
+
+export async function DELETE(_req: Request, { params }: RouteContext) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !isAdminEmail(user.email)) {
+    return NextResponse.json({ ok: false, error: "관리자 로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const existing = await getAdminDisclosureById(params.id);
+  if (!existing || !isManualEditorPost(existing)) {
+    return NextResponse.json({ ok: false, error: "삭제할 수 있는 기사를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  try {
+    const data = await deleteAdminDisclosure(params.id);
+    return NextResponse.json({ ok: true, id: data.id });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[admin/publish/delete]", msg, { id: params.id });
+    if (msg === "ARTICLE_NOT_FOUND") {
+      return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다." }, { status: 404 });
+    }
+    return NextResponse.json({ ok: false, error: "기사 삭제에 실패했습니다.", detail: msg }, { status: 500 });
+  }
 }
