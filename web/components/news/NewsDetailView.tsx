@@ -7,7 +7,7 @@ import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
-import { KakaoShareButton } from "@/components/news/KakaoShareButton";
+import { NewsShareModal } from "@/components/news/NewsShareModal";
 import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
 import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
 import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-signal-sync";
@@ -61,7 +61,7 @@ export function NewsDetailView({
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{title}</h1>
         <div className="mt-4">
-          <KakaoShareButton
+          <NewsShareModal
             newsId={item.id}
             title={title}
             description={buildShareDescription(item.summary, title)}

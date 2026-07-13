@@ -60,3 +60,19 @@ export function buildKakaoSharePayload(input: KakaoShareInput) {
     ],
   };
 }
+
+export function getFacebookShareUrl(pageUrl: string): string {
+  return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}`;
+}
+
+export function getTwitterShareUrl(pageUrl: string, text: string): string {
+  const params = new URLSearchParams({
+    url: pageUrl,
+    text: truncateShareText(text, 100),
+  });
+  return `https://twitter.com/intent/tweet?${params.toString()}`;
+}
+
+export function openSharePopup(url: string): void {
+  window.open(url, "_blank", "noopener,noreferrer,width=640,height=520");
+}
