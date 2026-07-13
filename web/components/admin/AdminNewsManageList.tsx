@@ -246,7 +246,7 @@ export function AdminNewsManageList({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-44">
                   <label className="sr-only" htmlFor={`signal-${item.id}`}>
                     시그널 등급
                   </label>
@@ -259,7 +259,7 @@ export function AdminNewsManageList({
                         [item.id]: e.target.value as SignalStatus,
                       }))
                     }
-                    className="h-9 rounded-md border border-border bg-input-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                    className="h-9 w-full rounded-md border border-border bg-input-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                   >
                     {SIGNAL_STATUSES.map((key) => (
                       <option key={key} value={key}>
@@ -271,6 +271,7 @@ export function AdminNewsManageList({
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="w-full"
                     disabled={savingId === item.id || !isSignalDirty(item)}
                     onClick={() => void onSaveSignal(item)}
                   >
@@ -280,6 +281,7 @@ export function AdminNewsManageList({
                     type="button"
                     variant={editingId === item.id ? "default" : "outline"}
                     size="sm"
+                    className="w-full"
                     onClick={() => onEdit(item)}
                   >
                     {editingId === item.id ? "수정 중" : "수정"}
@@ -288,8 +290,8 @@ export function AdminNewsManageList({
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     disabled={deletingId === item.id || savingId === item.id}
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => void onDeleteItem(item)}
                   >
                     {deletingId === item.id ? "삭제 중…" : "삭제"}
