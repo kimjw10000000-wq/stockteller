@@ -1,7 +1,6 @@
 import { createPublicClient } from "@/lib/supabase/public";
 import { disclosureMarket, disclosureStockLabel } from "@/lib/news-display";
 import {
-  DEFAULT_SIGNAL_STATUS,
   readSignalFromGeminiMetadata,
   type SignalStatus,
 } from "@/lib/signal-status";
@@ -174,7 +173,7 @@ export function rowMatchesStockCode(row: DisclosureLike, stockCode: string): boo
   });
 }
 
-function resolveLatestSignalFromRows(rows: DisclosureSignalRow[]): SignalStatus {
+function resolveLatestSignalFromRows(rows: DisclosureSignalRow[]): SignalStatus | null {
   let best: { status: SignalStatus; ts: number } | null = null;
 
   for (const row of rows) {
@@ -190,7 +189,7 @@ function resolveLatestSignalFromRows(rows: DisclosureSignalRow[]): SignalStatus 
     }
   }
 
-  return best?.status ?? DEFAULT_SIGNAL_STATUS;
+  return best?.status ?? null;
 }
 
 function mergeRows(seen: Map<string, DisclosureSignalRow>, rows: DisclosureSignalRow[] | null) {
@@ -217,6 +216,36 @@ async function selectBy(
   }
 }
 
+async function findStockIdsByTicker(client: SupabaseClient, symbol: string): Promise<string[]> {
+  try {
+    const { data, error } = await client.from("stocks").select("id").eq("ticker", symbol);
+    if (error) {
+      console.warn("[stock-signal] stocks lookup", error.code, error.message);
+      return [];
+    }
+    return (data ?? []).map((row) => row.id as string).filter(Boolean);
+  } catch (err) {
+    console.warn("[stock-signal] stocks lookup exception", err);
+    return [];
+  }
+}
+
+async function fetchDisclosureById(
+  client: SupabaseClient,
+  id: string
+): Promise<DisclosureSignalRow | null> {
+  const { data, error } = await client
+    .from("disclosures")
+    .select(SELECT_FIELDS)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    console.warn("[stock-signal] fetch by id", id, error.code, error.message);
+    return null;
+  }
+  return data ? (data as DisclosureSignalRow) : null;
+}
+
 /**
  * 제목·본문·날짜·뉴스 ID 완전 배제.
  * KR: 종목코드 + 주식이름 / US: 티커 + 주식이름 이 같은 모든 행.
@@ -233,26 +262,42 @@ export async function findDisclosuresByStockContext(
 
   if (!symbol || !name) {
     if (ensureId) {
-      const { data } = await client.from("disclosures").select(SELECT_FIELDS).eq("id", ensureId).maybeSingle();
-      return data ? [data as DisclosureSignalRow] : [];
+      const row = await fetchDisclosureById(client, ensureId);
+      return row ? [row] : [];
     }
     return [];
   }
 
   // 심볼(코드/티커)로 후보 수집 — 제목/본문/날짜 조건 없음
+  const stockIds = await findStockIdsByTicker(client, symbol);
   const symbolQueries = await Promise.all([
     selectBy(client, (q) => q.eq("gemini_metadata->>stock_code", symbol)),
     selectBy(client, (q) => q.eq("gemini_metadata->>ticker", symbol)),
     selectBy(client, (q) => q.eq("stock_code", symbol)),
-    selectBy(client, (q) => q.eq("stocks.ticker", symbol)),
+    stockIds.length > 0
+      ? selectBy(client, (q) => q.in("stock_id", stockIds))
+      : Promise.resolve([] as DisclosureSignalRow[]),
   ]);
   for (const rows of symbolQueries) mergeRows(seen, rows);
 
   // 주식이름으로도 후보 수집 (필드 위치가 다른 과거 행 포함)
+  const nameStockIds = await (async () => {
+    try {
+      const { data } = await client.from("stocks").select("id").ilike("name", name);
+      return (data ?? []).map((row) => row.id as string).filter(Boolean);
+    } catch {
+      return [] as string[];
+    }
+  })();
+
   const nameQueries = await Promise.all([
     selectBy(client, (q) => q.eq("gemini_metadata->>stock_name", name)),
     selectBy(client, (q) => q.eq("stock_name", name)),
-    selectBy(client, (q) => q.eq("stocks.name", name)),
+    selectBy(client, (q) => q.ilike("stock_name", name)),
+    selectBy(client, (q) => q.ilike("gemini_metadata->>stock_name", name)),
+    nameStockIds.length > 0
+      ? selectBy(client, (q) => q.in("stock_id", nameStockIds))
+      : Promise.resolve([] as DisclosureSignalRow[]),
   ]);
   for (const rows of nameQueries) mergeRows(seen, rows);
 
@@ -260,8 +305,8 @@ export async function findDisclosuresByStockContext(
   const matched = Array.from(seen.values()).filter((row) => rowMatchesStockContext(row, ctx));
 
   if (ensureId && !matched.some((r) => r.id === ensureId)) {
-    const { data } = await client.from("disclosures").select(SELECT_FIELDS).eq("id", ensureId).maybeSingle();
-    if (data) matched.push(data as DisclosureSignalRow);
+    const row = await fetchDisclosureById(client, ensureId);
+    if (row) matched.push(row);
   }
 
   return matched;
@@ -290,15 +335,19 @@ export async function findDisclosuresByStockCode(
   );
 }
 
+/**
+ * 종목 그룹의 저장된 시그널 조회.
+ * 값이 없으면 null — 절대 positive 기본값으로 위조하지 않음.
+ */
 export async function getSignalStatusForStockContext(
   ctx: StockMatchContext,
   ensureId?: string
-): Promise<SignalStatus> {
+): Promise<SignalStatus | null> {
   let client;
   try {
     client = createPublicClient();
   } catch {
-    return DEFAULT_SIGNAL_STATUS;
+    return null;
   }
 
   const rows = await findDisclosuresByStockContext(ctx, client, ensureId);
@@ -308,10 +357,19 @@ export async function getSignalStatusForStockContext(
 export async function getSignalStatusForStockIdentity(
   identity: StockIdentity,
   ensureId?: string
-): Promise<SignalStatus> {
+): Promise<SignalStatus | null> {
   return getSignalStatusForStockContext({ market: "unknown", ...identity }, ensureId);
 }
 
-export async function getSignalStatusForStockCode(stockCode: string): Promise<SignalStatus> {
+export async function getSignalStatusForStockCode(stockCode: string): Promise<SignalStatus | null> {
   return getSignalStatusForStockIdentity({ stockCode, stockName: null, ticker: stockCode });
+}
+
+/** 종목 그룹 내 최신 저장 시그널 — 메모리 내 행 배열에서 조회 (어드민 목록 표시용) */
+export function resolveLatestSignalFromDisclosureRows(
+  rows: DisclosureSignalRow[],
+  ctx: StockMatchContext
+): SignalStatus | null {
+  const matched = rows.filter((row) => rowMatchesStockContext(row, ctx));
+  return resolveLatestSignalFromRows(matched.length > 0 ? matched : rows);
 }

@@ -19,7 +19,9 @@ export type ListDisclosuresResult = {
 };
 
 const SELECT = "*, stocks(name, ticker, sector, market)";
-const QUERY_TIMEOUT_MS = 4000;
+const QUERY_TIMEOUT_MS = 8000;
+/** 시장/검색 필터 시 페이지를 채우기 위해 여러 배치를 이어 조회 */
+const MAX_FETCH_ROUNDS = 10;
 
 async function withQueryTimeout<T>(
   run: () => PromiseLike<T>,
@@ -38,6 +40,10 @@ export async function listDisclosures(limit = 50): Promise<DisclosureWithStock[]
   return items;
 }
 
+/**
+ * 최신순: created_at DESC (작성/등록 시각 기준 내림차순).
+ * 시장·검색 필터는 후처리하되, limit 개수를 채울 때까지 배치를 이어 조회해 빈 목록 버그를 방지.
+ */
 export async function listDisclosuresPaginated(
   opts: ListDisclosuresOptions = {}
 ): Promise<ListDisclosuresResult> {
@@ -45,6 +51,7 @@ export async function listDisclosuresPaginated(
   const market = opts.market ?? "all";
   const limit = opts.limit ?? 20;
   const qLower = opts.q?.trim().toLowerCase() ?? "";
+  const needsPostFilter = market !== "all" || !!qLower;
 
   let supabase;
   try {
@@ -53,46 +60,98 @@ export async function listDisclosuresPaginated(
     return { items: [], nextCursor: null };
   }
 
-  const buildQuery = (useViewSort: boolean) => {
+  const batchSize = needsPostFilter
+    ? Math.min(Math.max(limit * 5, 50), 100)
+    : Math.min(limit, 40);
+
+  const buildQuery = (useViewSort: boolean, cursor: string | undefined) => {
     let q = supabase.from("disclosures").select(SELECT);
     if (opts.excludeId) q = q.neq("id", opts.excludeId);
-    if (opts.cursor) q = q.lt("created_at", opts.cursor);
+    if (cursor) q = q.lt("created_at", cursor);
 
     if (useViewSort && sort === "all_views") {
       q = q.order("view_count", { ascending: false }).order("created_at", { ascending: false });
     } else if (useViewSort && sort === "hour_views") {
       q = q.order("views_1h", { ascending: false }).order("created_at", { ascending: false });
     } else {
+      // 최신순: 작성(등록) 시각 최신 → 과거
       q = q.order("created_at", { ascending: false }).order("id", { ascending: false });
     }
-    return q.limit(Math.min(limit * 4, 80));
+    return q.limit(batchSize);
   };
 
-  const first = await withQueryTimeout(() => buildQuery(sort !== "latest"), QUERY_TIMEOUT_MS);
-  if (first === "timeout") {
-    return { items: [], nextCursor: null };
+  async function fetchBatch(
+    useViewSort: boolean,
+    cursor: string | undefined
+  ): Promise<{ data: DisclosureWithStock[] | null; error: { message: string } | null } | "timeout"> {
+    const result = await withQueryTimeout(() => buildQuery(useViewSort, cursor), QUERY_TIMEOUT_MS);
+    if (result === "timeout") return "timeout";
+    return {
+      data: (result.data ?? null) as DisclosureWithStock[] | null,
+      error: result.error,
+    };
   }
 
-  let { data, error } = first;
+  const collected: DisclosureWithStock[] = [];
+  const seenIds = new Set<string>();
+  let scanCursor = opts.cursor;
+  let lastRawCreatedAt: string | null = null;
+  let exhausted = false;
+  let useViewSort = sort !== "latest";
 
-  if (error && (sort === "all_views" || sort === "hour_views")) {
-    const retry = await withQueryTimeout(() => buildQuery(false), QUERY_TIMEOUT_MS);
-    if (retry === "timeout") return { items: [], nextCursor: null };
-    ({ data, error } = retry);
+  for (let round = 0; round < MAX_FETCH_ROUNDS && collected.length < limit; round++) {
+    let batch = await fetchBatch(useViewSort, scanCursor);
+
+    if (batch === "timeout") {
+      if (collected.length > 0) break;
+      console.error("[listDisclosuresPaginated] query timeout");
+      return { items: [], nextCursor: null };
+    }
+
+    if (batch.error && useViewSort) {
+      useViewSort = false;
+      batch = await fetchBatch(false, scanCursor);
+      if (batch === "timeout") {
+        if (collected.length > 0) break;
+        return { items: [], nextCursor: null };
+      }
+    }
+
+    if (batch.error) {
+      console.error("[listDisclosuresPaginated]", batch.error.message);
+      if (collected.length > 0) break;
+      return { items: [], nextCursor: null };
+    }
+
+    const raw = batch.data ?? [];
+    if (raw.length === 0) {
+      exhausted = true;
+      break;
+    }
+
+    lastRawCreatedAt = raw[raw.length - 1]?.created_at ?? lastRawCreatedAt;
+    scanCursor = raw[raw.length - 1]?.created_at ?? scanCursor;
+
+    for (const item of raw) {
+      if (seenIds.has(item.id)) continue;
+      if (!matchesMarketFilter(item, market)) continue;
+      if (qLower && !matchesStockSearchQuery(item, qLower)) continue;
+      seenIds.add(item.id);
+      collected.push(item);
+      if (collected.length >= limit) break;
+    }
+
+    if (raw.length < batchSize) {
+      exhausted = true;
+      break;
+    }
   }
 
-  if (error) {
-    console.error("[listDisclosuresPaginated]", error.message);
-    return { items: [], nextCursor: null };
-  }
-
-  let items = (data ?? []) as DisclosureWithStock[];
-  items = items.filter((item) => matchesMarketFilter(item, market));
-  if (qLower) items = items.filter((item) => matchesStockSearchQuery(item, qLower));
-  items = items.slice(0, limit);
-
+  const items = collected.slice(0, limit);
   const nextCursor =
-    items.length === limit ? items[items.length - 1]?.created_at ?? null : null;
+    !exhausted && items.length === limit
+      ? items[items.length - 1]?.created_at ?? lastRawCreatedAt
+      : null;
 
   return { items, nextCursor };
 }

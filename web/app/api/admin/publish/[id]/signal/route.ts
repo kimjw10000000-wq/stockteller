@@ -49,17 +49,22 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg === "NOT_FOUND" || msg.includes("NOT_FOUND")) {
-      return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다.", detail: msg }, { status: 404 });
+    if (msg === "ARTICLE_NOT_FOUND") {
+      return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다." }, { status: 404 });
     }
-    console.error(
-      "[admin/publish/signal] PATCH failed — 구체적 에러 원인:",
-      msg,
-      { id: params.id, signal_status: body.signal_status }
-    );
-    return NextResponse.json(
-      { ok: false, error: "시그널 저장에 실패했습니다.", detail: msg },
-      { status: 500 }
-    );
+    if (msg === "INVALID_SIGNAL") {
+      return NextResponse.json(
+        { ok: false, error: "signal_status는 positive, neutral, caution, danger 중 하나여야 합니다." },
+        { status: 400 }
+      );
+    }
+    if (msg === "SIGNAL_SAVE_FAILED") {
+      return NextResponse.json({ ok: false, error: "시그널 저장에 실패했습니다." }, { status: 500 });
+    }
+    console.error("[admin/publish/signal] PATCH failed:", msg, {
+      id: params.id,
+      signal_status: body.signal_status,
+    });
+    return NextResponse.json({ ok: false, error: "시그널 저장에 실패했습니다." }, { status: 500 });
   }
 }

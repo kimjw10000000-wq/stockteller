@@ -59,7 +59,7 @@ export function readSignalFromGeminiMetadata(
   return isSignalStatus(meta.signal_status) ? meta.signal_status : null;
 }
 
-/** 상세·목록 공통 — gemini_metadata 우선, 없을 때만 DB 컬럼 fallback */
+/** 상세·목록 — gemini_metadata.signal_status만 신뢰 (없으면 기본값) */
 export function resolveDisclosureSignalStatus(item: {
   signal_status?: string | null;
   gemini_metadata?: Record<string, unknown> | null;
@@ -68,6 +68,17 @@ export function resolveDisclosureSignalStatus(item: {
   if (fromMeta) return fromMeta;
   if (isSignalStatus(item.signal_status)) return item.signal_status;
   return DEFAULT_SIGNAL_STATUS;
+}
+
+/** 저장된 값이 있을 때만 반환 — UI 덮어쓰기용 (없으면 null) */
+export function readStoredSignalStatus(item: {
+  signal_status?: string | null;
+  gemini_metadata?: Record<string, unknown> | null;
+}): SignalStatus | null {
+  const fromMeta = readSignalFromGeminiMetadata(item.gemini_metadata);
+  if (fromMeta) return fromMeta;
+  if (isSignalStatus(item.signal_status)) return item.signal_status;
+  return null;
 }
 
 export function signalStatusFromForm(value: FormDataEntryValue | null): SignalStatus {

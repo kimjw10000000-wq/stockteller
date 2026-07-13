@@ -4,11 +4,8 @@ import { NewsDetailView } from "@/components/news/NewsDetailView";
 import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
 import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
 import { disclosureStockLabel } from "@/lib/news-display";
-import {
-  enrichStockMatchContext,
-  getSignalStatusForStockContext,
-  matchContextIsComplete,
-} from "@/lib/stock-signal-sync";
+import { enrichStockMatchContext, getSignalStatusForStockContext } from "@/lib/stock-signal-sync";
+import { readStoredSignalStatus, DEFAULT_SIGNAL_STATUS } from "@/lib/signal-status";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +40,9 @@ export default async function DisclosureDetailPage({ params }: PageProps) {
   });
 
   const stockContext = enrichStockMatchContext(row);
-  const signalStatus = matchContextIsComplete(stockContext)
-    ? await getSignalStatusForStockContext(stockContext, row.id)
-    : undefined;
+  // 종목 단위 저장값 읽기 전용 — 재계산·쓰기 없음
+  const stockSignal = await getSignalStatusForStockContext(stockContext, row.id);
+  const signalStatus = stockSignal ?? readStoredSignalStatus(row) ?? DEFAULT_SIGNAL_STATUS;
 
   return (
     <main className="space-y-12">

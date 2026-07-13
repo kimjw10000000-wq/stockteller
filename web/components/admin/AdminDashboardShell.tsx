@@ -68,6 +68,7 @@ export function AdminDashboardShell() {
         onSearchChange={setSearchInput}
         onSearchSubmit={onSearchSubmit}
         onEdit={onEdit}
+        onSignalSaved={() => void loadList(searchQuery)}
         editingId={editDraft?.id ?? null}
       />
     </div>

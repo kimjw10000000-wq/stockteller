@@ -102,20 +102,6 @@ export async function uploadCoverImage(image: File): Promise<string | null> {
   return publicUrl.publicUrl;
 }
 
-function publishStockMatchContext(payload: PublishFormPayload) {
-  const code = payload.stockCode.trim();
-  return {
-    market: payload.marketType,
-    stockCode: payload.marketType === "kr" ? code : null,
-    stockName: normalizePublishStockName(payload.stockName),
-    ticker: payload.marketType === "us" ? code.toUpperCase() : code,
-  } satisfies import("@/lib/stock-signal-sync").StockMatchContext;
-}
-
-function normalizePublishStockName(name: string): string {
-  return name.trim().replace(/\s+/g, " ");
-}
-
 function buildGeminiMetadata(
   payload: PublishFormPayload,
   authorEmail: string,
@@ -209,15 +195,8 @@ export async function insertAdminDisclosure(
   }
   if (!data?.id) throw new Error("INSERT_FAILED");
 
-  try {
-    await bulkUpdateSignalStatusByStockContext(
-      publishStockMatchContext(payload),
-      payload.signalStatus
-    );
-  } catch (err) {
-    console.warn("[admin/publish] post-insert stock signal sync", err);
-  }
-
+  // 시그널은 오직 PATCH /signal 로만 종목 일괄 갱신한다.
+  // 발행 시 bulk sync는 다른 기사 시그널을 기본값으로 오염시키므로 제거.
   return data;
 }
 
@@ -267,22 +246,13 @@ export async function updateAdminDisclosure(
   }
   if (!data?.id) throw new Error("UPDATE_FAILED");
 
-  try {
-    await bulkUpdateSignalStatusByStockContext(
-      publishStockMatchContext(payload),
-      payload.signalStatus
-    );
-  } catch (err) {
-    console.warn("[admin/publish] post-update stock signal sync", err);
-  }
-
+  // 본문 수정 시 시그널 일괄 덮어쓰기 금지 — 시그널은 [저장] PATCH 전용
   return data;
 }
 
 /**
- * 제목·본문·날짜 무관 — 동일 종목(KR: 코드+이름 / US: 티커+이름)
- * 모든 행의 gemini_metadata.signal_status 일괄 갱신.
- * NO_MATCHING_STOCK 을 던지지 않음 (최소 현재 기사는 반드시 갱신).
+ * 동일 종목 행의 signal_status / signal_updated_at 만 갱신.
+ * stock_code·stock_name·ticker 등 식별 필드는 덮어쓰지 않아 DB 오염을 방지한다.
  */
 export async function bulkUpdateSignalStatusByStockContext(
   ctx: import("@/lib/stock-signal-sync").StockMatchContext,
@@ -297,65 +267,52 @@ export async function bulkUpdateSignalStatusByStockContext(
   signal_status: SignalStatus;
 }> {
   const admin = createAdminClient();
-  const {
-    findDisclosuresByStockContext,
-    normalizeStockCode,
-    resolveEffectiveMarket,
-  } = await import("@/lib/stock-signal-sync");
+  const { findDisclosuresByStockContext, resolveEffectiveMarket } = await import(
+    "@/lib/stock-signal-sync"
+  );
 
   const market = resolveEffectiveMarket(ctx);
-  const rows = await findDisclosuresByStockContext(ctx, admin, ensureId);
+  let rows = await findDisclosuresByStockContext(ctx, admin, ensureId);
 
-  // 후보가 비어도 ensureId 행만이라도 갱신 (에러로 중단하지 않음)
-  const targets =
-    rows.length > 0
-      ? rows
-      : ensureId
-        ? [
-            {
-              id: ensureId,
-              gemini_metadata: null as Record<string, unknown> | null,
-            },
-          ]
-        : [];
-
-  if (targets.length === 0) {
-    throw new Error("NOT_FOUND");
-  }
-
-  // ensureId 행의 기존 metadata 로드 (targets가 stub일 때)
-  if (ensureId && targets.length === 1 && targets[0]!.gemini_metadata === null) {
+  if (rows.length === 0 && ensureId) {
     const { data } = await admin
       .from("disclosures")
-      .select("id, gemini_metadata")
+      .select("id, gemini_metadata, stock_code, stock_name, market_type, created_at, stocks(name, ticker, market)")
       .eq("id", ensureId)
       .maybeSingle();
-    if (data) {
-      targets[0] = data as { id: string; gemini_metadata: Record<string, unknown> | null };
-    }
+    if (data) rows = [data as (typeof rows)[number]];
+  }
+
+  if (rows.length === 0) {
+    console.error("[stock-signal] bulk update — no rows to update", { ensureId, ctx });
+    return {
+      updatedCount: 0,
+      stockCode: ctx.stockCode,
+      stockName: ctx.stockName,
+      ticker: ctx.ticker,
+      market: ctx.market,
+      signal_status: signalStatus,
+    };
   }
 
   const updatedAt = new Date().toISOString();
   let updatedCount = 0;
 
-  for (const row of targets) {
-    const prev = (row.gemini_metadata ?? {}) as Record<string, unknown>;
+  for (const row of rows) {
+    const prev = { ...((row.gemini_metadata ?? {}) as Record<string, unknown>) };
     const gemini_metadata: Record<string, unknown> = {
       ...prev,
       signal_status: signalStatus,
       signal_updated_at: updatedAt,
-      market_type: market,
     };
 
-    if (ctx.stockName) gemini_metadata.stock_name = ctx.stockName;
-    if (market === "kr" && ctx.stockCode) {
-      gemini_metadata.stock_code = ctx.stockCode;
-      gemini_metadata.ticker = ctx.stockCode;
-    }
-    if (market === "us" && ctx.ticker) {
-      const t = normalizeStockCode(ctx.ticker);
-      gemini_metadata.ticker = t;
-      gemini_metadata.stock_code = t;
+    // Realtime·매칭용 — 비어 있을 때만 종목 식별 필드 보강 (기존 값은 덮어쓰지 않음)
+    if (!prev.stock_name && ctx.stockName) gemini_metadata.stock_name = ctx.stockName;
+    if (market === "kr") {
+      if (!prev.stock_code && ctx.stockCode) gemini_metadata.stock_code = ctx.stockCode;
+    } else {
+      if (!prev.ticker && ctx.ticker) gemini_metadata.ticker = ctx.ticker;
+      if (!prev.stock_code && ctx.ticker) gemini_metadata.stock_code = ctx.ticker;
     }
 
     const { error } = await admin.from("disclosures").update({ gemini_metadata }).eq("id", row.id);
@@ -367,13 +324,14 @@ export async function bulkUpdateSignalStatusByStockContext(
     updatedCount += 1;
   }
 
-  console.log("[stock-signal] bulk updated (title/body/date ignored)", {
+  console.log("[stock-signal] signal-only bulk updated", {
     market,
     stockCode: ctx.stockCode,
     stockName: ctx.stockName,
     ticker: ctx.ticker,
     signalStatus,
     updatedCount,
+    ensureId,
   });
 
   return {
@@ -444,11 +402,16 @@ export async function updateAdminDisclosureSignal(
   }
 
   const existing = await getAdminDisclosureById(id);
-  if (!existing) throw new Error("NOT_FOUND");
+  if (!existing) {
+    throw new Error("ARTICLE_NOT_FOUND");
+  }
 
   const ctx = enrichStockIdentityFromDisclosure(existing);
-  // 제목·본문·날짜 무관 — 종목이름+코드/티커만으로 일괄 저장 (NO_MATCHING_STOCK 없음)
   const result = await bulkUpdateSignalStatusByStockContext(ctx, signalStatus, id);
+
+  if (result.updatedCount === 0) {
+    throw new Error("SIGNAL_SAVE_FAILED");
+  }
 
   return {
     id,

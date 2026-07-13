@@ -6,11 +6,17 @@ import { disclosureStockLabel, disclosureMarket } from "@/lib/news-display";
 import { formatNewsDate } from "@/lib/news-sort";
 import {
   resolveDisclosureSignalStatus,
+  readStoredSignalStatus,
   SIGNAL_LABELS,
   SIGNAL_STATUSES,
   type SignalStatus,
 } from "@/lib/signal-status";
-import { enrichStockMatchContext, rowMatchesStockContext, type StockMatchContext } from "@/lib/stock-signal-sync";
+import {
+  enrichStockMatchContext,
+  resolveLatestSignalFromDisclosureRows,
+  rowMatchesStockContext,
+  type StockMatchContext,
+} from "@/lib/stock-signal-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -21,6 +27,7 @@ type AdminNewsManageListProps = {
   onSearchChange: (q: string) => void;
   onSearchSubmit: (e: React.FormEvent) => void;
   onEdit: (item: DisclosureWithStock) => void;
+  onSignalSaved?: () => void;
   editingId: string | null;
 };
 
@@ -31,6 +38,7 @@ export function AdminNewsManageList({
   onSearchChange,
   onSearchSubmit,
   onEdit,
+  onSignalSaved,
   editingId,
 }: AdminNewsManageListProps) {
   const [signalDrafts, setSignalDrafts] = useState<Record<string, SignalStatus>>({});
@@ -41,7 +49,9 @@ export function AdminNewsManageList({
   useEffect(() => {
     const next: Record<string, SignalStatus> = {};
     for (const item of items) {
-      next[item.id] = resolveDisclosureSignalStatus(item);
+      const ctx = enrichStockMatchContext(item);
+      const unified = resolveLatestSignalFromDisclosureRows(items, ctx);
+      next[item.id] = unified ?? readStoredSignalStatus(item) ?? resolveDisclosureSignalStatus(item);
     }
     setSignalDrafts(next);
     setSavedSignals(next);
@@ -78,16 +88,15 @@ export function AdminNewsManageList({
         updatedCount?: number;
       };
       if (!res.ok || !j.ok) {
-        const detail = j.detail ? ` — ${j.detail}` : "";
-        console.error(
-          "[admin/signal save] 구체적 에러 원인:",
-          j.error ?? res.statusText,
-          detail,
-          { status: res.status, id: item.id, signal_status, response: j }
-        );
+        console.error("[admin/signal save] failed:", j.error ?? res.statusText, {
+          status: res.status,
+          id: item.id,
+          signal_status,
+          response: j,
+        });
         setSignalMessage({
           ok: false,
-          text: `${j.error ?? "시그널 저장에 실패했습니다."}${detail}`,
+          text: j.error ?? "시그널 저장에 실패했습니다.",
         });
         return;
       }
@@ -120,6 +129,8 @@ export function AdminNewsManageList({
         ok: true,
         text: count > 1 ? `동일 종목 ${count}건 일괄 저장되었습니다.` : "성공적으로 저장되었습니다.",
       });
+      // DB 기준으로 목록 재동기화 (새로고침과 동일한 소스)
+      onSignalSaved?.();
     } catch (err) {
       console.error("[admin/signal save] network — 구체적 에러 원인:", err, {
         id: item.id,

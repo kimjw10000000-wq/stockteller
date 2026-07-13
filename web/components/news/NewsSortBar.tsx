@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   NEWS_MARKET_OPTIONS,
   NEWS_SORT_OPTIONS,
+  getDefaultMarketByKst,
   parseMarketKey,
   parseSortKey,
   type NewsMarketKey,
@@ -16,16 +17,20 @@ export function NewsSortBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sort = parseSortKey(searchParams.get("sort") ?? undefined);
-  const market = parseMarketKey(searchParams.get("market") ?? undefined);
+  const marketParam = searchParams.get("market");
+  const market = marketParam ? parseMarketKey(marketParam) : getDefaultMarketByKst();
 
   const setParams = useCallback(
     (next: { sort?: NewsSortKey; market?: NewsMarketKey }) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next.sort) params.set("sort", next.sort);
-      if (next.market) params.set("market", next.market);
+      params.set("sort", next.sort ?? sort);
+      params.set("market", next.market ?? market);
+      const q = searchParams.get("q");
+      if (q) params.set("q", q);
+      else params.delete("q");
       router.push(`/feed?${params.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams, sort, market]
   );
 
   return (
