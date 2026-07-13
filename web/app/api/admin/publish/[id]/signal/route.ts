@@ -1,11 +1,33 @@
 import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/admin-auth";
-import { getAdminDisclosureById, updateAdminDisclosureSignal } from "@/lib/admin-publish-service";
+import {
+  getAdminDisclosureById,
+  updateAdminDisclosureSignal,
+  type SignalSavePayload,
+} from "@/lib/admin-publish-service";
 import { isManualEditorPost } from "@/lib/manual-post";
 import { isSignalStatus } from "@/lib/signal-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: { id: string } };
+
+type SignalPatchBody = {
+  signal_status?: unknown;
+  market?: unknown;
+  stock_name?: unknown;
+  stock_code?: unknown;
+  ticker?: unknown;
+};
+
+function parseStockOverride(body: SignalPatchBody): Omit<SignalSavePayload, "signal_status"> | undefined {
+  const market = body.market === "us" || body.market === "kr" ? body.market : undefined;
+  const stock_name = typeof body.stock_name === "string" ? body.stock_name.trim() : undefined;
+  const stock_code = typeof body.stock_code === "string" ? body.stock_code.trim() : undefined;
+  const ticker = typeof body.ticker === "string" ? body.ticker.trim() : undefined;
+
+  if (!market && !stock_name && !stock_code && !ticker) return undefined;
+  return { market, stock_name, stock_code, ticker };
+}
 
 export async function PATCH(req: Request, { params }: RouteContext) {
   const supabase = await createSupabaseServerClient();
@@ -22,7 +44,7 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     return NextResponse.json({ ok: false, error: "시그널을 변경할 수 있는 기사를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  let body: { signal_status?: unknown };
+  let body: SignalPatchBody;
   try {
     body = await req.json();
   } catch {
@@ -36,8 +58,10 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     );
   }
 
+  const stockOverride = parseStockOverride(body);
+
   try {
-    const data = await updateAdminDisclosureSignal(params.id, body.signal_status);
+    const data = await updateAdminDisclosureSignal(params.id, body.signal_status, stockOverride);
     return NextResponse.json({
       ok: true,
       id: data.id,
@@ -49,6 +73,12 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    console.error("[admin/publish/signal] PATCH failed:", msg, {
+      id: params.id,
+      signal_status: body.signal_status,
+      stockOverride,
+    });
+
     if (msg === "ARTICLE_NOT_FOUND") {
       return NextResponse.json({ ok: false, error: "기사를 찾을 수 없습니다." }, { status: 404 });
     }
@@ -58,13 +88,19 @@ export async function PATCH(req: Request, { params }: RouteContext) {
         { status: 400 }
       );
     }
-    if (msg === "SIGNAL_SAVE_FAILED") {
-      return NextResponse.json({ ok: false, error: "시그널 저장에 실패했습니다." }, { status: 500 });
+    if (msg.startsWith("SIGNAL_SAVE_FAILED")) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "시그널 저장에 실패했습니다. 종목 정보를 확인해 주세요.",
+          detail: msg,
+        },
+        { status: 500 }
+      );
     }
-    console.error("[admin/publish/signal] PATCH failed:", msg, {
-      id: params.id,
-      signal_status: body.signal_status,
-    });
-    return NextResponse.json({ ok: false, error: "시그널 저장에 실패했습니다." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "시그널 저장에 실패했습니다.", detail: msg },
+      { status: 500 }
+    );
   }
 }

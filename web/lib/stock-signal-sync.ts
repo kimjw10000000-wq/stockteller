@@ -33,7 +33,7 @@ type DisclosureSignalRow = DisclosureLike & {
 };
 
 const SELECT_FIELDS =
-  "id, gemini_metadata, stock_code, stock_name, market_type, created_at, stocks(name, ticker, market)" as const;
+  "id, gemini_metadata, stock_id, created_at, stocks(name, ticker, market)" as const;
 
 export function normalizeStockCode(code: string): string {
   const trimmed = code.trim();
@@ -273,14 +273,13 @@ export async function findDisclosuresByStockContext(
   const symbolQueries = await Promise.all([
     selectBy(client, (q) => q.eq("gemini_metadata->>stock_code", symbol)),
     selectBy(client, (q) => q.eq("gemini_metadata->>ticker", symbol)),
-    selectBy(client, (q) => q.eq("stock_code", symbol)),
     stockIds.length > 0
       ? selectBy(client, (q) => q.in("stock_id", stockIds))
       : Promise.resolve([] as DisclosureSignalRow[]),
   ]);
   for (const rows of symbolQueries) mergeRows(seen, rows);
 
-  // 주식이름으로도 후보 수집 (필드 위치가 다른 과거 행 포함)
+  // 주식이름으로도 후보 수집 (gemini_metadata·stocks 조인만 — DB 컬럼 stock_name 없음)
   const nameStockIds = await (async () => {
     try {
       const { data } = await client.from("stocks").select("id").ilike("name", name);
@@ -292,8 +291,6 @@ export async function findDisclosuresByStockContext(
 
   const nameQueries = await Promise.all([
     selectBy(client, (q) => q.eq("gemini_metadata->>stock_name", name)),
-    selectBy(client, (q) => q.eq("stock_name", name)),
-    selectBy(client, (q) => q.ilike("stock_name", name)),
     selectBy(client, (q) => q.ilike("gemini_metadata->>stock_name", name)),
     nameStockIds.length > 0
       ? selectBy(client, (q) => q.in("stock_id", nameStockIds))
@@ -372,4 +369,39 @@ export function resolveLatestSignalFromDisclosureRows(
 ): SignalStatus | null {
   const matched = rows.filter((row) => rowMatchesStockContext(row, ctx));
   return resolveLatestSignalFromRows(matched.length > 0 ? matched : rows);
+}
+
+/** API 요청 body + DB 행으로 종목 매칭 컨텍스트 병합 */
+export function mergeStockMatchContext(
+  base: StockMatchContext,
+  override?: {
+    market?: "us" | "kr" | "unknown" | null;
+    stock_name?: string | null;
+    stock_code?: string | null;
+    ticker?: string | null;
+  } | null
+): StockMatchContext {
+  const market =
+    override?.market === "us" || override?.market === "kr"
+      ? override.market
+      : base.market;
+  const stockName = override?.stock_name
+    ? normalizeStockName(override.stock_name)
+    : base.stockName;
+  const stockCode = override?.stock_code
+    ? normalizeStockCode(override.stock_code)
+    : base.stockCode;
+  const ticker = override?.ticker
+    ? normalizeStockCode(override.ticker)
+    : base.ticker ?? stockCode;
+
+  const merged: StockMatchContext = { market, stockName, stockCode, ticker };
+  const effective = resolveEffectiveMarket(merged);
+  if (effective === "kr" && !merged.stockCode && merged.ticker) {
+    merged.stockCode = merged.ticker;
+  }
+  if (effective === "us" && !merged.ticker && merged.stockCode) {
+    merged.ticker = merged.stockCode;
+  }
+  return merged;
 }

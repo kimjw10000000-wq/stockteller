@@ -6,7 +6,7 @@ import {
   signalStatusFromForm,
   type SignalStatus,
 } from "@/lib/signal-status";
-import { enrichStockMatchContext } from "@/lib/stock-signal-sync";
+import { enrichStockMatchContext, mergeStockMatchContext } from "@/lib/stock-signal-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DisclosureWithStock } from "@/lib/types";
 
@@ -275,16 +275,24 @@ export async function bulkUpdateSignalStatusByStockContext(
   let rows = await findDisclosuresByStockContext(ctx, admin, ensureId);
 
   if (rows.length === 0 && ensureId) {
-    const { data } = await admin
+    const { data, error } = await admin
       .from("disclosures")
-      .select("id, gemini_metadata, stock_code, stock_name, market_type, created_at, stocks(name, ticker, market)")
+      .select("id, gemini_metadata, stock_id, created_at, stocks(name, ticker, market)")
       .eq("id", ensureId)
       .maybeSingle();
-    if (data) rows = [data as (typeof rows)[number]];
+    if (error) {
+      console.error("[stock-signal] ensureId fetch failed", ensureId, error.code, error.message);
+    } else if (data) {
+      rows = [data as (typeof rows)[number]];
+    }
   }
 
   if (rows.length === 0) {
-    console.error("[stock-signal] bulk update — no rows to update", { ensureId, ctx });
+    console.error("[stock-signal] bulk update — no rows to update", {
+      ensureId,
+      ctx,
+      market,
+    });
     return {
       updatedCount: 0,
       stockCode: ctx.stockCode,
@@ -386,9 +394,18 @@ function enrichStockIdentityFromDisclosure(
   return enrichStockMatchContext(existing);
 }
 
+export type SignalSavePayload = {
+  signal_status: SignalStatus;
+  market?: "us" | "kr";
+  stock_name?: string;
+  stock_code?: string;
+  ticker?: string;
+};
+
 export async function updateAdminDisclosureSignal(
   id: string,
-  signalStatus: SignalStatus
+  signalStatus: SignalStatus,
+  stockOverride?: Omit<SignalSavePayload, "signal_status">
 ): Promise<{
   id: string;
   signal_status: SignalStatus;
@@ -406,11 +423,23 @@ export async function updateAdminDisclosureSignal(
     throw new Error("ARTICLE_NOT_FOUND");
   }
 
-  const ctx = enrichStockIdentityFromDisclosure(existing);
+  const baseCtx = enrichStockIdentityFromDisclosure(existing);
+  const ctx = mergeStockMatchContext(baseCtx, stockOverride ?? null);
+
+  console.log("[stock-signal] save request", {
+    id,
+    signalStatus,
+    baseCtx,
+    mergedCtx: ctx,
+    payload: stockOverride ?? null,
+  });
+
   const result = await bulkUpdateSignalStatusByStockContext(ctx, signalStatus, id);
 
   if (result.updatedCount === 0) {
-    throw new Error("SIGNAL_SAVE_FAILED");
+    throw new Error(
+      `SIGNAL_SAVE_FAILED: matched=0 market=${ctx.market} name=${ctx.stockName ?? ""} code=${ctx.stockCode ?? ""} ticker=${ctx.ticker ?? ""}`
+    );
   }
 
   return {

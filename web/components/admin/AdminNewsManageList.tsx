@@ -69,13 +69,22 @@ export function AdminNewsManageList({
 
   async function onSaveSignal(item: DisclosureWithStock) {
     const signal_status = getDraftSignal(item);
+    const stockContext = enrichStockMatchContext(item);
+    const payload = {
+      signal_status,
+      market: stockContext.market !== "unknown" ? stockContext.market : undefined,
+      stock_name: stockContext.stockName ?? undefined,
+      stock_code: stockContext.stockCode ?? undefined,
+      ticker: stockContext.ticker ?? stockContext.stockCode ?? undefined,
+    };
+
     setSavingId(item.id);
     setSignalMessage(null);
     try {
       const res = await fetch(`/api/admin/publish/${item.id}/signal`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signal_status }),
+        body: JSON.stringify(payload),
       });
       const j = (await res.json()) as {
         ok?: boolean;
@@ -91,7 +100,8 @@ export function AdminNewsManageList({
         console.error("[admin/signal save] failed:", j.error ?? res.statusText, {
           status: res.status,
           id: item.id,
-          signal_status,
+          payload,
+          detail: j.detail,
           response: j,
         });
         setSignalMessage({
