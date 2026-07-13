@@ -7,9 +7,11 @@ import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
+import { KakaoShareButton } from "@/components/news/KakaoShareButton";
 import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
 import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
 import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-signal-sync";
+import { buildShareDescription } from "@/lib/kakao-share";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
@@ -58,6 +60,14 @@ export function NewsDetailView({
         </div>
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{title}</h1>
+        <div className="mt-4">
+          <KakaoShareButton
+            newsId={item.id}
+            title={title}
+            description={buildShareDescription(item.summary, title)}
+            imageUrl={cover}
+          />
+        </div>
         <NewsSignalGaugePanel
           stockContext={stockContext}
           initialStatus={signalStatus}
