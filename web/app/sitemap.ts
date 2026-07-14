@@ -3,7 +3,7 @@ import { listAllDisclosureSitemapEntries } from "@/lib/disclosures";
 import { getSiteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 3600;
+export const runtime = "nodejs";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getSiteUrl().origin;
@@ -33,7 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const items = await listAllDisclosureSitemapEntries();
     const newsUrls: MetadataRoute.Sitemap = items.map((item) => ({
       url: `${base}/news/${item.id}`,
-      lastModified: new Date(item.created_at),
+      lastModified: item.created_at ? new Date(item.created_at) : new Date(),
       changeFrequency: "weekly",
       priority: 0.8,
     }));

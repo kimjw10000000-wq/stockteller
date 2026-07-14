@@ -29,6 +29,12 @@ export function getSiteUrl(): URL {
       /* fall through */
     }
   }
+
+  // 프로덕션은 공개 도메인 고정 (VERCEL_URL은 배포별 프리뷰 호스트)
+  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
+    return new URL(PRODUCTION_SITE_ORIGIN);
+  }
+
   const vercel = process.env.VERCEL_URL?.trim();
   if (vercel) {
     const host = vercel.replace(/^https?:\/\//i, "");
@@ -38,8 +44,6 @@ export function getSiteUrl(): URL {
       /* fall through */
     }
   }
-  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
-    return new URL(PRODUCTION_SITE_ORIGIN);
-  }
+
   return new URL("http://localhost:3000");
 }

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { getSiteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export default function robots(): MetadataRoute.Robots {
   const u = getSiteUrl();
