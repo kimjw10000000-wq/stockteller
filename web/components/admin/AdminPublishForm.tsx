@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AdminRichTextEditor } from "@/components/admin/AdminRichTextEditor";
+import { AdminCanvasEditor } from "@/components/admin/AdminCanvasEditor";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import type { AdminEditDraft } from "@/lib/admin-edit-draft";
-import { isEditorContentEmpty } from "@/lib/html-utils";
+import { isBodyContentEmpty } from "@/lib/canvas-document";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   DEFAULT_SIGNAL_STATUS,
@@ -115,7 +115,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isEditorContentEmpty(body)) {
+    if (isBodyContentEmpty(body)) {
       setStatus("err");
       setMessage("본문을 입력해 주세요.");
       return;
@@ -297,7 +297,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
           <label htmlFor="publish-body" className="block text-sm font-medium text-foreground">
             본문
           </label>
-          <AdminRichTextEditor
+          <AdminCanvasEditor
             key={editDraft?.id ?? "new"}
             editorKey={editDraft?.id ?? "new"}
             value={body}

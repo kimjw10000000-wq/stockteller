@@ -28,6 +28,7 @@
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
+    "react-rnd": "^10.5.3",
     "tailwind-merge": "^3.6.0",
     "ws": "^8.20.0"
   },
