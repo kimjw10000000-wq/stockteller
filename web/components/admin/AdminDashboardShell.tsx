@@ -12,6 +12,7 @@ export function AdminDashboardShell() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [editDraft, setEditDraft] = useState<AdminEditDraft | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const loadList = useCallback(async (q: string) => {
     setLoading(true);
@@ -37,20 +38,24 @@ export function AdminDashboardShell() {
   }
 
   async function onEdit(item: DisclosureWithStock) {
+    setEditLoading(true);
     try {
       const res = await fetch(`/api/admin/publish/${item.id}`, { cache: "no-store" });
-      const j = (await res.json()) as { ok?: boolean; item?: DisclosureWithStock };
+      const j = (await res.json()) as { ok?: boolean; item?: DisclosureWithStock; error?: string };
       if (j.ok && j.item) {
         setEditDraft(disclosureToEditDraft(j.item));
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch {
       /* ignore */
+    } finally {
+      setEditLoading(false);
     }
   }
 
   function onCancelEdit() {
     setEditDraft(null);
+    setEditLoading(false);
   }
 
   function onSaved() {
@@ -65,7 +70,12 @@ export function AdminDashboardShell() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
-      <AdminPublishForm editDraft={editDraft} onCancelEdit={onCancelEdit} onSaved={onSaved} />
+      <AdminPublishForm
+        editDraft={editDraft}
+        editLoading={editLoading}
+        onCancelEdit={onCancelEdit}
+        onSaved={onSaved}
+      />
       <AdminNewsManageList
         items={items}
         loading={loading}

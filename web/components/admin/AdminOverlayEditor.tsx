@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Rnd } from "react-rnd";
 import { AdminRichTextEditor } from "@/components/admin/AdminRichTextEditor";
@@ -22,6 +22,7 @@ type AdminOverlayEditorProps = {
   value: string;
   onChange: (json: string) => void;
   editorKey?: string;
+  isLoading?: boolean;
 };
 
 type BlockMetric = { height: number };
@@ -38,7 +39,7 @@ async function uploadOverlayImage(file: File): Promise<string> {
   return j.url;
 }
 
-export function AdminOverlayEditor({ value, onChange, editorKey }: AdminOverlayEditorProps) {
+export function AdminOverlayEditor({ value, onChange, editorKey, isLoading = false }: AdminOverlayEditorProps) {
   const [doc, setDoc] = useState<OverlayArticleDocument>(() => parseBodyToOverlayDocument(value));
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [blockMetrics, setBlockMetrics] = useState<BlockMetric[]>([]);
@@ -46,16 +47,25 @@ export function AdminOverlayEditor({ value, onChange, editorKey }: AdminOverlayE
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorShellRef = useRef<HTMLDivElement>(null);
   const paragraphIndexRef = useRef(0);
+  const lastSerializedRef = useRef(serializeOverlayArticleDocument(parseBodyToOverlayDocument(value)));
+  const prevEditorKeyRef = useRef(editorKey);
 
   const blocks = useMemo(() => parseArticleBlocks(doc.content), [doc.content]);
   const contentMaxWidth = doc.contentMaxWidth || ARTICLE_CONTENT_MAX_WIDTH;
   const overlayRowCount = Math.max(blockMetrics.length, blocks.length, 1);
 
   useEffect(() => {
-    setDoc(parseBodyToOverlayDocument(value));
+    const editorKeyChanged = prevEditorKeyRef.current !== editorKey;
+    prevEditorKeyRef.current = editorKey;
+
+    if (!editorKeyChanged && value === lastSerializedRef.current) return;
+
+    const parsed = parseBodyToOverlayDocument(value);
+    const serialized = serializeOverlayArticleDocument(parsed);
+    setDoc(parsed);
     setSelectedImageId(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorKey]);
+    lastSerializedRef.current = serialized;
+  }, [value, editorKey]);
 
   const syncLayout = useCallback(() => {
     const shell = editorShellRef.current;
@@ -93,8 +103,10 @@ export function AdminOverlayEditor({ value, onChange, editorKey }: AdminOverlayE
 
   const commit = useCallback(
     (next: OverlayArticleDocument) => {
+      const serialized = serializeOverlayArticleDocument(next);
+      lastSerializedRef.current = serialized;
       setDoc(next);
-      onChange(serializeOverlayArticleDocument(next));
+      onChange(serialized);
     },
     [onChange]
   );
@@ -148,6 +160,15 @@ export function AdminOverlayEditor({ value, onChange, editorKey }: AdminOverlayE
     }
     return map;
   }, [doc.overlay_images]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center gap-2 rounded-xl border border-border bg-muted/20 text-sm text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        기존 데이터를 불러오는 중입니다…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

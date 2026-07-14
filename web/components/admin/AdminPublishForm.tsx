@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminOverlayEditor } from "@/components/admin/AdminOverlayEditor";
@@ -31,11 +31,12 @@ const SIGNAL_RING: Record<SignalStatus, string> = {
 
 type AdminPublishFormProps = {
   editDraft: AdminEditDraft | null;
+  editLoading?: boolean;
   onCancelEdit: () => void;
   onSaved: () => void;
 };
 
-export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPublishFormProps) {
+export function AdminPublishForm({ editDraft, editLoading = false, onCancelEdit, onSaved }: AdminPublishFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -85,9 +86,12 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
     });
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyDraft(editDraft);
   }, [editDraft, applyDraft]);
+
+  const editorValue = body || editDraft?.body || "";
+  const showEditorLoading = editLoading || (isEditing && !editorValue && Boolean(editDraft?.id));
 
   function onImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -300,8 +304,9 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
           <AdminOverlayEditor
             key={editDraft?.id ?? "new"}
             editorKey={editDraft?.id ?? "new"}
-            value={body}
+            value={editorValue}
             onChange={setBody}
+            isLoading={showEditorLoading}
           />
         </div>
 
