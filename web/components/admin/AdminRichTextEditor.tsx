@@ -18,6 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { normalizeEditorContent } from "@/lib/html-utils";
 import { cn } from "@/lib/utils";
+import {
+  extractClipboardImageFile,
+  stripPastedHtmlStyles,
+} from "@/lib/overlay-article-layout";
 
 type AdminRichTextEditorProps = {
   value: string;
@@ -28,7 +32,15 @@ type AdminRichTextEditorProps = {
   textOnly?: boolean;
   /** 캔버스 내부 임베드: 외곽 테두리·배경 제거 */
   embedded?: boolean;
+  contentMaxWidth?: number;
+  onImagePaste?: (file: File) => void;
+  onParagraphIndexChange?: (index: number) => void;
 };
+
+function getTopLevelBlockIndex(editor: Editor): number {
+  const { $from } = editor.state.selection;
+  return Math.max(0, $from.index(0));
+}
 
 async function uploadEditorImage(file: File): Promise<string> {
   const formData = new FormData();
@@ -48,6 +60,9 @@ export function AdminRichTextEditor({
   editorKey,
   textOnly = false,
   embedded = false,
+  contentMaxWidth,
+  onImagePaste,
+  onParagraphIndexChange,
 }: AdminRichTextEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadingRef = useRef(false);
@@ -102,8 +117,17 @@ export function AdminRichTextEditor({
       attributes: {
         class: "admin-rich-editor-content focus:outline-none",
       },
+      transformPastedHTML: (html) => stripPastedHtmlStyles(html),
       handleDrop: textOnly
-        ? undefined
+        ? (view, event) => {
+            const file = event.dataTransfer?.files?.[0];
+            if (file?.type.startsWith("image/")) {
+              event.preventDefault();
+              onImagePaste?.(file);
+              return true;
+            }
+            return false;
+          }
         : (_view, event) => {
             const file = event.dataTransfer?.files?.[0];
             if (file?.type.startsWith("image/")) {
@@ -114,7 +138,24 @@ export function AdminRichTextEditor({
             return false;
           },
       handlePaste: textOnly
-        ? undefined
+        ? (view, event) => {
+            const imageFile = extractClipboardImageFile(event.clipboardData);
+            if (imageFile) {
+              event.preventDefault();
+              onImagePaste?.(imageFile);
+              return true;
+            }
+            const html = event.clipboardData?.getData("text/html");
+            if (html) {
+              const clean = stripPastedHtmlStyles(html);
+              if (clean !== html) {
+                event.preventDefault();
+                view.pasteHTML(clean);
+                return true;
+              }
+            }
+            return false;
+          }
         : (_view, event) => {
             const items = event.clipboardData?.items;
             if (!items) return false;
@@ -130,12 +171,24 @@ export function AdminRichTextEditor({
             return false;
           },
     },
+    onSelectionUpdate: ({ editor: ed }) => {
+      if (textOnly && onParagraphIndexChange) {
+        onParagraphIndexChange(getTopLevelBlockIndex(ed));
+      }
+    },
     onUpdate: ({ editor: ed }) => {
       onChange(ed.getHTML());
     },
   });
 
   editorRef.current = editor ?? null;
+
+  useEffect(() => {
+    if (!editor) return;
+    if (textOnly && onParagraphIndexChange) {
+      onParagraphIndexChange(getTopLevelBlockIndex(editor));
+    }
+  }, [editor, textOnly, onParagraphIndexChange]);
 
   useEffect(() => {
     if (!editor) return;
@@ -246,6 +299,7 @@ export function AdminRichTextEditor({
           "admin-rich-editor px-3 py-3 text-sm text-foreground",
           embedded ? "min-h-[420px]" : "min-h-[320px]"
         )}
+        style={contentMaxWidth ? { maxWidth: contentMaxWidth } : undefined}
       />
     </div>
   );
