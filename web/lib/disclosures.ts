@@ -177,3 +177,46 @@ export async function getDisclosureById(
   }
   return data as DisclosureWithStock | null;
 }
+
+/** sitemap용 — 등록된 모든 리포트 id·수정 시각 */
+export async function listAllDisclosureSitemapEntries(): Promise<
+  { id: string; created_at: string }[]
+> {
+  let supabase;
+  try {
+    supabase = createPublicClient();
+  } catch {
+    return [];
+  }
+
+  const entries: { id: string; created_at: string }[] = [];
+  let cursor: string | undefined;
+
+  for (let round = 0; round < 100; round += 1) {
+    let q = supabase
+      .from("disclosures")
+      .select("id, created_at")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+
+    if (cursor) q = q.lt("created_at", cursor);
+
+    const result = await withQueryTimeout(() => q.limit(200), QUERY_TIMEOUT_MS);
+    if (result === "timeout") break;
+
+    const { data, error } = result;
+    if (error) {
+      console.error("[listAllDisclosureSitemapEntries]", error.message);
+      break;
+    }
+
+    const batch = data ?? [];
+    if (batch.length === 0) break;
+
+    entries.push(...batch);
+    if (batch.length < 200) break;
+    cursor = batch[batch.length - 1]?.created_at;
+  }
+
+  return entries;
+}

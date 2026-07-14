@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listDisclosures } from "@/lib/disclosures";
+import { listAllDisclosureSitemapEntries } from "@/lib/disclosures";
 import { getSiteUrl } from "@/lib/site";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -27,14 +27,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const items = await listDisclosures(200);
-    const disclosureUrls: MetadataRoute.Sitemap = items.map((item) => ({
-      url: `${base}/disclosure/${item.id}`,
+    const items = await listAllDisclosureSitemapEntries();
+    const newsUrls: MetadataRoute.Sitemap = items.map((item) => ({
+      url: `${base}/news/${item.id}`,
       lastModified: new Date(item.created_at),
       changeFrequency: "weekly",
-      priority: 0.65,
+      priority: 0.8,
     }));
-    return [...staticPages, ...disclosureUrls];
+    return [...staticPages, ...newsUrls];
   } catch {
     return staticPages;
   }

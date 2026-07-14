@@ -3,10 +3,9 @@ import { notFound } from "next/navigation";
 import { NewsDetailView } from "@/components/news/NewsDetailView";
 import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
 import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
-import { disclosureStockLabel } from "@/lib/news-display";
 import { enrichStockMatchContext, getSignalStatusForStockContext } from "@/lib/stock-signal-sync";
 import { readStoredSignalStatus, DEFAULT_SIGNAL_STATUS } from "@/lib/signal-status";
-import { SITE_NAME_KO } from "@/lib/site";
+import { buildNewsDetailMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,15 +15,7 @@ type PageProps = { params: { id: string } };
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const row = await getDisclosureById(params.id);
   if (!row) return { title: "뉴스를 찾을 수 없음" };
-  const { name } = disclosureStockLabel(row);
-  const title = row.title ?? "뉴스";
-  const description = row.summary?.split("\n").filter(Boolean).slice(0, 2).join(" ") ?? "";
-  return {
-    title: `${name} — ${title}`,
-    description: description || `${name} · ${SITE_NAME_KO}`,
-    alternates: { canonical: `/news/${params.id}` },
-    openGraph: { title: `${name} — ${title}`, description },
-  };
+  return buildNewsDetailMetadata(row, params.id);
 }
 
 export default async function NewsDetailPage({ params }: PageProps) {

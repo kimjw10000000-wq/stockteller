@@ -6,20 +6,35 @@ import {
   parseBodyToOverlayDocument,
   type OverlayArticleDocument,
 } from "@/lib/canvas-document";
+import { buildReportImageAlt, ensureImageAltInHtml } from "@/lib/seo";
 
 type OverlayArticleViewerProps = {
   rawContent: string;
+  reportTitle?: string;
 };
 
-export function OverlayArticleViewer({ rawContent }: OverlayArticleViewerProps) {
+export function OverlayArticleViewer({ rawContent, reportTitle }: OverlayArticleViewerProps) {
   const doc = useMemo(() => parseBodyToOverlayDocument(rawContent), [rawContent]);
-  return <OverlayArticleStage doc={doc} />;
+  const imageAlt = buildReportImageAlt(reportTitle ?? "리포트");
+  const contentHtml = useMemo(
+    () => ensureImageAltInHtml(doc.content, imageAlt),
+    [doc.content, imageAlt]
+  );
+  return <OverlayArticleStage doc={doc} contentHtml={contentHtml} imageAlt={imageAlt} />;
 }
 
 /** @deprecated OverlayArticleViewer 사용 */
 export const CanvasArticleViewer = OverlayArticleViewer;
 
-export function OverlayArticleStage({ doc }: { doc: OverlayArticleDocument }) {
+export function OverlayArticleStage({
+  doc,
+  contentHtml,
+  imageAlt,
+}: {
+  doc: OverlayArticleDocument;
+  contentHtml: string;
+  imageAlt: string;
+}) {
   const height = computeOverlayContainerHeight(doc);
 
   return (
@@ -29,9 +44,9 @@ export function OverlayArticleStage({ doc }: { doc: OverlayArticleDocument }) {
         style={{ width: doc.canvasWidth, minHeight: height }}
         aria-label="본문"
       >
-        <article
+        <div
           className="article-rich-body relative z-0 px-4 py-4 text-sm leading-relaxed text-foreground/90"
-          dangerouslySetInnerHTML={{ __html: doc.content }}
+          dangerouslySetInnerHTML={{ __html: contentHtml }}
         />
 
         <div className="pointer-events-none absolute inset-0 z-10">
@@ -40,7 +55,7 @@ export function OverlayArticleStage({ doc }: { doc: OverlayArticleDocument }) {
             <img
               key={img.id}
               src={img.src}
-              alt=""
+              alt={imageAlt}
               className="absolute rounded-md border border-border/60 bg-white shadow-sm object-contain"
               style={{
                 left: img.x,
