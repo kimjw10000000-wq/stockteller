@@ -1,5 +1,9 @@
 import { stripHtml } from "@/lib/html-utils";
-import { canvasDocumentSummary, isCanvasDocument, parseCanvasDocument } from "@/lib/canvas-document";
+import {
+  isOverlayArticleDocument,
+  overlayArticleSummary,
+  parseBodyToOverlayDocument,
+} from "@/lib/canvas-document";
 
 export function isManualEditorPost(row: {
   gemini_metadata?: Record<string, unknown> | null;
@@ -16,9 +20,9 @@ export function getCoverImageUrl(row: {
 }
 
 export function previewSummaryFromBody(body: string, maxLen = 560): string {
-  if (isCanvasDocument(body)) {
-    const doc = parseCanvasDocument(body);
-    if (doc) return canvasDocumentSummary(doc, maxLen);
+  if (isOverlayArticleDocument(body)) {
+    const doc = parseBodyToOverlayDocument(body);
+    return overlayArticleSummary(doc, maxLen);
   }
 
   const plain = body.includes("<") ? stripHtml(body) : body;
@@ -32,10 +36,15 @@ export function previewSummaryFromBody(body: string, maxLen = 560): string {
 }
 
 export function bodyLooksLikeHtml(body: string): boolean {
-  if (isCanvasDocument(body)) return false;
+  if (isOverlayArticleDocument(body)) return false;
   return /<[a-z][\s\S]*>/i.test(body);
 }
 
+export function bodyIsOverlayLayout(body: string): boolean {
+  return isOverlayArticleDocument(body);
+}
+
+/** @deprecated bodyIsOverlayLayout 사용 */
 export function bodyIsCanvasLayout(body: string): boolean {
-  return isCanvasDocument(body);
+  return bodyIsOverlayLayout(body);
 }

@@ -2,60 +2,56 @@
 
 import { useMemo } from "react";
 import {
-  computeCanvasRenderHeight,
-  parseCanvasDocument,
-  type CanvasDocument,
+  computeOverlayContainerHeight,
+  parseBodyToOverlayDocument,
+  type OverlayArticleDocument,
 } from "@/lib/canvas-document";
 
-type CanvasArticleViewerProps = {
+type OverlayArticleViewerProps = {
   rawContent: string;
 };
 
-export function CanvasArticleViewer({ rawContent }: CanvasArticleViewerProps) {
-  const doc = useMemo(() => parseCanvasDocument(rawContent), [rawContent]);
-  if (!doc) return null;
-
-  return <CanvasStage doc={doc} readOnly />;
+export function OverlayArticleViewer({ rawContent }: OverlayArticleViewerProps) {
+  const doc = useMemo(() => parseBodyToOverlayDocument(rawContent), [rawContent]);
+  return <OverlayArticleStage doc={doc} />;
 }
 
-export function CanvasStage({
-  doc,
-  readOnly = true,
-}: {
-  doc: CanvasDocument;
-  readOnly?: boolean;
-}) {
-  const height = computeCanvasRenderHeight(doc);
+/** @deprecated OverlayArticleViewer 사용 */
+export const CanvasArticleViewer = OverlayArticleViewer;
+
+export function OverlayArticleStage({ doc }: { doc: OverlayArticleDocument }) {
+  const height = computeOverlayContainerHeight(doc);
 
   return (
-    <div className={`${readOnly ? "mt-3" : ""} overflow-x-auto rounded-lg border border-border bg-[#f8f8fa] p-3`}>
+    <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-[#f8f8fa] p-3">
       <div
         className="relative mx-auto rounded-lg bg-white shadow-sm"
-        style={{ width: doc.canvasWidth, height, minHeight: doc.canvasHeight }}
-        aria-label="캔버스 본문"
+        style={{ width: doc.canvasWidth, minHeight: height }}
+        aria-label="본문"
       >
-        {doc.elements.map((el) => (
-          <div
-            key={el.id}
-            className="absolute overflow-hidden rounded-md border border-border/60 bg-white shadow-sm"
-            style={{
-              left: el.x,
-              top: el.y,
-              width: el.width,
-              height: el.height,
-              zIndex: el.zIndex,
-            }}
-          >
-            {el.type === "text" ? (
-              <div className="h-full w-full overflow-auto whitespace-pre-wrap p-3 text-sm leading-relaxed text-foreground/90">
-                {el.content || ""}
-              </div>
-            ) : el.content ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={el.content} alt="" className="h-full w-full object-contain" />
-            ) : null}
-          </div>
-        ))}
+        <article
+          className="article-rich-body relative z-0 px-4 py-4 text-sm leading-relaxed text-foreground/90"
+          dangerouslySetInnerHTML={{ __html: doc.content }}
+        />
+
+        <div className="pointer-events-none absolute inset-0 z-10">
+          {doc.overlay_images.map((img) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={img.id}
+              src={img.src}
+              alt=""
+              className="absolute rounded-md border border-border/60 bg-white shadow-sm object-contain"
+              style={{
+                left: img.x,
+                top: img.y,
+                width: img.width,
+                height: img.height,
+                zIndex: img.zIndex,
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

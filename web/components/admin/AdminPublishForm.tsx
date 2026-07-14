@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AdminCanvasEditor } from "@/components/admin/AdminCanvasEditor";
+import { AdminOverlayEditor } from "@/components/admin/AdminOverlayEditor";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import type { AdminEditDraft } from "@/lib/admin-edit-draft";
 import { isBodyContentEmpty } from "@/lib/canvas-document";
@@ -297,7 +297,7 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
           <label htmlFor="publish-body" className="block text-sm font-medium text-foreground">
             본문
           </label>
-          <AdminCanvasEditor
+          <AdminOverlayEditor
             key={editDraft?.id ?? "new"}
             editorKey={editDraft?.id ?? "new"}
             value={body}

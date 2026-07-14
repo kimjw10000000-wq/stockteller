@@ -4,8 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
-import { isManualEditorPost, getCoverImageUrl, bodyLooksLikeHtml, bodyIsCanvasLayout } from "@/lib/manual-post";
-import { CanvasArticleViewer } from "@/components/news/CanvasArticleViewer";
+import { isManualEditorPost, getCoverImageUrl, bodyLooksLikeHtml, bodyIsOverlayLayout } from "@/lib/manual-post";
+import { OverlayArticleViewer } from "@/components/news/CanvasArticleViewer";
 import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
 import { NewsShareModal } from "@/components/news/NewsShareModal";
@@ -106,8 +106,8 @@ export function NewsDetailView({
         <h2 id="raw-heading" className="text-lg font-medium text-foreground">
           {manual ? "본문" : "공시 원문 (발췌)"}
         </h2>
-        {manual && bodyIsCanvasLayout(item.raw_content) ? (
-          <CanvasArticleViewer rawContent={item.raw_content} />
+        {manual && bodyIsOverlayLayout(item.raw_content) ? (
+          <OverlayArticleViewer rawContent={item.raw_content} />
         ) : manual && bodyLooksLikeHtml(item.raw_content) ? (
           <article
             className="article-rich-body mt-3 max-h-[720px] overflow-auto rounded-lg bg-muted/30 p-4 text-sm leading-relaxed text-foreground/90"

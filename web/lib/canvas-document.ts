@@ -1,12 +1,11 @@
-import { stripHtml } from "@/lib/html-utils";
+import { normalizeEditorContent, stripHtml } from "@/lib/html-utils";
 
+/** v1 — 레거시 PPT 캔버스 (마이그레이션용) */
 export const CANVAS_DOCUMENT_VERSION = 1 as const;
 
-export type CanvasElementType = "text" | "image";
-
-export type CanvasElement = {
+export type LegacyCanvasElement = {
   id: string;
-  type: CanvasElementType;
+  type: "text" | "image";
   x: number;
   y: number;
   width: number;
@@ -15,67 +14,103 @@ export type CanvasElement = {
   zIndex: number;
 };
 
-export type CanvasDocument = {
+export type LegacyCanvasDocument = {
   version: typeof CANVAS_DOCUMENT_VERSION;
   canvasWidth: number;
   canvasHeight: number;
-  elements: CanvasElement[];
+  elements: LegacyCanvasElement[];
+};
+
+/** v2 — 텍스트(HTML) + 오버레이 이미지 */
+export const OVERLAY_ARTICLE_VERSION = 2 as const;
+
+export type OverlayImage = {
+  id: string;
+  src: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+};
+
+export type OverlayArticleDocument = {
+  version: typeof OVERLAY_ARTICLE_VERSION;
+  content: string;
+  overlay_images: OverlayImage[];
+  canvasWidth: number;
 };
 
 export const DEFAULT_CANVAS_WIDTH = 960;
-export const DEFAULT_CANVAS_HEIGHT = 720;
+export const DEFAULT_CANVAS_MIN_HEIGHT = 480;
+export const OVERLAY_Z_BASE = 20;
 
-export function createEmptyCanvasDocument(): CanvasDocument {
+export function createEmptyOverlayDocument(): OverlayArticleDocument {
   return {
-    version: CANVAS_DOCUMENT_VERSION,
+    version: OVERLAY_ARTICLE_VERSION,
+    content: "",
+    overlay_images: [],
     canvasWidth: DEFAULT_CANVAS_WIDTH,
-    canvasHeight: DEFAULT_CANVAS_HEIGHT,
-    elements: [],
   };
 }
 
-export function createCanvasElement(
-  type: CanvasElementType,
-  partial?: Partial<Pick<CanvasElement, "x" | "y" | "width" | "height" | "content" | "zIndex">>
-): CanvasElement {
+export function createOverlayImage(
+  src: string,
+  partial?: Partial<Pick<OverlayImage, "x" | "y" | "width" | "height" | "zIndex">>
+): OverlayImage {
   return {
     id: crypto.randomUUID(),
-    type,
-    x: partial?.x ?? 48,
-    y: partial?.y ?? 48,
-    width: partial?.width ?? (type === "text" ? 360 : 320),
-    height: partial?.height ?? (type === "text" ? 160 : 220),
-    content: partial?.content ?? "",
-    zIndex: partial?.zIndex ?? 1,
+    src,
+    x: partial?.x ?? 64,
+    y: partial?.y ?? 64,
+    width: partial?.width ?? 280,
+    height: partial?.height ?? 200,
+    zIndex: partial?.zIndex ?? OVERLAY_Z_BASE,
   };
 }
 
-export function parseCanvasDocument(raw: string | null | undefined): CanvasDocument | null {
+function normalizeOverlayImage(raw: Record<string, unknown>): OverlayImage | null {
+  const src = String(raw.src ?? raw.content ?? "").trim();
+  if (!src) return null;
+  return {
+    id: typeof raw.id === "string" ? raw.id : crypto.randomUUID(),
+    src,
+    x: Number(raw.x) || 0,
+    y: Number(raw.y) || 0,
+    width: Math.max(60, Number(raw.width ?? raw.w) || 200),
+    height: Math.max(60, Number(raw.height ?? raw.h) || 150),
+    zIndex: Number(raw.zIndex) || OVERLAY_Z_BASE,
+  };
+}
+
+function parseLegacyCanvasDocument(raw: string): LegacyCanvasDocument | null {
+  try {
+    const parsed = JSON.parse(raw) as LegacyCanvasDocument;
+    if (parsed?.version === CANVAS_DOCUMENT_VERSION && Array.isArray(parsed.elements)) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function parseOverlayArticleDocument(raw: string | null | undefined): OverlayArticleDocument | null {
   if (!raw?.trim()) return null;
   try {
-    const parsed = JSON.parse(raw) as CanvasDocument;
-    if (
-      parsed?.version === CANVAS_DOCUMENT_VERSION &&
-      Array.isArray(parsed.elements) &&
-      typeof parsed.canvasWidth === "number" &&
-      typeof parsed.canvasHeight === "number"
-    ) {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed?.version === OVERLAY_ARTICLE_VERSION) {
+      const content = typeof parsed.content === "string" ? parsed.content : "";
+      const images = Array.isArray(parsed.overlay_images)
+        ? parsed.overlay_images
+            .map((item) => normalizeOverlayImage(item as Record<string, unknown>))
+            .filter((item): item is OverlayImage => item !== null)
+        : [];
       return {
-        version: CANVAS_DOCUMENT_VERSION,
-        canvasWidth: parsed.canvasWidth,
-        canvasHeight: parsed.canvasHeight,
-        elements: parsed.elements
-          .filter((el) => el && typeof el.id === "string" && (el.type === "text" || el.type === "image"))
-          .map((el) => ({
-            id: el.id,
-            type: el.type,
-            x: Number(el.x) || 0,
-            y: Number(el.y) || 0,
-            width: Math.max(80, Number(el.width) || 120),
-            height: Math.max(48, Number(el.height) || 80),
-            content: String(el.content ?? ""),
-            zIndex: Number(el.zIndex) || 1,
-          })),
+        version: OVERLAY_ARTICLE_VERSION,
+        content,
+        overlay_images: images,
+        canvasWidth: Number(parsed.canvasWidth) || DEFAULT_CANVAS_WIDTH,
       };
     }
   } catch {
@@ -84,66 +119,122 @@ export function parseCanvasDocument(raw: string | null | undefined): CanvasDocum
   return null;
 }
 
-export function serializeCanvasDocument(doc: CanvasDocument): string {
+function migrateLegacyCanvasToOverlay(legacy: LegacyCanvasDocument): OverlayArticleDocument {
+  const textChunks = legacy.elements
+    .filter((el) => el.type === "text" && el.content.trim())
+    .map((el) => el.content.trim());
+  const plain = textChunks.join("\n\n");
+  const content = plain ? normalizeEditorContent(plain) : "";
+
+  const overlay_images = legacy.elements
+    .filter((el) => el.type === "image" && el.content.trim())
+    .map((el) =>
+      createOverlayImage(el.content, {
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        zIndex: Math.max(OVERLAY_Z_BASE, el.zIndex + OVERLAY_Z_BASE),
+      })
+    );
+
+  return {
+    version: OVERLAY_ARTICLE_VERSION,
+    content,
+    overlay_images,
+    canvasWidth: legacy.canvasWidth || DEFAULT_CANVAS_WIDTH,
+  };
+}
+
+export function legacyBodyToOverlayDocument(raw: string): OverlayArticleDocument {
+  const legacy = parseLegacyCanvasDocument(raw);
+  if (legacy) return migrateLegacyCanvasToOverlay(legacy);
+
+  const overlay = parseOverlayArticleDocument(raw);
+  if (overlay) return overlay;
+
+  const trimmed = raw.trim();
+  if (!trimmed) return createEmptyOverlayDocument();
+
+  return {
+    version: OVERLAY_ARTICLE_VERSION,
+    content: normalizeEditorContent(trimmed),
+    overlay_images: [],
+    canvasWidth: DEFAULT_CANVAS_WIDTH,
+  };
+}
+
+export function parseBodyToOverlayDocument(raw: string): OverlayArticleDocument {
+  return parseOverlayArticleDocument(raw) ?? legacyBodyToOverlayDocument(raw);
+}
+
+export function serializeOverlayArticleDocument(doc: OverlayArticleDocument): string {
   return JSON.stringify(doc);
 }
 
-export function legacyBodyToCanvasDocument(raw: string): CanvasDocument {
-  const doc = createEmptyCanvasDocument();
-  const trimmed = raw.trim();
-  if (!trimmed) return doc;
+export function isOverlayArticleDocument(raw: string | null | undefined): boolean {
+  if (parseOverlayArticleDocument(raw)) return true;
+  return parseLegacyCanvasDocument(raw ?? "") !== null;
+}
 
-  const text = trimmed.includes("<") ? stripHtml(trimmed) : trimmed;
-  if (!text) return doc;
-
-  doc.elements.push(
-    createCanvasElement("text", {
-      x: 40,
-      y: 40,
-      width: 520,
-      height: Math.min(360, Math.max(160, Math.ceil(text.length / 28) * 24)),
-      content: text,
-      zIndex: 1,
-    })
+export function computeOverlayContainerHeight(doc: OverlayArticleDocument): number {
+  const imageBottom = doc.overlay_images.reduce(
+    (max, img) => Math.max(max, img.y + img.height + 40),
+    0
   );
-  return doc;
+  return Math.max(DEFAULT_CANVAS_MIN_HEIGHT, imageBottom);
 }
 
-export function parseBodyToCanvasDocument(raw: string): CanvasDocument {
-  return parseCanvasDocument(raw) ?? legacyBodyToCanvasDocument(raw);
+export function isOverlayArticleEmpty(doc: OverlayArticleDocument): boolean {
+  const hasText = stripHtml(doc.content).trim().length > 0;
+  const hasImages = doc.overlay_images.some((img) => img.src.trim());
+  return !hasText && !hasImages;
 }
 
-export function isCanvasDocument(raw: string | null | undefined): boolean {
-  return parseCanvasDocument(raw) !== null;
-}
-
-export function computeCanvasRenderHeight(doc: CanvasDocument): number {
-  const base = doc.canvasHeight || DEFAULT_CANVAS_HEIGHT;
-  const bottom = doc.elements.reduce((max, el) => Math.max(max, el.y + el.height + 32), 0);
-  return Math.max(base, bottom);
-}
-
-export function isCanvasDocumentEmpty(doc: CanvasDocument): boolean {
-  if (doc.elements.length === 0) return true;
-  return doc.elements.every((el) => {
-    if (el.type === "image") return !el.content.trim();
-    return !el.content.trim();
-  });
-}
-
-export function canvasDocumentSummary(doc: CanvasDocument, maxLen = 560): string {
-  const chunks = doc.elements
-    .filter((el) => el.type === "text" && el.content.trim())
-    .map((el) => el.content.trim().replace(/\s+/g, " "));
-  const joined = chunks.join(" ");
-  if (!joined) return "";
-  if (joined.length <= maxLen) return joined;
-  return `${joined.slice(0, maxLen - 1).trim()}…`;
+export function overlayArticleSummary(doc: OverlayArticleDocument, maxLen = 560): string {
+  const plain = stripHtml(doc.content).replace(/\s+/g, " ").trim();
+  if (!plain) return "";
+  if (plain.length <= maxLen) return plain;
+  return `${plain.slice(0, maxLen - 1).trim()}…`;
 }
 
 export function isBodyContentEmpty(raw: string): boolean {
-  const canvas = parseCanvasDocument(raw);
-  if (canvas) return isCanvasDocumentEmpty(canvas);
+  const doc = parseOverlayArticleDocument(raw);
+  if (doc) return isOverlayArticleEmpty(doc);
+  const legacy = parseLegacyCanvasDocument(raw);
+  if (legacy) return isOverlayArticleEmpty(migrateLegacyCanvasToOverlay(legacy));
   const plain = raw.includes("<") ? stripHtml(raw) : raw;
   return plain.trim().length === 0;
+}
+
+/** @deprecated use isOverlayArticleDocument */
+export function isCanvasDocument(raw: string | null | undefined): boolean {
+  return isOverlayArticleDocument(raw);
+}
+
+/** @deprecated use parseBodyToOverlayDocument */
+export function parseBodyToCanvasDocument(raw: string): LegacyCanvasDocument | OverlayArticleDocument {
+  const legacy = parseLegacyCanvasDocument(raw);
+  if (legacy) return legacy;
+  return parseBodyToOverlayDocument(raw);
+}
+
+/** @deprecated use parseBodyToOverlayDocument */
+export function parseCanvasDocument(raw: string): OverlayArticleDocument | null {
+  if (!raw?.trim()) return null;
+  return parseBodyToOverlayDocument(raw);
+}
+
+/** @deprecated use computeOverlayContainerHeight */
+export function computeCanvasRenderHeight(doc: OverlayArticleDocument): number {
+  return computeOverlayContainerHeight(doc);
+}
+
+/** @deprecated use overlayArticleSummary */
+export function canvasDocumentSummary(
+  doc: LegacyCanvasDocument | OverlayArticleDocument,
+  maxLen = 560
+): string {
+  if ("overlay_images" in doc) return overlayArticleSummary(doc, maxLen);
+  return overlayArticleSummary(migrateLegacyCanvasToOverlay(doc), maxLen);
 }
