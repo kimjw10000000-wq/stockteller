@@ -77,7 +77,32 @@ body {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
-  margin: 0.75em 0;
+  margin: 1rem 0;
+  display: block;
+}
+
+.admin-rich-editor .tiptap img.align-left,
+.article-rich-body img.align-left {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.admin-rich-editor .tiptap img.align-center,
+.article-rich-body img.align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-rich-editor .tiptap img.align-right,
+.article-rich-body img.align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.admin-rich-editor .tiptap img.ProseMirror-selectednode,
+.admin-rich-editor .editor-inline-image.ProseMirror-selectednode {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .admin-rich-editor .tiptap p.is-editor-empty:first-child::before,

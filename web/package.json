@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "^2.105.1",
     "@tiptap/extension-image": "^3.27.4",
     "@tiptap/extension-placeholder": "^3.27.4",
+    "@tiptap/extension-text-align": "^3.27.4",
     "@tiptap/extension-underline": "^3.27.4",
     "@tiptap/pm": "^3.27.4",
     "@tiptap/react": "^3.27.4",
@@ -28,7 +29,6 @@
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
-    "react-rnd": "^10.5.3",
     "tailwind-merge": "^3.6.0",
     "ws": "^8.20.0"
   },

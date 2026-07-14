@@ -4,8 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
-import { isManualEditorPost, getCoverImageUrl, bodyLooksLikeHtml, bodyIsOverlayLayout } from "@/lib/manual-post";
-import { OverlayArticleViewer } from "@/components/news/CanvasArticleViewer";
+import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
 import { NewsShareModal } from "@/components/news/NewsShareModal";
@@ -13,11 +12,8 @@ import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
 import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
 import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-signal-sync";
 import { buildShareDescription } from "@/lib/kakao-share";
-import {
-  buildReportImageAlt,
-  plainTextToParagraphHtml,
-  prepareArticleBodyHtml,
-} from "@/lib/seo";
+import { buildReportImageAlt, prepareArticleBodyHtml } from "@/lib/seo";
+import { resolveArticleBodyHtml } from "@/lib/article-body";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
@@ -40,15 +36,9 @@ export function NewsDetailView({
   const stockContext = stockContextProp ?? enrichStockMatchContext(item);
   const signalStatus = signalStatusProp ?? resolveDisclosureSignalStatus(item);
 
-  const bodyHtml =
-    manual && bodyLooksLikeHtml(item.raw_content)
-      ? prepareArticleBodyHtml(item.raw_content, imageAlt)
-      : null;
-
-  const plainBodyHtml =
-    !manual || (!bodyIsOverlayLayout(item.raw_content) && !bodyLooksLikeHtml(item.raw_content))
-      ? plainTextToParagraphHtml(item.raw_content ?? "")
-      : null;
+  const bodyHtml = manual
+    ? prepareArticleBodyHtml(resolveArticleBodyHtml(item.raw_content ?? ""), imageAlt)
+    : null;
 
   return (
     <article className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -125,20 +115,17 @@ export function NewsDetailView({
         <h2 id="raw-heading" className="text-lg font-medium text-foreground">
           {manual ? "본문" : "공시 원문 (발췌)"}
         </h2>
-        {manual && bodyIsOverlayLayout(item.raw_content) ? (
-          <OverlayArticleViewer rawContent={item.raw_content} reportTitle={title} />
-        ) : bodyHtml ? (
-          <div
-            className="article-rich-body mt-3 max-h-[720px] overflow-auto rounded-lg bg-muted/30 p-4 text-sm leading-relaxed text-foreground/90"
+        {manual && bodyHtml ? (
+          <article
+            className="article-rich-body mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-foreground/90"
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
-        ) : plainBodyHtml ? (
-          <div
-            className="article-rich-body mt-3 max-h-[720px] overflow-auto rounded-lg bg-muted/30 p-4 text-sm leading-relaxed text-foreground/90"
-            dangerouslySetInnerHTML={{ __html: plainBodyHtml }}
-          />
-        ) : (
+        ) : manual ? (
           <p className="mt-3 text-sm text-muted-foreground">본문이 없습니다.</p>
+        ) : (
+          <pre className="mt-3 max-h-[480px] overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
+            {item.raw_content}
+          </pre>
         )}
         <InvestDisclaimer />
       </section>

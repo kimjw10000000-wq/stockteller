@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useLayoutEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AdminOverlayEditor } from "@/components/admin/AdminOverlayEditor";
+import { AdminRichTextEditor } from "@/components/admin/AdminRichTextEditor";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import type { AdminEditDraft } from "@/lib/admin-edit-draft";
-import { isBodyContentEmpty } from "@/lib/canvas-document";
+import { isBodyContentEmpty } from "@/lib/article-body";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   DEFAULT_SIGNAL_STATUS,
@@ -32,11 +32,18 @@ const SIGNAL_RING: Record<SignalStatus, string> = {
 type AdminPublishFormProps = {
   editDraft: AdminEditDraft | null;
   editLoading?: boolean;
+  editingArticleId?: string | null;
   onCancelEdit: () => void;
   onSaved: () => void;
 };
 
-export function AdminPublishForm({ editDraft, editLoading = false, onCancelEdit, onSaved }: AdminPublishFormProps) {
+export function AdminPublishForm({
+  editDraft,
+  editLoading = false,
+  editingArticleId = null,
+  onCancelEdit,
+  onSaved,
+}: AdminPublishFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -87,11 +94,16 @@ export function AdminPublishForm({ editDraft, editLoading = false, onCancelEdit,
   }, []);
 
   useLayoutEffect(() => {
+    if (editLoading) {
+      applyDraft(null);
+      return;
+    }
     applyDraft(editDraft);
-  }, [editDraft, applyDraft]);
+  }, [editDraft, editLoading, applyDraft]);
 
-  const editorValue = body || editDraft?.body || "";
-  const showEditorLoading = editLoading || (isEditing && !editorValue && Boolean(editDraft?.id));
+  const editorInstanceKey = editingArticleId ?? "new";
+  const editorReady = !editLoading && (!isEditing || Boolean(editDraft?.id));
+  const editorValue = editLoading ? "" : body;
 
   function onImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -301,13 +313,19 @@ export function AdminPublishForm({ editDraft, editLoading = false, onCancelEdit,
           <label htmlFor="publish-body" className="block text-sm font-medium text-foreground">
             본문
           </label>
-          <AdminOverlayEditor
-            key={editDraft?.id ?? "new"}
-            editorKey={editDraft?.id ?? "new"}
-            value={editorValue}
-            onChange={setBody}
-            isLoading={showEditorLoading}
-          />
+          {editorReady ? (
+            <AdminRichTextEditor
+              key={editorInstanceKey}
+              editorKey={editorInstanceKey}
+              value={editorValue}
+              onChange={setBody}
+              isLoading={editLoading}
+            />
+          ) : (
+            <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-border bg-muted/20 text-sm text-muted-foreground">
+              기존 데이터를 불러오는 중입니다…
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

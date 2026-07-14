@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
 import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
-import { isBodyContentEmpty } from "@/lib/canvas-document";
+import { isBodyContentEmpty } from "@/lib/article-body";
 import {
   isSignalStatus,
   signalStatusFromForm,

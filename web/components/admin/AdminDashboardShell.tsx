@@ -13,6 +13,7 @@ export function AdminDashboardShell() {
   const [searchQuery, setSearchQuery] = useState("");
   const [editDraft, setEditDraft] = useState<AdminEditDraft | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
 
   const loadList = useCallback(async (q: string) => {
     setLoading(true);
@@ -37,35 +38,56 @@ export function AdminDashboardShell() {
     setSearchQuery(searchInput.trim());
   }
 
-  async function onEdit(item: DisclosureWithStock) {
+  async function loadEditDraftById(articleId: string) {
+    const targetId = articleId.trim();
+    if (!targetId) return;
+
+    setEditDraft(null);
+    setEditingArticleId(null);
     setEditLoading(true);
+
     try {
-      const res = await fetch(`/api/admin/publish/${item.id}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/publish/${encodeURIComponent(targetId)}?_=${Date.now()}`, {
+        cache: "no-store",
+      });
       const j = (await res.json()) as { ok?: boolean; item?: DisclosureWithStock; error?: string };
-      if (j.ok && j.item) {
-        setEditDraft(disclosureToEditDraft(j.item));
-        window.scrollTo({ top: 0, behavior: "smooth" });
+
+      if (!j.ok || !j.item) return;
+      if (j.item.id !== targetId) {
+        console.error("[admin/edit] id mismatch", { requested: targetId, received: j.item.id });
+        return;
       }
-    } catch {
-      /* ignore */
+
+      setEditDraft(disclosureToEditDraft(j.item));
+      setEditingArticleId(targetId);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      console.error("[admin/edit] fetch failed", err);
     } finally {
       setEditLoading(false);
     }
   }
 
+  async function onEdit(item: DisclosureWithStock) {
+    await loadEditDraftById(item.id);
+  }
+
   function onCancelEdit() {
     setEditDraft(null);
+    setEditingArticleId(null);
     setEditLoading(false);
   }
 
   function onSaved() {
     void loadList(searchQuery);
-    if (editDraft) setEditDraft(null);
+    setEditDraft(null);
+    setEditingArticleId(null);
+    setEditLoading(false);
   }
 
   function onDeleted(id: string) {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    if (editDraft?.id === id) setEditDraft(null);
+    if (editDraft?.id === id) onCancelEdit();
   }
 
   return (
@@ -73,6 +95,7 @@ export function AdminDashboardShell() {
       <AdminPublishForm
         editDraft={editDraft}
         editLoading={editLoading}
+        editingArticleId={editingArticleId}
         onCancelEdit={onCancelEdit}
         onSaved={onSaved}
       />
@@ -85,7 +108,7 @@ export function AdminDashboardShell() {
         onEdit={onEdit}
         onSignalSaved={() => void loadList(searchQuery)}
         onDeleted={onDeleted}
-        editingId={editDraft?.id ?? null}
+        editingId={editingArticleId}
       />
     </div>
   );

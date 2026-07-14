@@ -4,6 +4,7 @@ import type { DisclosureWithStock } from "@/lib/types";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import { getCoverImageUrl } from "@/lib/manual-post";
 import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
+import { resolveArticleBodyHtml } from "@/lib/article-body";
 
 export type AdminEditDraft = {
   id: string;
@@ -32,7 +33,7 @@ export function disclosureToEditDraft(item: DisclosureWithStock): AdminEditDraft
   return {
     id: item.id,
     title: item.title ?? "",
-    body: item.raw_content ?? "",
+    body: resolveArticleBodyHtml(item.raw_content ?? ""),
     marketType,
     stockName:
       item.stock_name ??

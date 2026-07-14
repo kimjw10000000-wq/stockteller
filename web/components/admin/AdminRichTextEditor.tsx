@@ -6,7 +6,11 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import TextAlign from "@tiptap/extension-text-align";
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   Bold,
   Heading1,
   Heading2,
@@ -18,29 +22,43 @@ import {
 import { Button } from "@/components/ui/button";
 import { normalizeEditorContent } from "@/lib/html-utils";
 import { cn } from "@/lib/utils";
-import {
-  extractClipboardImageFile,
-  stripPastedHtmlStyles,
-} from "@/lib/overlay-article-layout";
+import { extractClipboardImageFile, stripPastedHtmlStyles } from "@/lib/article-body";
+
+const ArticleImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element) => {
+          const w = element.getAttribute("width") ?? element.style.width?.replace("px", "");
+          return w ? Number(w) : null;
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.width) return {};
+          const w = Number(attributes.width);
+          return { width: w, style: `width: ${w}px; height: auto;` };
+        },
+      },
+      align: {
+        default: "center",
+        parseHTML: (element) => element.getAttribute("data-align") ?? "center",
+        renderHTML: (attributes) => ({
+          "data-align": attributes.align,
+          class: `editor-inline-image align-${attributes.align ?? "center"}`,
+        }),
+      },
+    };
+  },
+});
 
 type AdminRichTextEditorProps = {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
   editorKey?: string;
-  /** 오버레이 에디터용: 인라인 이미지·붙여넣기 비활성화 */
-  textOnly?: boolean;
-  /** 캔버스 내부 임베드: 외곽 테두리·배경 제거 */
-  embedded?: boolean;
-  contentMaxWidth?: number;
-  onImagePaste?: (file: File) => void;
-  onParagraphIndexChange?: (index: number) => void;
+  isLoading?: boolean;
 };
-
-function getTopLevelBlockIndex(editor: Editor): number {
-  const { $from } = editor.state.selection;
-  return Math.max(0, $from.index(0));
-}
 
 async function uploadEditorImage(file: File): Promise<string> {
   const formData = new FormData();
@@ -56,23 +74,13 @@ async function uploadEditorImage(file: File): Promise<string> {
 export function AdminRichTextEditor({
   value,
   onChange,
-  placeholder,
+  placeholder = "기사 본문을 작성하세요. 이미지는 붙여넣기(Ctrl+V) 또는 툴바로 문단 사이에 삽입됩니다.",
   editorKey,
-  textOnly = false,
-  embedded = false,
-  contentMaxWidth,
-  onImagePaste,
-  onParagraphIndexChange,
+  isLoading = false,
 }: AdminRichTextEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadingRef = useRef(false);
   const editorRef = useRef<Editor | null>(null);
-
-  const resolvedPlaceholder =
-    placeholder ??
-    (textOnly
-      ? "여기에 본문을 자유롭게 작성하세요."
-      : "기사 본문을 작성하세요. 이미지는 드래그·붙여넣기(Ctrl+V) 또는 툴바로 삽입할 수 있습니다.");
 
   const insertImageFromFile = useCallback(async (file: File) => {
     const ed = editorRef.current;
@@ -80,7 +88,11 @@ export function AdminRichTextEditor({
     uploadingRef.current = true;
     try {
       const url = await uploadEditorImage(file);
-      ed.chain().focus().setImage({ src: url, alt: "" }).run();
+      ed.chain()
+        .focus()
+        .setImage({ src: url, alt: "" })
+        .updateAttributes("image", { align: "center" })
+        .run();
     } catch (err) {
       console.error("[rich-editor] image upload failed", err);
       window.alert(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다.");
@@ -89,25 +101,20 @@ export function AdminRichTextEditor({
     }
   }, []);
 
-  const extensions = useMemo(() => {
-    const imageExt = Image.configure({
-      inline: false,
-      allowBase64: false,
-      HTMLAttributes: { class: "editor-inline-image" },
-    });
-    return textOnly
-      ? [
-          StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-          Underline,
-          Placeholder.configure({ placeholder: resolvedPlaceholder }),
-        ]
-      : [
-          StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-          Underline,
-          imageExt,
-          Placeholder.configure({ placeholder: resolvedPlaceholder }),
-        ];
-  }, [resolvedPlaceholder, textOnly]);
+  const extensions = useMemo(
+    () => [
+      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      Underline,
+      TextAlign.configure({ types: ["heading", "paragraph", "image"] }),
+      ArticleImage.configure({
+        inline: false,
+        allowBase64: false,
+        HTMLAttributes: { class: "editor-inline-image align-center", draggable: "true" },
+      }),
+      Placeholder.configure({ placeholder }),
+    ],
+    [placeholder]
+  );
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -115,66 +122,36 @@ export function AdminRichTextEditor({
     content: normalizeEditorContent(value),
     editorProps: {
       attributes: {
-        class: "admin-rich-editor-content focus:outline-none",
+        class: "admin-rich-editor-content focus:outline-none max-w-3xl mx-auto",
       },
       transformPastedHTML: (html) => stripPastedHtmlStyles(html),
-      handleDrop: textOnly
-        ? (view, event) => {
-            const file = event.dataTransfer?.files?.[0];
-            if (file?.type.startsWith("image/")) {
-              event.preventDefault();
-              onImagePaste?.(file);
-              return true;
-            }
-            return false;
+      handleDrop: (_view, event) => {
+        const file = event.dataTransfer?.files?.[0];
+        if (file?.type.startsWith("image/")) {
+          event.preventDefault();
+          void insertImageFromFile(file);
+          return true;
+        }
+        return false;
+      },
+      handlePaste: (view, event) => {
+        const imageFile = extractClipboardImageFile(event.clipboardData);
+        if (imageFile) {
+          event.preventDefault();
+          void insertImageFromFile(imageFile);
+          return true;
+        }
+        const html = event.clipboardData?.getData("text/html");
+        if (html) {
+          const clean = stripPastedHtmlStyles(html);
+          if (clean !== html) {
+            event.preventDefault();
+            view.pasteHTML(clean);
+            return true;
           }
-        : (_view, event) => {
-            const file = event.dataTransfer?.files?.[0];
-            if (file?.type.startsWith("image/")) {
-              event.preventDefault();
-              void insertImageFromFile(file);
-              return true;
-            }
-            return false;
-          },
-      handlePaste: textOnly
-        ? (view, event) => {
-            const imageFile = extractClipboardImageFile(event.clipboardData);
-            if (imageFile) {
-              event.preventDefault();
-              onImagePaste?.(imageFile);
-              return true;
-            }
-            const html = event.clipboardData?.getData("text/html");
-            if (html) {
-              const clean = stripPastedHtmlStyles(html);
-              if (clean !== html) {
-                event.preventDefault();
-                view.pasteHTML(clean);
-                return true;
-              }
-            }
-            return false;
-          }
-        : (_view, event) => {
-            const items = event.clipboardData?.items;
-            if (!items) return false;
-            for (let i = 0; i < items.length; i += 1) {
-              const item = items[i];
-              if (item.type.startsWith("image/")) {
-                event.preventDefault();
-                const file = item.getAsFile();
-                if (file) void insertImageFromFile(file);
-                return true;
-              }
-            }
-            return false;
-          },
-    },
-    onSelectionUpdate: ({ editor: ed }) => {
-      if (textOnly && onParagraphIndexChange) {
-        onParagraphIndexChange(getTopLevelBlockIndex(ed));
-      }
+        }
+        return false;
+      },
     },
     onUpdate: ({ editor: ed }) => {
       onChange(ed.getHTML());
@@ -185,13 +162,6 @@ export function AdminRichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
-    if (textOnly && onParagraphIndexChange) {
-      onParagraphIndexChange(getTopLevelBlockIndex(editor));
-    }
-  }, [editor, textOnly, onParagraphIndexChange]);
-
-  useEffect(() => {
-    if (!editor) return;
     const normalized = normalizeEditorContent(value);
     const current = editor.getHTML();
     if (normalized !== current) {
@@ -199,9 +169,7 @@ export function AdminRichTextEditor({
     }
   }, [editor, value, editorKey]);
 
-  const onImageButtonClick = () => {
-    fileInputRef.current?.click();
-  };
+  const onImageButtonClick = () => fileInputRef.current?.click();
 
   const onImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -209,98 +177,91 @@ export function AdminRichTextEditor({
     e.target.value = "";
   };
 
+  const setImageAlign = (align: "left" | "center" | "right") => {
+    editor?.chain().focus().updateAttributes("image", { align }).run();
+  };
+
+  const resizeImage = (delta: number) => {
+    if (!editor?.isActive("image")) return;
+    const attrs = editor.getAttributes("image");
+    const current = Number(attrs.width) || 480;
+    const next = Math.max(120, Math.min(768, current + delta));
+    editor.chain().focus().updateAttributes("image", { width: next }).run();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-border bg-muted/20 text-sm text-muted-foreground">
+        기존 데이터를 불러오는 중입니다…
+      </div>
+    );
+  }
+
   if (!editor) {
     return (
-      <div
-        className={cn(
-          "p-4 text-sm text-muted-foreground",
-          embedded ? "" : "rounded-lg border border-border bg-input-background"
-        )}
-      >
+      <div className="rounded-lg border border-border bg-input-background p-4 text-sm text-muted-foreground">
         에디터를 불러오는 중…
       </div>
     );
   }
 
+  const imageActive = editor.isActive("image");
+
   return (
-    <div
-      className={cn(
-        embedded ? "" : "overflow-hidden rounded-lg border border-border bg-input-background"
-      )}
-    >
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-1 border-b border-border bg-muted/30 p-2",
-          embedded && "rounded-t-lg"
-        )}
-      >
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          active={editor.isActive("bold")}
-          label="굵게"
-        >
+    <div className="overflow-hidden rounded-lg border border-border bg-input-background">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/30 p-2">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} label="굵게">
           <Bold className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          active={editor.isActive("italic")}
-          label="기울임"
-        >
+        <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} label="기울임">
           <Italic className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-          active={editor.isActive("underline")}
-          label="밑줄"
-        >
+        <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} label="밑줄">
           <UnderlineIcon className="h-4 w-4" />
         </ToolbarButton>
         <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          active={editor.isActive("heading", { level: 1 })}
-          label="제목 1"
-        >
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })} label="제목 1">
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          active={editor.isActive("heading", { level: 2 })}
-          label="제목 2"
-        >
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} label="제목 2">
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          active={editor.isActive("heading", { level: 3 })}
-          label="제목 3"
-        >
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} label="제목 3">
           <Heading3 className="h-4 w-4" />
         </ToolbarButton>
-        {!textOnly ? (
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+        <ToolbarButton onClick={onImageButtonClick} label="이미지 삽입">
+          <ImagePlus className="h-4 w-4" />
+        </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={onImageFileChange}
+        />
+        {imageActive ? (
           <>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-            <ToolbarButton onClick={onImageButtonClick} label="이미지 삽입">
-              <ImagePlus className="h-4 w-4" />
+            <ToolbarButton onClick={() => setImageAlign("left")} label="이미지 왼쪽">
+              <AlignLeft className="h-4 w-4" />
             </ToolbarButton>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={onImageFileChange}
-            />
+            <ToolbarButton onClick={() => setImageAlign("center")} label="이미지 가운데">
+              <AlignCenter className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={() => setImageAlign("right")} label="이미지 오른쪽">
+              <AlignRight className="h-4 w-4" />
+            </ToolbarButton>
+            <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => resizeImage(-40)}>
+              −
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => resizeImage(40)}>
+              +
+            </Button>
           </>
         ) : null}
       </div>
-      <EditorContent
-        editor={editor}
-        className={cn(
-          "admin-rich-editor px-3 py-3 text-sm text-foreground",
-          embedded ? "min-h-[420px]" : "min-h-[320px]"
-        )}
-        style={contentMaxWidth ? { maxWidth: contentMaxWidth } : undefined}
-      />
+      <EditorContent editor={editor} className="admin-rich-editor min-h-[420px] px-3 py-3 text-sm text-foreground" />
     </div>
   );
 }

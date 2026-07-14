@@ -1,9 +1,6 @@
 import { stripHtml } from "@/lib/html-utils";
-import {
-  isOverlayArticleDocument,
-  overlayArticleSummary,
-  parseBodyToOverlayDocument,
-} from "@/lib/canvas-document";
+import { resolveArticleBodyHtml } from "@/lib/article-body";
+import { isOverlayArticleDocument } from "@/lib/canvas-document";
 
 export function isManualEditorPost(row: {
   gemini_metadata?: Record<string, unknown> | null;
@@ -20,31 +17,24 @@ export function getCoverImageUrl(row: {
 }
 
 export function previewSummaryFromBody(body: string, maxLen = 560): string {
-  if (isOverlayArticleDocument(body)) {
-    const doc = parseBodyToOverlayDocument(body);
-    return overlayArticleSummary(doc, maxLen);
-  }
-
-  const plain = body.includes("<") ? stripHtml(body) : body;
-  const lines = plain
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const joined = (lines.length ? lines : plain.split(/\s+/).filter(Boolean)).slice(0, 4).join("\n");
-  if (joined.length <= maxLen) return joined;
-  return `${joined.slice(0, maxLen).trim()}…`;
+  const html = resolveArticleBodyHtml(body);
+  const plain = stripHtml(html).replace(/\s+/g, " ").trim();
+  if (!plain) return "";
+  if (plain.length <= maxLen) return plain;
+  return `${plain.slice(0, maxLen - 1).trim()}…`;
 }
 
 export function bodyLooksLikeHtml(body: string): boolean {
-  if (isOverlayArticleDocument(body)) return false;
+  if (isOverlayArticleDocument(body)) return true;
   return /<[a-z][\s\S]*>/i.test(body);
 }
 
+/** @deprecated 인라인 HTML만 사용 */
 export function bodyIsOverlayLayout(body: string): boolean {
   return isOverlayArticleDocument(body);
 }
 
-/** @deprecated bodyIsOverlayLayout 사용 */
+/** @deprecated */
 export function bodyIsCanvasLayout(body: string): boolean {
   return bodyIsOverlayLayout(body);
 }
