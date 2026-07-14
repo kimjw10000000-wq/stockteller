@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
 import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
+import { stripHtml } from "@/lib/html-utils";
 import {
   isSignalStatus,
   signalStatusFromForm,
@@ -33,7 +34,7 @@ export function parsePublishFormData(formData: FormData): {
   const removeImage = String(formData.get("remove_image") ?? "") === "1";
 
   if (!title) return { ok: false, error: "제목을 입력해 주세요." };
-  if (!body) return { ok: false, error: "본문을 입력해 주세요." };
+  if (!stripHtml(body)) return { ok: false, error: "본문을 입력해 주세요." };
 
   const marketCheck = validateAdminPublishMarket(
     String(formData.get("market_type") ?? ""),

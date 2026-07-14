@@ -38,3 +38,53 @@ body {
     text-wrap: balance;
   }
 }
+
+/* TipTap admin editor */
+.admin-rich-editor .tiptap,
+.article-rich-body {
+  word-break: break-word;
+}
+
+.admin-rich-editor .tiptap p,
+.article-rich-body p {
+  margin: 0.5em 0;
+}
+
+.admin-rich-editor .tiptap h1,
+.article-rich-body h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+}
+
+.admin-rich-editor .tiptap h2,
+.article-rich-body h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0.65em 0 0.3em;
+}
+
+.admin-rich-editor .tiptap h3,
+.article-rich-body h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0.55em 0 0.25em;
+}
+
+.admin-rich-editor .tiptap img,
+.admin-rich-editor .editor-inline-image,
+.article-rich-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 0.75em 0;
+}
+
+.admin-rich-editor .tiptap p.is-editor-empty:first-child::before,
+.admin-rich-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

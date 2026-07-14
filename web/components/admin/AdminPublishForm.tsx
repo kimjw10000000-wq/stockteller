@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminRichTextEditor } from "@/components/admin/AdminRichTextEditor";
 import type { AdminMarketType } from "@/lib/admin-publish-market";
 import type { AdminEditDraft } from "@/lib/admin-edit-draft";
+import { isEditorContentEmpty } from "@/lib/html-utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   DEFAULT_SIGNAL_STATUS,
@@ -113,6 +115,12 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isEditorContentEmpty(body)) {
+      setStatus("err");
+      setMessage("본문을 입력해 주세요.");
+      return;
+    }
+
     setStatus("publishing");
     setMessage("");
     setPublishedId(null);
@@ -289,15 +297,11 @@ export function AdminPublishForm({ editDraft, onCancelEdit, onSaved }: AdminPubl
           <label htmlFor="publish-body" className="block text-sm font-medium text-foreground">
             본문
           </label>
-          <textarea
-            id="publish-body"
+          <AdminRichTextEditor
+            key={editDraft?.id ?? "new"}
+            editorKey={editDraft?.id ?? "new"}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={14}
-            spellCheck
-            className="w-full resize-y rounded-md border border-border bg-input-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-            placeholder="기사 본문 (복사·붙여넣기 가능)"
-            required
+            onChange={setBody}
           />
         </div>
 

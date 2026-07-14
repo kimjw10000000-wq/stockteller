@@ -1,3 +1,5 @@
+import { stripHtml } from "@/lib/html-utils";
+
 export function isManualEditorPost(row: {
   gemini_metadata?: Record<string, unknown> | null;
 }): boolean {
@@ -13,11 +15,16 @@ export function getCoverImageUrl(row: {
 }
 
 export function previewSummaryFromBody(body: string, maxLen = 560): string {
-  const lines = body
+  const plain = body.includes("<") ? stripHtml(body) : body;
+  const lines = plain
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
-  const joined = lines.slice(0, 4).join("\n");
+  const joined = (lines.length ? lines : plain.split(/\s+/).filter(Boolean)).slice(0, 4).join("\n");
   if (joined.length <= maxLen) return joined;
   return `${joined.slice(0, maxLen).trim()}…`;
+}
+
+export function bodyLooksLikeHtml(body: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(body);
 }
