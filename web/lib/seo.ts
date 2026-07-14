@@ -24,6 +24,16 @@ export function ensureImageAltInHtml(html: string, alt: string): string {
   });
 }
 
+/** 본문 HTML의 h1을 h2로 낮춰 페이지 h1 단일 유지 */
+export function demoteBodyH1ToH2(html: string): string {
+  return html.replace(/<h1\b/gi, "<h2").replace(/<\/h1>/gi, "</h2>");
+}
+
+/** SEO용 본문 HTML 정규화: alt 주입 + h1 단일화 */
+export function prepareArticleBodyHtml(html: string, imageAlt: string): string {
+  return demoteBodyH1ToH2(ensureImageAltInHtml(html, imageAlt));
+}
+
 /** plain text 본문을 SEO 친화적 <p> 단락 HTML로 변환 */
 export function plainTextToParagraphHtml(text: string): string {
   const blocks = text

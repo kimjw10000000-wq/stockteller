@@ -6,7 +6,7 @@ import {
   parseBodyToOverlayDocument,
   type OverlayArticleDocument,
 } from "@/lib/canvas-document";
-import { buildReportImageAlt, ensureImageAltInHtml } from "@/lib/seo";
+import { buildReportImageAlt, prepareArticleBodyHtml } from "@/lib/seo";
 
 type OverlayArticleViewerProps = {
   rawContent: string;
@@ -17,7 +17,7 @@ export function OverlayArticleViewer({ rawContent, reportTitle }: OverlayArticle
   const doc = useMemo(() => parseBodyToOverlayDocument(rawContent), [rawContent]);
   const imageAlt = buildReportImageAlt(reportTitle ?? "리포트");
   const contentHtml = useMemo(
-    () => ensureImageAltInHtml(doc.content, imageAlt),
+    () => prepareArticleBodyHtml(doc.content, imageAlt),
     [doc.content, imageAlt]
   );
   return <OverlayArticleStage doc={doc} contentHtml={contentHtml} imageAlt={imageAlt} />;

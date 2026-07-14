@@ -15,8 +15,8 @@ import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-sig
 import { buildShareDescription } from "@/lib/kakao-share";
 import {
   buildReportImageAlt,
-  ensureImageAltInHtml,
   plainTextToParagraphHtml,
+  prepareArticleBodyHtml,
 } from "@/lib/seo";
 
 type NewsDetailViewProps = {
@@ -42,7 +42,7 @@ export function NewsDetailView({
 
   const bodyHtml =
     manual && bodyLooksLikeHtml(item.raw_content)
-      ? ensureImageAltInHtml(item.raw_content, imageAlt)
+      ? prepareArticleBodyHtml(item.raw_content, imageAlt)
       : null;
 
   const plainBodyHtml =
