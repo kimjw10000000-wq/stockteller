@@ -25,6 +25,12 @@ import { normalizeEditorContent } from "@/lib/html-utils";
 import { cn } from "@/lib/utils";
 import { extractClipboardImageFile, stripPastedHtmlStyles } from "@/lib/article-body";
 
+function parsePx(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const n = Number(String(value).replace(/px$/i, "").trim());
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 const ArticleImage = Image.extend({
   name: "image",
   group: "block",
@@ -39,21 +45,35 @@ const ArticleImage = Image.extend({
         default: null,
         parseHTML: (element) => {
           const el = element as HTMLElement;
-          const w =
-            el.getAttribute("width") ??
-            el.style.width?.replace("px", "") ??
-            el.closest("[data-align]")?.getAttribute("data-width");
-          return w ? Number(w) : null;
+          return (
+            parsePx(el.style.width) ??
+            parsePx(el.getAttribute("width")) ??
+            parsePx(el.getAttribute("data-width")) ??
+            parsePx(el.closest("[data-width]")?.getAttribute("data-width"))
+          );
         },
-        renderHTML: (attributes) => {
-          if (!attributes.width) return {};
-          const w = Number(attributes.width);
-          return {
-            width: w,
-            style: `width: ${w}px; height: auto;`,
-            "data-width": String(w),
-          };
+        renderHTML: (attributes) =>
+          attributes.width ? { "data-width": String(attributes.width) } : {},
+      },
+      height: {
+        default: null,
+        parseHTML: (element) => {
+          const el = element as HTMLElement;
+          const styleH = el.style.height;
+          if (!styleH || styleH === "auto") {
+            return (
+              parsePx(el.getAttribute("data-height")) ??
+              parsePx(el.closest("[data-height]")?.getAttribute("data-height"))
+            );
+          }
+          return (
+            parsePx(styleH) ??
+            parsePx(el.getAttribute("height")) ??
+            parsePx(el.getAttribute("data-height"))
+          );
         },
+        renderHTML: (attributes) =>
+          attributes.height ? { "data-height": String(attributes.height) } : {},
       },
       align: {
         default: "center",
@@ -82,11 +102,9 @@ const ArticleImage = Image.extend({
 
   parseHTML() {
     return [
+      { tag: "img[src]" },
       {
-        tag: "img[src]",
-      },
-      {
-        tag: "div.article-image-block",
+        tag: "figure.article-image-block",
         getAttrs: (node) => {
           const el = node as HTMLElement;
           const img = el.querySelector("img");
@@ -95,11 +113,16 @@ const ArticleImage = Image.extend({
             src: img.getAttribute("src"),
             alt: img.getAttribute("alt") ?? "",
             align: el.getAttribute("data-align") ?? "center",
-            width: el.style.width
-              ? Number(el.style.width.replace("px", ""))
-              : img.getAttribute("width")
-                ? Number(img.getAttribute("width"))
-                : null,
+            width:
+              parsePx(el.getAttribute("data-width")) ??
+              parsePx(el.style.width) ??
+              parsePx(img.getAttribute("width")) ??
+              parsePx(img.style.width),
+            height:
+              parsePx(el.getAttribute("data-height")) ??
+              parsePx(el.style.height) ??
+              parsePx(img.style.height) ??
+              parsePx(img.getAttribute("height")),
           };
         },
       },
@@ -108,20 +131,39 @@ const ArticleImage = Image.extend({
 
   renderHTML({ HTMLAttributes }) {
     const align = (HTMLAttributes["data-align"] as string) || "center";
-    const width = HTMLAttributes.width ? Number(HTMLAttributes.width) : null;
-    const imgAttrs = { ...HTMLAttributes };
-    delete imgAttrs.class;
-    return [
-      "img",
-      {
-        ...imgAttrs,
-        "data-align": align,
-        class: `editor-inline-image align-${align}`,
-        ...(width
-          ? { width, style: `width: ${width}px; height: auto;` }
-          : {}),
-      },
-    ];
+    const width =
+      parsePx(HTMLAttributes["data-width"] as string) ??
+      (HTMLAttributes.width ? Number(HTMLAttributes.width) : null);
+    const height =
+      parsePx(HTMLAttributes["data-height"] as string) ??
+      (HTMLAttributes.height ? Number(HTMLAttributes.height) : null);
+
+    const styleParts: string[] = [];
+    if (width) styleParts.push(`width: ${width}px`);
+    if (height) {
+      styleParts.push(`height: ${height}px`);
+      styleParts.push("object-fit: fill");
+    } else if (width) {
+      styleParts.push("height: auto");
+    }
+
+    const imgAttrs: Record<string, string | number> = {
+      src: HTMLAttributes.src as string,
+      alt: (HTMLAttributes.alt as string) ?? "",
+      "data-align": align,
+      class: `editor-inline-image align-${align}`,
+    };
+    if (width) {
+      imgAttrs.width = width;
+      imgAttrs["data-width"] = width;
+    }
+    if (height) {
+      imgAttrs.height = height;
+      imgAttrs["data-height"] = height;
+    }
+    if (styleParts.length) imgAttrs.style = styleParts.join("; ");
+
+    return ["img", imgAttrs];
   },
 
   addNodeView() {
@@ -342,7 +384,7 @@ export function AdminRichTextEditor({
         ) : null}
       </div>
       <p className="border-b border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground">
-        이미지 클릭 → 모서리·좌우 핸들로 크기 조절 · 이미지를 꾹 끌어 문단 사이로 이동
+        이미지 클릭 → 8방향 핸들(모서리=비율 유지, 상하좌우=자유 변형) · 꾹 끌어 문단 이동
       </p>
       <EditorContent editor={editor} className="admin-rich-editor min-h-[420px] px-3 py-3 text-sm text-foreground" />
     </div>

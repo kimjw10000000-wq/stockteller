@@ -5,13 +5,18 @@ import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const MIN_WIDTH = 80;
+const MIN_SIZE = 40;
 const MAX_WIDTH = 768;
+const MAX_HEIGHT = 2000;
 
 type AlignValue = "left" | "center" | "right";
-type ResizeHandle = "nw" | "ne" | "sw" | "se" | "e" | "w";
+type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
 
-const RESIZE_HANDLES: ResizeHandle[] = ["nw", "ne", "sw", "se", "e", "w"];
+const RESIZE_HANDLES: ResizeHandle[] = ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
+
+function clamp(n: number, min: number, max: number) {
+  return Math.round(Math.max(min, Math.min(max, n)));
+}
 
 export function ArticleImageNodeView({
   node,
@@ -27,13 +32,15 @@ export function ArticleImageNodeView({
   const src = String(node.attrs.src ?? "");
   const alt = String(node.attrs.alt ?? "");
   const align = (node.attrs.align as AlignValue) || "center";
-  const width = node.attrs.width ? Number(node.attrs.width) : null;
+  const width = node.attrs.width != null ? Number(node.attrs.width) : null;
+  const height = node.attrs.height != null ? Number(node.attrs.height) : null;
+  const distorted = width != null && height != null;
 
   const onImgLoad = () => {
     const img = imgRef.current;
     if (!img || width) return;
-    const initial = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, img.naturalWidth || 480));
-    updateAttributes({ width: initial });
+    const initial = clamp(img.naturalWidth || 480, MIN_SIZE, MAX_WIDTH);
+    updateAttributes({ width: initial, height: null });
   };
 
   const setAlign = (next: AlignValue) => {
@@ -55,20 +62,62 @@ export function ArticleImageNodeView({
       selectThis();
 
       const startX = e.clientX;
+      const startY = e.clientY;
       const box = imgRef.current?.getBoundingClientRect();
-      const startWidth = width || box?.width || 320;
-      resizingRef.current = true;
+      const startW = width || box?.width || 320;
+      const startH = height || box?.height || startW * 0.75;
+      // 모서리: 현재 표시 비율(찌그러진 상태 포함) 유지
+      const displayRatio = startW / Math.max(startH, 1);
 
-      const growRight = handle === "se" || handle === "ne" || handle === "e";
-      const growLeft = handle === "sw" || handle === "nw" || handle === "w";
+      resizingRef.current = true;
 
       const onMove = (ev: PointerEvent) => {
         if (!resizingRef.current) return;
-        let delta = 0;
-        if (growRight) delta = ev.clientX - startX;
-        else if (growLeft) delta = startX - ev.clientX;
-        const next = Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startWidth + delta)));
-        updateAttributes({ width: next });
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+
+        // 좌/우: 높이 고정, 가로만
+        if (handle === "e" || handle === "w") {
+          const delta = handle === "e" ? dx : -dx;
+          updateAttributes({
+            width: clamp(startW + delta, MIN_SIZE, MAX_WIDTH),
+            height: clamp(startH, MIN_SIZE, MAX_HEIGHT),
+          });
+          return;
+        }
+
+        // 위/아래: 가로 고정, 세로만
+        if (handle === "n" || handle === "s") {
+          const delta = handle === "s" ? dy : -dy;
+          updateAttributes({
+            width: clamp(startW, MIN_SIZE, MAX_WIDTH),
+            height: clamp(startH + delta, MIN_SIZE, MAX_HEIGHT),
+          });
+          return;
+        }
+
+        // 모서리: 현재 표시 비율 유지 (닮음)
+        const growX = handle === "se" || handle === "ne" ? dx : -dx;
+        const growY = handle === "se" || handle === "sw" ? dy : -dy;
+        const useX = Math.abs(growX) >= Math.abs(growY);
+        let nextW: number;
+        let nextH: number;
+        if (useX) {
+          nextW = clamp(startW + growX, MIN_SIZE, MAX_WIDTH);
+          nextH = clamp(nextW / displayRatio, MIN_SIZE, MAX_HEIGHT);
+          nextW = clamp(nextH * displayRatio, MIN_SIZE, MAX_WIDTH);
+        } else {
+          nextH = clamp(startH + growY, MIN_SIZE, MAX_HEIGHT);
+          nextW = clamp(nextH * displayRatio, MIN_SIZE, MAX_WIDTH);
+          nextH = clamp(nextW / displayRatio, MIN_SIZE, MAX_HEIGHT);
+        }
+
+        if (height == null) {
+          // 아직 찌그러지지 않은 상태 → width만, height는 auto(원본 비율)
+          updateAttributes({ width: nextW, height: null });
+        } else {
+          updateAttributes({ width: nextW, height: nextH });
+        }
       };
 
       const onUp = () => {
@@ -81,7 +130,7 @@ export function ArticleImageNodeView({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [editor, selectThis, updateAttributes, width]
+    [editor, height, selectThis, updateAttributes, width]
   );
 
   useEffect(() => {
@@ -90,6 +139,18 @@ export function ArticleImageNodeView({
     };
   }, []);
 
+  const figureStyle: React.CSSProperties = {};
+  if (width) figureStyle.width = `${width}px`;
+  if (height) figureStyle.height = `${height}px`;
+
+  const imgStyle: React.CSSProperties = {
+    width: "100%",
+    display: "block",
+    ...(distorted
+      ? { height: "100%", objectFit: "fill" as const }
+      : { height: "auto" }),
+  };
+
   return (
     <NodeViewWrapper
       as="figure"
@@ -97,12 +158,14 @@ export function ArticleImageNodeView({
         "article-image-block",
         `align-${align}`,
         selected && "is-selected",
-        dragging && "is-dragging"
+        dragging && "is-dragging",
+        distorted && "is-distorted"
       )}
       data-drag-handle=""
       data-align={align}
       data-width={width ? String(width) : undefined}
-      style={width ? { width: `${width}px` } : undefined}
+      data-height={height ? String(height) : undefined}
+      style={figureStyle}
     >
       <div className="article-image-inner" contentEditable={false}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -117,8 +180,9 @@ export function ArticleImageNodeView({
             e.preventDefault();
             selectThis();
           }}
-          onPointerDown={() => setDragging(false)}
-          style={{ width: "100%", height: "auto", display: "block" }}
+          onPointerDown={() => setDragging(true)}
+          onPointerUp={() => setDragging(false)}
+          style={imgStyle}
         />
 
         {selected ? (
