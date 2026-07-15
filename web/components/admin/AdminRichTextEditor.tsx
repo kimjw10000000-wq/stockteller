@@ -409,7 +409,10 @@ export function AdminRichTextEditor({
       <p className="border-b border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground">
         이미지 클릭 → 8방향 핸들(모서리=비율 유지, 상하좌우=자유 변형) · 꾹 끌어 문단 이동
       </p>
-      <EditorContent editor={editor} className="admin-rich-editor min-h-[420px] px-3 py-3 text-sm text-foreground" />
+      <EditorContent
+        editor={editor}
+        className="admin-rich-editor h-[500px] max-h-[500px] overflow-y-auto px-3 py-3 text-sm text-foreground"
+      />
     </div>
   );
 }
