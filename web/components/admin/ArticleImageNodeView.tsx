@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { AlignCenter, AlignLeft, AlignRight, GripVertical } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const MIN_WIDTH = 120;
+const MIN_WIDTH = 80;
 const MAX_WIDTH = 768;
 
 type AlignValue = "left" | "center" | "right";
+type ResizeHandle = "nw" | "ne" | "sw" | "se" | "e" | "w";
+
+const RESIZE_HANDLES: ResizeHandle[] = ["nw", "ne", "sw", "se", "e", "w"];
 
 export function ArticleImageNodeView({
   node,
@@ -18,8 +21,8 @@ export function ArticleImageNodeView({
   getPos,
 }: NodeViewProps) {
   const imgRef = useRef<HTMLImageElement>(null);
-  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const resizingRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
 
   const src = String(node.attrs.src ?? "");
   const alt = String(node.attrs.alt ?? "");
@@ -28,47 +31,57 @@ export function ArticleImageNodeView({
 
   const onImgLoad = () => {
     const img = imgRef.current;
-    if (!img) return;
-    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-    if (!width && img.naturalWidth) {
-      const initial = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, img.naturalWidth));
-      updateAttributes({ width: initial });
-    }
+    if (!img || width) return;
+    const initial = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, img.naturalWidth || 480));
+    updateAttributes({ width: initial });
   };
 
   const setAlign = (next: AlignValue) => {
     updateAttributes({ align: next });
-    editor.commands.focus();
+    editor.view.focus();
   };
 
+  const selectThis = useCallback(() => {
+    const pos = typeof getPos === "function" ? getPos() : null;
+    if (typeof pos === "number") {
+      editor.chain().setNodeSelection(pos).run();
+    }
+  }, [editor, getPos]);
+
   const startResize = useCallback(
-    (e: React.MouseEvent, corner: "se" | "sw") => {
+    (e: React.PointerEvent, handle: ResizeHandle) => {
       e.preventDefault();
       e.stopPropagation();
+      selectThis();
+
       const startX = e.clientX;
-      const startWidth = width || imgRef.current?.getBoundingClientRect().width || 320;
+      const box = imgRef.current?.getBoundingClientRect();
+      const startWidth = width || box?.width || 320;
       resizingRef.current = true;
 
-      const onMove = (ev: MouseEvent) => {
+      const growRight = handle === "se" || handle === "ne" || handle === "e";
+      const growLeft = handle === "sw" || handle === "nw" || handle === "w";
+
+      const onMove = (ev: PointerEvent) => {
         if (!resizingRef.current) return;
-        const delta = corner === "se" ? ev.clientX - startX : startX - ev.clientX;
-        const next = Math.round(
-          Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startWidth + delta))
-        );
+        let delta = 0;
+        if (growRight) delta = ev.clientX - startX;
+        else if (growLeft) delta = startX - ev.clientX;
+        const next = Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startWidth + delta)));
         updateAttributes({ width: next });
       };
 
       const onUp = () => {
         resizingRef.current = false;
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        editor.commands.focus();
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        editor.view.focus();
       };
 
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
     },
-    [editor, updateAttributes, width]
+    [editor, selectThis, updateAttributes, width]
   );
 
   useEffect(() => {
@@ -77,37 +90,21 @@ export function ArticleImageNodeView({
     };
   }, []);
 
-  const selectNode = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const pos = typeof getPos === "function" ? getPos() : null;
-    if (typeof pos === "number") {
-      editor.chain().setNodeSelection(pos).run();
-    }
-  };
-
   return (
     <NodeViewWrapper
-      as="div"
+      as="figure"
       className={cn(
         "article-image-block",
         `align-${align}`,
-        selected && "is-selected"
+        selected && "is-selected",
+        dragging && "is-dragging"
       )}
-      data-drag-handle
+      data-drag-handle=""
       data-align={align}
+      data-width={width ? String(width) : undefined}
       style={width ? { width: `${width}px` } : undefined}
     >
       <div className="article-image-inner" contentEditable={false}>
-        <button
-          type="button"
-          className="article-image-drag-handle"
-          aria-label="이미지 위치 이동"
-          title="드래그하여 문단 사이로 이동"
-          onMouseDown={selectNode}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
@@ -116,24 +113,26 @@ export function ArticleImageNodeView({
           className="article-image-img"
           draggable={false}
           onLoad={onImgLoad}
-          onClick={selectNode}
-          style={
-            width
-              ? { width: "100%", height: "auto" }
-              : naturalSize
-                ? { maxWidth: "100%", height: "auto" }
-                : undefined
-          }
+          onClick={(e) => {
+            e.preventDefault();
+            selectThis();
+          }}
+          onPointerDown={() => setDragging(false)}
+          style={{ width: "100%", height: "auto", display: "block" }}
         />
 
         {selected ? (
           <>
-            <div className="article-image-bubble" contentEditable={false}>
+            <div
+              className="article-image-bubble"
+              contentEditable={false}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 className={cn("article-image-bubble-btn", align === "left" && "active")}
                 onClick={() => setAlign("left")}
-                title="왼쪽 정렬 (글 감싸기)"
+                title="왼쪽 정렬"
                 aria-label="왼쪽 정렬"
               >
                 <AlignLeft className="h-3.5 w-3.5" />
@@ -151,22 +150,20 @@ export function ArticleImageNodeView({
                 type="button"
                 className={cn("article-image-bubble-btn", align === "right" && "active")}
                 onClick={() => setAlign("right")}
-                title="오른쪽 정렬 (글 감싸기)"
+                title="오른쪽 정렬"
                 aria-label="오른쪽 정렬"
               >
                 <AlignRight className="h-3.5 w-3.5" />
               </button>
             </div>
-            <span
-              className="article-image-resize se"
-              onMouseDown={(e) => startResize(e, "se")}
-              aria-hidden
-            />
-            <span
-              className="article-image-resize sw"
-              onMouseDown={(e) => startResize(e, "sw")}
-              aria-hidden
-            />
+            {RESIZE_HANDLES.map((handle) => (
+              <span
+                key={handle}
+                className={cn("article-image-resize", handle)}
+                onPointerDown={(e) => startResize(e, handle)}
+                aria-hidden
+              />
+            ))}
           </>
         ) : null}
       </div>

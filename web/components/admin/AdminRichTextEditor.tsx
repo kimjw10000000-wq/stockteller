@@ -151,7 +151,7 @@ async function uploadEditorImage(file: File): Promise<string> {
 export function AdminRichTextEditor({
   value,
   onChange,
-  placeholder = "기사 본문을 작성하세요. 이미지는 드래그로 문단 사이 위치를 바꿀 수 있습니다.",
+  placeholder = "워드처럼 작성하세요. 이미지를 클릭해 크기를 조절하고, 꾹 끌어 문단 사이로 옮길 수 있습니다.",
   editorKey,
   isLoading = false,
 }: AdminRichTextEditorProps) {
@@ -342,7 +342,7 @@ export function AdminRichTextEditor({
         ) : null}
       </div>
       <p className="border-b border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground">
-        이미지 왼쪽 손잡이를 드래그해 문단 사이로 옮기고, 클릭 후 모서리로 크기를 조절하세요.
+        이미지 클릭 → 모서리·좌우 핸들로 크기 조절 · 이미지를 꾹 끌어 문단 사이로 이동
       </p>
       <EditorContent editor={editor} className="admin-rich-editor min-h-[420px] px-3 py-3 text-sm text-foreground" />
     </div>
