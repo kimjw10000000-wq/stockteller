@@ -71,7 +71,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
           viewBox="0 0 280 165"
           className="h-auto w-full drop-shadow-sm"
           role="img"
-          aria-label={`공시·뉴스 시그널: ${label}`}
+          aria-label={`실시간 시그널: ${label}`}
         >
           <defs>
             <filter id="gauge-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -209,11 +209,14 @@ export function SignalGauge({ status }: SignalGaugeProps) {
       </div>
 
       <p className="mt-1 text-center text-sm font-semibold tracking-tight text-foreground">
-        공시·뉴스 시그널
+        실시간 시그널
       </p>
       <p className="text-center text-sm font-medium text-foreground">{label}</p>
       <p className="mt-2 max-w-md text-center text-sm leading-relaxed text-muted-foreground">
         {description}
+      </p>
+      <p className="mt-2 max-w-md text-center text-xs leading-relaxed text-muted-foreground">
+        * 본 알고리즘 시그널은 데이터 수집 및 연산 환경에 따라 수 분의 지연이 발생할 수 있습니다.
       </p>
     </div>
   );
