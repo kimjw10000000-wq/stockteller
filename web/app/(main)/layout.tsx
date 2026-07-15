@@ -7,10 +7,10 @@ export default function MainSiteLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-background">
       <SiteHeader />
       <AdBannerSlot />
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</div>
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">{children}</div>
     </div>
   );
 }
