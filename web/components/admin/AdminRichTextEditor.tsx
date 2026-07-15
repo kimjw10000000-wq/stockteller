@@ -260,6 +260,7 @@ export function AdminRichTextEditor({
 
   const editor = useEditor({
     immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
     extensions,
     content: normalizeEditorContent(value),
     editorProps: {
@@ -397,10 +398,24 @@ export function AdminRichTextEditor({
             <ToolbarButton onClick={() => setImageAlign("right")} active={currentAlign === "right"} label="오른쪽 정렬 (글 감싸기)">
               <AlignRight className="h-4 w-4" />
             </ToolbarButton>
-            <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => resizeImage(-40)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => resizeImage(-40)}
+            >
               −
             </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => resizeImage(40)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => resizeImage(40)}
+            >
               +
             </Button>
           </>
@@ -431,7 +446,14 @@ function ToolbarButton({ onClick, active, label, children }: ToolbarButtonProps)
       variant="ghost"
       size="icon"
       className={cn("h-8 w-8", active && "bg-accent text-accent-foreground")}
-      onClick={onClick}
+      onMouseDown={(e) => {
+        // 툴바 클릭으로 에디터 포커스/선택이 풀리지 않도록 함
+        e.preventDefault();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
       aria-label={label}
       title={label}
     >
