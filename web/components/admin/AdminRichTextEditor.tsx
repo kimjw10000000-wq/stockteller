@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { EditorContent, ReactNodeViewRenderer, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
@@ -20,35 +20,112 @@ import {
   Underline as UnderlineIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ArticleImageNodeView } from "@/components/admin/ArticleImageNodeView";
 import { normalizeEditorContent } from "@/lib/html-utils";
 import { cn } from "@/lib/utils";
 import { extractClipboardImageFile, stripPastedHtmlStyles } from "@/lib/article-body";
 
 const ArticleImage = Image.extend({
+  name: "image",
+  group: "block",
+  draggable: true,
+  selectable: true,
+  atom: true,
+
   addAttributes() {
     return {
       ...this.parent?.(),
       width: {
         default: null,
         parseHTML: (element) => {
-          const w = element.getAttribute("width") ?? element.style.width?.replace("px", "");
+          const el = element as HTMLElement;
+          const w =
+            el.getAttribute("width") ??
+            el.style.width?.replace("px", "") ??
+            el.closest("[data-align]")?.getAttribute("data-width");
           return w ? Number(w) : null;
         },
         renderHTML: (attributes) => {
           if (!attributes.width) return {};
           const w = Number(attributes.width);
-          return { width: w, style: `width: ${w}px; height: auto;` };
+          return {
+            width: w,
+            style: `width: ${w}px; height: auto;`,
+            "data-width": String(w),
+          };
         },
       },
       align: {
         default: "center",
-        parseHTML: (element) => element.getAttribute("data-align") ?? "center",
-        renderHTML: (attributes) => ({
-          "data-align": attributes.align,
-          class: `editor-inline-image align-${attributes.align ?? "center"}`,
-        }),
+        parseHTML: (element) => {
+          const el = element as HTMLElement;
+          return (
+            el.getAttribute("data-align") ??
+            el.closest("[data-align]")?.getAttribute("data-align") ??
+            (el.classList.contains("align-left")
+              ? "left"
+              : el.classList.contains("align-right")
+                ? "right"
+                : "center")
+          );
+        },
+        renderHTML: (attributes) => {
+          const align = attributes.align ?? "center";
+          return {
+            "data-align": align,
+            class: `editor-inline-image align-${align}`,
+          };
+        },
       },
     };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: "img[src]",
+      },
+      {
+        tag: "div.article-image-block",
+        getAttrs: (node) => {
+          const el = node as HTMLElement;
+          const img = el.querySelector("img");
+          if (!img?.getAttribute("src")) return false;
+          return {
+            src: img.getAttribute("src"),
+            alt: img.getAttribute("alt") ?? "",
+            align: el.getAttribute("data-align") ?? "center",
+            width: el.style.width
+              ? Number(el.style.width.replace("px", ""))
+              : img.getAttribute("width")
+                ? Number(img.getAttribute("width"))
+                : null,
+          };
+        },
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const align = (HTMLAttributes["data-align"] as string) || "center";
+    const width = HTMLAttributes.width ? Number(HTMLAttributes.width) : null;
+    const imgAttrs = { ...HTMLAttributes };
+    delete imgAttrs.class;
+    return [
+      "img",
+      {
+        ...imgAttrs,
+        "data-align": align,
+        class: `editor-inline-image align-${align}`,
+        ...(width
+          ? { width, style: `width: ${width}px; height: auto;` }
+          : {}),
+      },
+    ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ArticleImageNodeView);
   },
 });
 
@@ -74,7 +151,7 @@ async function uploadEditorImage(file: File): Promise<string> {
 export function AdminRichTextEditor({
   value,
   onChange,
-  placeholder = "기사 본문을 작성하세요. 이미지는 붙여넣기(Ctrl+V) 또는 툴바로 문단 사이에 삽입됩니다.",
+  placeholder = "기사 본문을 작성하세요. 이미지는 드래그로 문단 사이 위치를 바꿀 수 있습니다.",
   editorKey,
   isLoading = false,
 }: AdminRichTextEditorProps) {
@@ -105,11 +182,11 @@ export function AdminRichTextEditor({
     () => [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       Underline,
-      TextAlign.configure({ types: ["heading", "paragraph", "image"] }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
       ArticleImage.configure({
         inline: false,
         allowBase64: false,
-        HTMLAttributes: { class: "editor-inline-image align-center", draggable: "true" },
+        HTMLAttributes: { class: "editor-inline-image align-center" },
       }),
       Placeholder.configure({ placeholder }),
     ],
@@ -125,7 +202,9 @@ export function AdminRichTextEditor({
         class: "admin-rich-editor-content focus:outline-none max-w-3xl mx-auto",
       },
       transformPastedHTML: (html) => stripPastedHtmlStyles(html),
-      handleDrop: (_view, event) => {
+      handleDrop: (_view, event, _slice, moved) => {
+        // 에디터 내부 블록(이미지) 이동은 ProseMirror 기본 DnD에 맡김
+        if (moved) return false;
         const file = event.dataTransfer?.files?.[0];
         if (file?.type.startsWith("image/")) {
           event.preventDefault();
@@ -206,6 +285,7 @@ export function AdminRichTextEditor({
   }
 
   const imageActive = editor.isActive("image");
+  const currentAlign = (editor.getAttributes("image").align as string) || "center";
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-input-background">
@@ -243,13 +323,13 @@ export function AdminRichTextEditor({
         {imageActive ? (
           <>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-            <ToolbarButton onClick={() => setImageAlign("left")} label="이미지 왼쪽">
+            <ToolbarButton onClick={() => setImageAlign("left")} active={currentAlign === "left"} label="왼쪽 정렬 (글 감싸기)">
               <AlignLeft className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton onClick={() => setImageAlign("center")} label="이미지 가운데">
+            <ToolbarButton onClick={() => setImageAlign("center")} active={currentAlign === "center"} label="가운데 정렬">
               <AlignCenter className="h-4 w-4" />
             </ToolbarButton>
-            <ToolbarButton onClick={() => setImageAlign("right")} label="이미지 오른쪽">
+            <ToolbarButton onClick={() => setImageAlign("right")} active={currentAlign === "right"} label="오른쪽 정렬 (글 감싸기)">
               <AlignRight className="h-4 w-4" />
             </ToolbarButton>
             <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => resizeImage(-40)}>
@@ -261,6 +341,9 @@ export function AdminRichTextEditor({
           </>
         ) : null}
       </div>
+      <p className="border-b border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground">
+        이미지 왼쪽 손잡이를 드래그해 문단 사이로 옮기고, 클릭 후 모서리로 크기를 조절하세요.
+      </p>
       <EditorContent editor={editor} className="admin-rich-editor min-h-[420px] px-3 py-3 text-sm text-foreground" />
     </div>
   );
