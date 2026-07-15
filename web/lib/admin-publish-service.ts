@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { validateAdminPublishMarket } from "@/lib/admin-publish-market";
-import { previewSummaryFromBody, getCoverImageUrl } from "@/lib/manual-post";
+import { getCoverImageUrl } from "@/lib/manual-post";
 import { isBodyContentEmpty } from "@/lib/article-body";
 import {
   isSignalStatus,
@@ -17,6 +17,7 @@ const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "i
 export type PublishFormPayload = {
   title: string;
   body: string;
+  summary: string;
   marketType: "us" | "kr";
   stockName: string;
   stockCode: string;
@@ -30,11 +31,13 @@ export function parsePublishFormData(formData: FormData): {
 } | { ok: false; error: string } {
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
+  const summary = String(formData.get("summary") ?? "").trim();
   const image = formData.get("image");
   const removeImage = String(formData.get("remove_image") ?? "") === "1";
 
   if (!title) return { ok: false, error: "제목을 입력해 주세요." };
   if (isBodyContentEmpty(body)) return { ok: false, error: "본문을 입력해 주세요." };
+  if (!summary) return { ok: false, error: "핵심 요약을 입력해 주세요." };
 
   const marketCheck = validateAdminPublishMarket(
     String(formData.get("market_type") ?? ""),
@@ -48,6 +51,7 @@ export function parsePublishFormData(formData: FormData): {
     data: {
       title,
       body,
+      summary,
       marketType: marketCheck.marketType,
       stockName: marketCheck.stockName,
       stockCode: marketCheck.stockCode,
@@ -159,7 +163,7 @@ export async function insertAdminDisclosure(
     payload.stockCode,
     payload.marketType
   );
-  const summary = previewSummaryFromBody(payload.body);
+  const summary = payload.summary.trim() || null;
   const externalId = `admin:${crypto.randomUUID()}`;
 
   const baseRow = {
@@ -214,7 +218,7 @@ export async function updateAdminDisclosure(
     payload.stockCode,
     payload.marketType
   );
-  const summary = previewSummaryFromBody(payload.body);
+  const summary = payload.summary.trim() || null;
 
   const baseRow = {
     stock_id: stockId,

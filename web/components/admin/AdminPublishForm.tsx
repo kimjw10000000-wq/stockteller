@@ -47,6 +47,7 @@ export function AdminPublishForm({
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [summary, setSummary] = useState("");
   const [marketType, setMarketType] = useState<AdminMarketType>("us");
   const [stockName, setStockName] = useState("");
   const [stockCode, setStockCode] = useState("");
@@ -65,6 +66,7 @@ export function AdminPublishForm({
     if (!draft) {
       setTitle("");
       setBody("");
+      setSummary("");
       setMarketType("us");
       setStockName("");
       setStockCode("");
@@ -80,6 +82,7 @@ export function AdminPublishForm({
     }
     setTitle(draft.title);
     setBody(draft.body);
+    setSummary(draft.summary);
     setMarketType(draft.marketType);
     setStockName(draft.stockName);
     setStockCode(draft.stockCode);
@@ -136,6 +139,11 @@ export function AdminPublishForm({
       setMessage("본문을 입력해 주세요.");
       return;
     }
+    if (!summary.trim()) {
+      setStatus("err");
+      setMessage("핵심 요약을 입력해 주세요.");
+      return;
+    }
 
     setStatus("publishing");
     setMessage("");
@@ -144,6 +152,7 @@ export function AdminPublishForm({
     const formData = new FormData();
     formData.set("title", title);
     formData.set("body", body);
+    formData.set("summary", summary.trim());
     formData.set("market_type", marketType);
     formData.set("stock_name", stockName);
     formData.set("stock_code", stockCode);
@@ -326,6 +335,24 @@ export function AdminPublishForm({
               기존 데이터를 불러오는 중입니다…
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="publish-summary" className="block text-sm font-medium text-foreground">
+            핵심 요약 작성
+          </label>
+          <p className="text-xs text-muted-foreground">
+            리포트의 핵심을 3~4줄로 요약해 주세요. 사용자 상세 페이지 상단에 표시됩니다.
+          </p>
+          <textarea
+            id="publish-summary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            rows={4}
+            required
+            placeholder={"예:\n공시/뉴스의 핵심 포인트\n주가·실적에 미치는 영향\n투자자가 주목할 결론"}
+            className="flex min-h-[110px] w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
         </div>
 
         <div className="space-y-2">

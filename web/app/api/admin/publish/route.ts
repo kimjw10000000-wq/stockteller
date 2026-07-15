@@ -55,6 +55,7 @@ export async function POST(req: Request) {
       {
         title: parsed.data.title,
         body: parsed.data.body,
+        summary: parsed.data.summary,
         marketType: parsed.data.marketType,
         stockName: parsed.data.stockName,
         stockCode: parsed.data.stockCode,

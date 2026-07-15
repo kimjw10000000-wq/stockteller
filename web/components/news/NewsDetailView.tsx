@@ -98,16 +98,18 @@ export function NewsDetailView({
 
       <section className="mt-8" aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="text-lg font-medium text-foreground">
-          {manual ? "미리보기" : "AI 핵심 요약"}
+          핵심 요약
         </h2>
         <div className="mt-3 space-y-2 text-foreground/90">
-          {(summaryLines.length ? summaryLines : [
-            manual ? "목록 카드에 보이는 미리보기입니다." : "요약이 아직 없습니다.",
-          ]).map((line, i) => (
-            <p key={i} className="leading-relaxed">
-              {line}
-            </p>
-          ))}
+          {summaryLines.length ? (
+            summaryLines.map((line, i) => (
+              <p key={i} className="leading-relaxed">
+                {line}
+              </p>
+            ))
+          ) : (
+            <p className="leading-relaxed text-muted-foreground">요약이 아직 없습니다.</p>
+          )}
         </div>
       </section>
 

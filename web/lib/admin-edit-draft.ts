@@ -10,6 +10,7 @@ export type AdminEditDraft = {
   id: string;
   title: string;
   body: string;
+  summary: string;
   marketType: AdminMarketType;
   stockName: string;
   stockCode: string;
@@ -34,6 +35,7 @@ export function disclosureToEditDraft(item: DisclosureWithStock): AdminEditDraft
     id: item.id,
     title: item.title ?? "",
     body: resolveArticleBodyHtml(item.raw_content ?? ""),
+    summary: item.summary?.trim() ?? "",
     marketType,
     stockName:
       item.stock_name ??
