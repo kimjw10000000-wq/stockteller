@@ -153,7 +153,7 @@ export function ArticleImageNodeView({
 
   return (
     <NodeViewWrapper
-      as="figure"
+      as="div"
       className={cn(
         "article-image-block",
         `align-${align}`,

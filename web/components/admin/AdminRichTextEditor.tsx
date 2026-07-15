@@ -104,6 +104,29 @@ const ArticleImage = Image.extend({
     return [
       { tag: "img[src]" },
       {
+        tag: "div.article-image-block",
+        getAttrs: (node) => {
+          const el = node as HTMLElement;
+          const img = el.querySelector("img");
+          if (!img?.getAttribute("src")) return false;
+          return {
+            src: img.getAttribute("src"),
+            alt: img.getAttribute("alt") ?? "",
+            align: el.getAttribute("data-align") ?? "center",
+            width:
+              parsePx(el.getAttribute("data-width")) ??
+              parsePx(el.style.width) ??
+              parsePx(img.getAttribute("width")) ??
+              parsePx(img.style.width),
+            height:
+              parsePx(el.getAttribute("data-height")) ??
+              parsePx(el.style.height) ??
+              parsePx(img.style.height) ??
+              parsePx(img.getAttribute("height")),
+          };
+        },
+      },
+      {
         tag: "figure.article-image-block",
         getAttrs: (node) => {
           const el = node as HTMLElement;

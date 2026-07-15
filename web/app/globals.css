@@ -80,6 +80,13 @@ body {
   display: block;
 }
 
+/* NodeView 안 이미지는 위 전역 margin이 붙으면 파란 테두리에 흰 여백이 생김 → 제외 */
+.admin-rich-editor .tiptap .article-image-block img,
+.admin-rich-editor .tiptap .article-image-img {
+  margin: 0;
+  vertical-align: top;
+}
+
 .admin-rich-editor .tiptap img:not([height]):not([style*="height:"]),
 .article-rich-body img:not([height]):not([style*="height:"]) {
   height: auto;
@@ -90,28 +97,25 @@ body {
   object-fit: fill;
 }
 
-/* 가운데: 블록 흐름 / 좌·우: float로 글 감싸기 */
-.admin-rich-editor .tiptap img.align-left,
-.article-rich-body img.align-left,
-.admin-rich-editor .article-image-block.align-left {
+/* 가운데: 블록 흐름 / 좌·우: float로 글 감싸기 (본문·저장 HTML용 img만) */
+.admin-rich-editor .tiptap > img.align-left,
+.article-rich-body img.align-left {
   float: left;
   clear: left;
   display: block;
   margin: 0.35rem 1rem 0.75rem 0;
 }
 
-.admin-rich-editor .tiptap img.align-center,
-.article-rich-body img.align-center,
-.admin-rich-editor .article-image-block.align-center {
+.admin-rich-editor .tiptap > img.align-center,
+.article-rich-body img.align-center {
   float: none;
   clear: both;
   display: block;
   margin: 0.75rem auto;
 }
 
-.admin-rich-editor .tiptap img.align-right,
-.article-rich-body img.align-right,
-.admin-rich-editor .article-image-block.align-right {
+.admin-rich-editor .tiptap > img.align-right,
+.article-rich-body img.align-right {
   float: right;
   clear: right;
   display: block;
@@ -125,24 +129,49 @@ body {
   clear: both;
 }
 
+/* figure 기본 UA 마진(위아래 1em 등) 제거 후, 블록 바깥 간격만 */
 .admin-rich-editor .article-image-block {
   position: relative;
+  display: block;
   max-width: 100%;
-  line-height: 0;
+  width: fit-content;
   margin: 0.5rem 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+  line-height: 0;
+  font-size: 0;
+}
+
+.admin-rich-editor .article-image-block.align-left {
+  float: left;
+  clear: left;
+  margin: 0.35rem 1rem 0.75rem 0;
 }
 
 .admin-rich-editor .article-image-block.align-center {
+  float: none;
+  clear: both;
   margin-left: auto;
   margin-right: auto;
 }
 
+.admin-rich-editor .article-image-block.align-right {
+  float: right;
+  clear: right;
+  margin: 0.35rem 0 0.75rem 1rem;
+}
+
 .admin-rich-editor .article-image-inner {
   position: relative;
-  display: inline-block;
+  display: block;
   max-width: 100%;
   width: 100%;
-  height: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  line-height: 0;
+  font-size: 0;
 }
 
 .admin-rich-editor .article-image-block.is-distorted .article-image-inner {
@@ -152,10 +181,13 @@ body {
 .admin-rich-editor .article-image-img {
   display: block;
   width: 100%;
+  max-width: 100%;
   border-radius: 0.5rem;
-  margin: 0;
+  margin: 0 !important;
+  padding: 0;
   cursor: grab;
   user-select: none;
+  vertical-align: top;
 }
 
 .admin-rich-editor .article-image-block.is-dragging .article-image-img,
@@ -164,10 +196,14 @@ body {
   opacity: 0.85;
 }
 
-.admin-rich-editor .article-image-block.is-selected .article-image-inner {
+/* 파란 테두리는 순수 이미지 경계에 밀착 */
+.admin-rich-editor .article-image-block.is-selected .article-image-img {
   outline: 2px solid #2563eb;
-  outline-offset: 2px;
-  border-radius: 0.5rem;
+  outline-offset: 0;
+}
+
+.admin-rich-editor .article-image-block.is-selected .article-image-inner {
+  outline: none;
 }
 
 .admin-rich-editor .article-image-bubble {
@@ -266,7 +302,7 @@ body {
 .admin-rich-editor .tiptap img.ProseMirror-selectednode,
 .admin-rich-editor .editor-inline-image.ProseMirror-selectednode {
   outline: 2px solid #2563eb;
-  outline-offset: 2px;
+  outline-offset: 0;
 }
 
 .admin-rich-editor .ProseMirror-selectednode.article-image-block {
