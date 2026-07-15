@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { getSiteUrl } from "@/lib/site";
 
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="ko">
       <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
