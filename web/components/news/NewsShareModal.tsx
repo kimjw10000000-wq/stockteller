@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Share2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,8 +43,13 @@ export function NewsShareModal({
   const [isOpen, setIsOpen] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const shareUrl = getNewsShareUrl(newsId);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const initKakao = useCallback(() => {
     try {
@@ -105,13 +111,107 @@ export function NewsShareModal({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsOpen(false);
     };
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = prevOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isOpen]);
+
+  const modal =
+    isOpen && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-modal-title"
+          >
+            {/* 딤드 배경 — 클릭 시 닫기 */}
+            <button
+              type="button"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+              aria-label="공유 창 닫기"
+              onClick={() => setIsOpen(false)}
+            />
+
+            {/* 모바일·데스크톱 공통: 뷰포트 정중앙 카드 */}
+            <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 id="share-modal-title" className="text-lg font-semibold text-foreground">
+                  공유
+                </h2>
+                <button
+                  type="button"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted active:bg-muted"
+                  onClick={() => setIsOpen(false)}
+                  aria-label="닫기"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-6 flex items-start justify-center gap-6">
+                <ShareCircleButton
+                  label="카카오톡"
+                  disabled={!sdkReady}
+                  onClick={handleKakaoShare}
+                  className="bg-[#FEE500] text-[#191919] hover:bg-[#FEE500]/90"
+                >
+                  <KakaoIcon />
+                </ShareCircleButton>
+                <ShareCircleButton
+                  label="페이스북"
+                  onClick={handleFacebookShare}
+                  className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90"
+                >
+                  <FacebookIcon />
+                </ShareCircleButton>
+                <ShareCircleButton
+                  label="X"
+                  onClick={handleTwitterShare}
+                  className="bg-foreground text-background hover:bg-foreground/90"
+                >
+                  <XIcon />
+                </ShareCircleButton>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 p-2">
+                <input
+                  readOnly
+                  value={shareUrl}
+                  aria-label="뉴스 공유 링크"
+                  className="min-w-0 flex-1 truncate bg-transparent px-2 text-sm text-muted-foreground outline-none"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void handleCopyLink()}
+                >
+                  복사
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
+  const toast =
+    copiedToast && mounted
+      ? createPortal(
+          <div
+            role="status"
+            className="fixed bottom-6 left-1/2 z-[110] -translate-x-1/2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background shadow-lg"
+          >
+            링크가 복사되었습니다!
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <>
@@ -135,85 +235,8 @@ export function NewsShareModal({
         공유
       </Button>
 
-      {isOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="share-modal-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
-            aria-label="공유 창 닫기"
-            onClick={() => setIsOpen(false)}
-          />
-
-          <div className="relative z-10 w-full max-w-md rounded-t-2xl border border-border bg-card p-5 shadow-xl sm:rounded-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 id="share-modal-title" className="text-lg font-semibold text-foreground">
-                공유
-              </h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full"
-                onClick={() => setIsOpen(false)}
-                aria-label="닫기"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="mb-6 flex items-start justify-center gap-6 sm:gap-8">
-              <ShareCircleButton
-                label="카카오톡"
-                disabled={!sdkReady}
-                onClick={handleKakaoShare}
-                className="bg-[#FEE500] text-[#191919] hover:bg-[#FEE500]/90"
-              >
-                <KakaoIcon />
-              </ShareCircleButton>
-              <ShareCircleButton
-                label="페이스북"
-                onClick={handleFacebookShare}
-                className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90"
-              >
-                <FacebookIcon />
-              </ShareCircleButton>
-              <ShareCircleButton
-                label="X"
-                onClick={handleTwitterShare}
-                className="bg-foreground text-background hover:bg-foreground/90"
-              >
-                <XIcon />
-              </ShareCircleButton>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 p-2">
-              <input
-                readOnly
-                value={shareUrl}
-                aria-label="뉴스 공유 링크"
-                className="min-w-0 flex-1 truncate bg-transparent px-2 text-sm text-muted-foreground outline-none"
-              />
-              <Button type="button" size="sm" variant="secondary" onClick={() => void handleCopyLink()}>
-                복사
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {copiedToast ? (
-        <div
-          role="status"
-          className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background shadow-lg"
-        >
-          링크가 복사되었습니다!
-        </div>
-      ) : null}
+      {modal}
+      {toast}
     </>
   );
 }
