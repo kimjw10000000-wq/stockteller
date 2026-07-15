@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import {
-  SIGNAL_DESCRIPTIONS,
   SIGNAL_LABELS,
   SIGNAL_NEEDLE_ROTATE,
   SIGNAL_SHORT_LABELS,
@@ -43,7 +42,6 @@ const TICK_ANGLES = [157.5, 112.5, 67.5, 22.5];
 export function SignalGauge({ status }: SignalGaugeProps) {
   const needleDeg = SIGNAL_NEEDLE_ROTATE[status];
   const label = SIGNAL_LABELS[status];
-  const description = SIGNAL_DESCRIPTIONS[status];
 
   const zones = useMemo(
     () => ZONE_DEFS.map((z) => ({ d: arcPath(z.start, z.end), ...z })),
@@ -213,7 +211,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
       </p>
       <p className="text-center text-sm font-medium text-foreground">{label}</p>
       <p className="mt-2 max-w-md text-center text-sm leading-relaxed text-muted-foreground">
-        {description}
+        본 계기판은 현재 주가, 차트, 뉴스 등을 종합적으로 판단하여 실시간으로 표시됩니다.
       </p>
       <p className="mt-2 max-w-md text-center text-xs leading-relaxed text-muted-foreground">
         * 본 알고리즘 시그널은 데이터 수집 및 연산 환경에 따라 수 분의 지연이 발생할 수 있습니다.
