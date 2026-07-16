@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureMarket } from "@/lib/news-display";
 import { formatNewsDate } from "@/lib/news-sort";
@@ -243,6 +244,11 @@ export function AdminNewsManageList({
                     <span>{marketLabel}</span>
                     <span>·</span>
                     <span className="font-mono">{stockLabel}</span>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Eye className="h-3 w-3 shrink-0" aria-hidden />
+                      조회수: {item.view_count ?? 0}회
+                    </span>
                   </div>
                 </div>
 

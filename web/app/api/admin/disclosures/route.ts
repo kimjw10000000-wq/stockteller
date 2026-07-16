@@ -18,6 +18,7 @@ export type AdminDisclosureListItem = Pick<
   | "stock_code"
   | "membership_type"
   | "gemini_metadata"
+  | "view_count"
 > & {
   stocks: { name: string; ticker: string; market?: string | null } | null;
 };

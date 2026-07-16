@@ -46,7 +46,7 @@ export function NewsDetailView({
         <Button variant="ghost" asChild className="-ml-2 mb-4 gap-2">
           <Link href="/feed">
             <ArrowLeft className="h-4 w-4" aria-hidden />
-            리포트 목록으로
+            분석글 목록으로
           </Link>
         </Button>
 

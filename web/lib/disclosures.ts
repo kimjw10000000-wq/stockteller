@@ -178,6 +178,37 @@ export async function getDisclosureById(
   return data as DisclosureWithStock | null;
 }
 
+/** 상세 페이지 진입 시 조회수 +1 (사용자 UI에는 미표시) */
+export async function incrementDisclosureViewCount(id: string): Promise<void> {
+  if (!id.trim()) return;
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const admin = createAdminClient();
+    const { data, error: readError } = await admin
+      .from("disclosures")
+      .select("view_count")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (readError) {
+      console.error("[incrementDisclosureViewCount] read", readError.message);
+      return;
+    }
+
+    const next = Math.max(0, Number(data?.view_count ?? 0)) + 1;
+    const { error: writeError } = await admin
+      .from("disclosures")
+      .update({ view_count: next })
+      .eq("id", id);
+
+    if (writeError) {
+      console.error("[incrementDisclosureViewCount] write", writeError.message);
+    }
+  } catch (err) {
+    console.error("[incrementDisclosureViewCount]", err);
+  }
+}
+
 /** sitemap용 — 등록된 모든 리포트 id·수정 시각 */
 export async function listAllDisclosureSitemapEntries(): Promise<
   { id: string; created_at: string }[]

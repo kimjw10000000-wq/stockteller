@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { NewsDetailView } from "@/components/news/NewsDetailView";
 import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
-import { getDisclosureById, listDisclosuresPaginated } from "@/lib/disclosures";
+import { getDisclosureById, listDisclosuresPaginated, incrementDisclosureViewCount } from "@/lib/disclosures";
 import { enrichStockMatchContext, getSignalStatusForStockContext } from "@/lib/stock-signal-sync";
 import { readStoredSignalStatus, DEFAULT_SIGNAL_STATUS } from "@/lib/signal-status";
 import { buildNewsDetailMetadata } from "@/lib/seo";
@@ -21,6 +21,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function NewsDetailPage({ params }: PageProps) {
   const row = await getDisclosureById(params.id);
   if (!row) notFound();
+
+  void incrementDisclosureViewCount(row.id);
 
   const { items: olderItems, nextCursor } = await listDisclosuresPaginated({
     sort: "latest",
