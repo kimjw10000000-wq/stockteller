@@ -1,6 +1,10 @@
 import type { DisclosureWithStock } from "@/lib/types";
 import { createPublicClient } from "@/lib/supabase/public";
-import { matchesMarketFilter, matchesStockSearchQuery } from "@/lib/news-display";
+import {
+  matchesDisclosureSearchQuery,
+  matchesMarketFilter,
+  matchesStockSearchQuery,
+} from "@/lib/news-display";
 import type { NewsMarketKey, NewsSortKey } from "@/lib/news-sort";
 
 export type ListDisclosuresOptions = {
@@ -11,6 +15,8 @@ export type ListDisclosuresOptions = {
   /** ISO created_at — 이보다 이전(older) 글만 */
   cursor?: string;
   excludeId?: string;
+  /** stock: 종목 필드만(피드), full: 제목·본문 포함(/search) */
+  searchFields?: "stock" | "full";
 };
 
 export type ListDisclosuresResult = {
@@ -50,7 +56,9 @@ export async function listDisclosuresPaginated(
   const sort = opts.sort ?? "latest";
   const market = opts.market ?? "all";
   const limit = opts.limit ?? 20;
-  const qLower = opts.q?.trim().toLowerCase() ?? "";
+  const qRaw = opts.q?.trim() ?? "";
+  const qLower = qRaw.toLowerCase();
+  const searchFields = opts.searchFields ?? "stock";
   const needsPostFilter = market !== "all" || !!qLower;
 
   let supabase;
@@ -135,7 +143,13 @@ export async function listDisclosuresPaginated(
     for (const item of raw) {
       if (seenIds.has(item.id)) continue;
       if (!matchesMarketFilter(item, market)) continue;
-      if (qLower && !matchesStockSearchQuery(item, qLower)) continue;
+      if (qRaw) {
+        const matched =
+          searchFields === "full"
+            ? matchesDisclosureSearchQuery(item, qRaw)
+            : matchesStockSearchQuery(item, qRaw);
+        if (!matched) continue;
+      }
       seenIds.add(item.id);
       collected.push(item);
       if (collected.length >= limit) break;
@@ -154,6 +168,73 @@ export async function listDisclosuresPaginated(
       : null;
 
   return { items, nextCursor };
+}
+
+const SEARCH_MAX_ITEMS = 200;
+const SEARCH_MAX_ROUNDS = 40;
+const SEARCH_BATCH_SIZE = 100;
+
+/**
+ * 필터(시장·정렬) 없이 검색어만으로 분석글 전체 매칭.
+ * 티커·종목명·종목코드·제목·요약·본문을 대상으로 한다.
+ */
+export async function searchDisclosures(
+  rawQuery: string
+): Promise<{ items: DisclosureWithStock[]; total: number }> {
+  const q = rawQuery.trim();
+  if (!q) return { items: [], total: 0 };
+
+  let supabase;
+  try {
+    supabase = createPublicClient();
+  } catch {
+    return { items: [], total: 0 };
+  }
+
+  const collected: DisclosureWithStock[] = [];
+  const seenIds = new Set<string>();
+  let scanCursor: string | undefined;
+
+  for (let round = 0; round < SEARCH_MAX_ROUNDS; round += 1) {
+    let query = supabase
+      .from("disclosures")
+      .select(SELECT)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(SEARCH_BATCH_SIZE);
+
+    if (scanCursor) query = query.lt("created_at", scanCursor);
+
+    const result = await withQueryTimeout(() => query, QUERY_TIMEOUT_MS);
+    if (result === "timeout") {
+      console.error("[searchDisclosures] query timeout");
+      break;
+    }
+
+    if (result.error) {
+      console.error("[searchDisclosures]", result.error.message);
+      break;
+    }
+
+    const raw = (result.data ?? []) as DisclosureWithStock[];
+    if (raw.length === 0) break;
+
+    scanCursor = raw[raw.length - 1]?.created_at ?? scanCursor;
+
+    for (const item of raw) {
+      if (seenIds.has(item.id)) continue;
+      if (!matchesDisclosureSearchQuery(item, q)) continue;
+      seenIds.add(item.id);
+      collected.push(item);
+      if (collected.length >= SEARCH_MAX_ITEMS) {
+        return { items: collected, total: collected.length };
+      }
+    }
+
+    if (raw.length < SEARCH_BATCH_SIZE) break;
+  }
+
+  return { items: collected, total: collected.length };
 }
 
 export async function getDisclosureById(

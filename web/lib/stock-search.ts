@@ -28,11 +28,31 @@ export function getDisclosureStockSearchFields(item: DisclosureWithStock): strin
     .map((v) => v.trim());
 }
 
-/** 종목 필드만 검색 (제목·본문 제외) */
+/** 종목 필드만 검색 (제목·본문 제외) — 피드용 */
 export function matchesStockSearchQuery(item: DisclosureWithStock, rawQuery: string): boolean {
   const normalizedQuery = normalizeSearchText(rawQuery);
   if (!normalizedQuery) return true;
 
   const fields = getDisclosureStockSearchFields(item);
   return fields.some((field) => normalizeSearchText(field).includes(normalizedQuery));
+}
+
+/** 티커·종목명·종목코드 + 제목·요약·본문 전체 검색 — /search 전용 */
+export function matchesDisclosureSearchQuery(
+  item: DisclosureWithStock,
+  rawQuery: string
+): boolean {
+  const normalizedQuery = normalizeSearchText(rawQuery);
+  if (!normalizedQuery) return true;
+
+  const textFields = [
+    ...getDisclosureStockSearchFields(item),
+    item.title,
+    item.summary,
+    item.raw_content,
+  ]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .map((v) => v.trim());
+
+  return textFields.some((field) => normalizeSearchText(field).includes(normalizedQuery));
 }

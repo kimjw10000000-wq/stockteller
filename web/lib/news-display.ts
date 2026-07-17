@@ -2,7 +2,10 @@ import type { DisclosureWithStock } from "@/lib/types";
 import { isManualEditorPost } from "@/lib/manual-post";
 import { inferStockMarket } from "@/lib/news-sort";
 
-export { matchesStockSearchQuery } from "@/lib/stock-search";
+export {
+  matchesStockSearchQuery,
+  matchesDisclosureSearchQuery,
+} from "@/lib/stock-search";
 
 export type NewsTrend = "up" | "down" | "neutral";
 

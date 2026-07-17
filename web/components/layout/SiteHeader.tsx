@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, TrendingUp } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { SITE_NAME_KO } from "@/lib/site";
 
@@ -11,6 +11,15 @@ export function SiteHeader() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // /search?q= 진입 시 검색창에 현재 검색어 동기화
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const path = window.location.pathname;
+    if (path !== "/search") return;
+    const q = new URLSearchParams(window.location.search).get("q") ?? "";
+    setQuery(q);
+  }, []);
 
   const onSearch = useCallback(
     (e: React.FormEvent) => {
@@ -22,10 +31,11 @@ export function SiteHeader() {
       }
 
       const q = query.trim();
-      const params = new URLSearchParams(window.location.search);
-      if (q) params.set("q", q);
-      else params.delete("q");
-      router.push(`/feed?${params.toString()}`);
+      if (!q) {
+        router.push("/search");
+        return;
+      }
+      router.push(`/search?q=${encodeURIComponent(q)}`);
     },
     [query, router]
   );

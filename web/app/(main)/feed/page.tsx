@@ -35,12 +35,16 @@ export default function FeedPage({ searchParams }: FeedPageProps) {
   const marketParam = paramFirst(searchParams.market);
   const q = paramFirst(searchParams.q);
 
+  // 검색은 피드 필터와 분리된 /search 전용 페이지로 이동
+  if (q) {
+    redirect(`/search?q=${encodeURIComponent(q)}`);
+  }
+
   // market 미지정 시 KST 기준(09:00~16:00 한국장 / 그 외 미국장)으로 URL 고정
   if (!marketParam) {
     const params = new URLSearchParams();
     params.set("sort", sort);
     params.set("market", getDefaultMarketByKst());
-    if (q) params.set("q", q);
     redirect(`/feed?${params.toString()}`);
   }
 
@@ -48,9 +52,9 @@ export default function FeedPage({ searchParams }: FeedPageProps) {
 
   return (
     <main className="space-y-6">
-      <FeedPageHeader q={q} />
+      <FeedPageHeader q="" />
       <Suspense fallback={<FeedGridSkeleton />}>
-        <FeedListLoader sort={sort} market={market} q={q} />
+        <FeedListLoader sort={sort} market={market} q="" />
       </Suspense>
     </main>
   );

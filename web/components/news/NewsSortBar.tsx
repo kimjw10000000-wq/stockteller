@@ -25,9 +25,7 @@ export function NewsSortBar() {
       const params = new URLSearchParams(searchParams.toString());
       params.set("sort", next.sort ?? sort);
       params.set("market", next.market ?? market);
-      const q = searchParams.get("q");
-      if (q) params.set("q", q);
-      else params.delete("q");
+      params.delete("q");
       router.push(`/feed?${params.toString()}`);
     },
     [router, searchParams, sort, market]
