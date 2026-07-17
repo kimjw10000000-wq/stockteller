@@ -3,17 +3,24 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, TrendingUp } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export function SiteHeader() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const onSearch = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      // 모바일 가상 키보드가 검색 결과를 가리지 않도록 즉시 포커스 해제
+      inputRef.current?.blur();
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
       const q = query.trim();
       const params = new URLSearchParams(window.location.search);
       if (q) params.set("q", q);
@@ -37,12 +44,14 @@ export function SiteHeader() {
             aria-hidden
           />
           <Input
+            ref={inputRef}
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="티커 · 종목명 · 종목코드"
             className="border-border pl-10"
             aria-label="티커·종목명·종목코드 검색"
+            enterKeyHint="search"
           />
         </form>
       </div>
