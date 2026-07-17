@@ -68,17 +68,91 @@ export function isBodyContentEmpty(raw: string): boolean {
   return stripHtml(html).trim().length === 0;
 }
 
-/** 붙여넣기 HTML에서 인라인 스타일·배경 서식 제거 */
+/** 붙여넣기 HTML에서 인라인 스타일·배경 서식 제거 (표 구조는 유지) */
 export function stripPastedHtmlStyles(html: string): string {
   return html
+    .replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<meta[^>]*>/gi, "")
+    .replace(/<\/?o:[a-z0-9]+[^>]*>/gi, "")
     .replace(/\sstyle="[^"]*"/gi, "")
     .replace(/\sstyle='[^']*'/gi, "")
     .replace(/\sclass="[^"]*"/gi, "")
     .replace(/\sclass='[^']*'/gi, "")
+    // 표 셀 안의 span은 텍스트만 남기되, 표 태그는 건드리지 않음
     .replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, "$1")
     .trim();
+}
+
+const SUPER_UNICODE: Record<string, string> = {
+  "0": "⁰",
+  "1": "¹",
+  "2": "²",
+  "3": "³",
+  "4": "⁴",
+  "5": "⁵",
+  "6": "⁶",
+  "7": "⁷",
+  "8": "⁸",
+  "9": "⁹",
+  "+": "⁺",
+  "-": "⁻",
+};
+
+function escapeHtmlText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** `^2` / `^{12}` → <sup> 또는 유니코드 첨자 */
+function applyCaretSuperscript(text: string): string {
+  return text
+    .replace(/\^\{([^}]+)\}/g, (_m, body: string) => {
+      const chars = String(body);
+      const list = Array.from(chars);
+      if (list.every((c) => c in SUPER_UNICODE)) {
+        return list.map((c) => SUPER_UNICODE[c]).join("");
+      }
+      return `<sup>${escapeHtmlText(chars)}</sup>`;
+    })
+    .replace(/\^(\d+)/g, (_m, digits: string) => {
+      const list = Array.from(String(digits));
+      if (list.every((c) => c in SUPER_UNICODE)) {
+        return list.map((c) => SUPER_UNICODE[c]).join("");
+      }
+      return `<sup>${digits}</sup>`;
+    })
+    .replace(/\^([A-Za-z])/g, (_m, ch: string) => `<sup>${ch}</sup>`);
+}
+
+/** `$km^2$` 같은 인라인 수식 → 첨자 HTML/유니코드 */
+export function convertMathNotationInPlainText(text: string): string {
+  let out = text.replace(/\$([^$\n]+)\$/g, (_m, inner: string) => applyCaretSuperscript(String(inner)));
+  // 달러 표기 없이 km^2 형태
+  out = applyCaretSuperscript(out);
+  return out;
+}
+
+function convertMathInHtml(html: string): string {
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (match, tag: string | undefined, text: string | undefined) => {
+    if (tag) return tag;
+    if (!text) return match;
+    return convertMathNotationInPlainText(text);
+  });
+}
+
+/**
+ * 클립보드 HTML → 에디터용 정규화.
+ * 표(table/tr/td/th) 구조 유지 + 수식 첨자 변환.
+ */
+export function normalizePastedHtml(html: string): string {
+  let out = stripPastedHtmlStyles(html);
+  // Google/브라우저가 감싼 불필요 wrapper 정리 (표는 보존)
+  out = out.replace(/<\/?(?:html|body|fragment)[^>]*>/gi, "");
+  out = convertMathInHtml(out);
+  return out.trim();
 }
 
 /** 클립보드에서 순수 이미지 File 추출 */

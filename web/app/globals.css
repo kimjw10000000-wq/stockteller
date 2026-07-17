@@ -139,6 +139,54 @@ body {
   clear: both;
 }
 
+/* 표 (에디터 + 상세 본문) */
+.admin-rich-editor .tiptap table,
+.admin-rich-editor .tiptap .article-table,
+.article-rich-body table,
+.article-rich-body .article-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  table-layout: auto;
+}
+
+.admin-rich-editor .tiptap th,
+.admin-rich-editor .tiptap td,
+.article-rich-body th,
+.article-rich-body td {
+  border: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 14px;
+  vertical-align: top;
+}
+
+.admin-rich-editor .tiptap th,
+.article-rich-body th {
+  background-color: #f8fafc;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admin-rich-editor .tiptap tr:nth-child(even) td,
+.article-rich-body tr:nth-child(even) td {
+  background-color: #fafafa;
+}
+
+.admin-rich-editor .tiptap sup,
+.article-rich-body sup {
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.admin-rich-editor .tiptap sub,
+.article-rich-body sub {
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: sub;
+}
+
 /* figure 기본 UA 마진(위아래 1em 등) 제거 후, 블록 바깥 간격만 */
 .admin-rich-editor .article-image-block {
   position: relative;

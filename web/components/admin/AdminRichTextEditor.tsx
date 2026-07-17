@@ -7,6 +7,9 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
+import { TableKit } from "@tiptap/extension-table";
+import Superscript from "@tiptap/extension-superscript";
+import Subscript from "@tiptap/extension-subscript";
 import {
   AlignCenter,
   AlignLeft,
@@ -23,7 +26,11 @@ import { Button } from "@/components/ui/button";
 import { ArticleImageNodeView } from "@/components/admin/ArticleImageNodeView";
 import { normalizeEditorContent } from "@/lib/html-utils";
 import { cn } from "@/lib/utils";
-import { extractClipboardImageFile, stripPastedHtmlStyles } from "@/lib/article-body";
+import {
+  convertMathNotationInPlainText,
+  extractClipboardImageFile,
+  normalizePastedHtml,
+} from "@/lib/article-body";
 
 function parsePx(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -247,7 +254,15 @@ export function AdminRichTextEditor({
     () => [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       Underline,
+      Superscript,
+      Subscript,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      TableKit.configure({
+        table: {
+          resizable: false,
+          HTMLAttributes: { class: "article-table" },
+        },
+      }),
       ArticleImage.configure({
         inline: false,
         allowBase64: false,
@@ -267,7 +282,8 @@ export function AdminRichTextEditor({
       attributes: {
         class: "admin-rich-editor-content focus:outline-none max-w-3xl mx-auto",
       },
-      transformPastedHTML: (html) => stripPastedHtmlStyles(html),
+      transformPastedHTML: (html) => normalizePastedHtml(html),
+      transformPastedText: (text) => convertMathNotationInPlainText(text),
       handleDrop: (_view, event, _slice, moved) => {
         // 에디터 내부 블록(이미지) 이동은 ProseMirror 기본 DnD에 맡김
         if (moved) return false;
@@ -286,15 +302,29 @@ export function AdminRichTextEditor({
           void insertImageFromFile(imageFile);
           return true;
         }
-        const html = event.clipboardData?.getData("text/html");
+
+        const html = event.clipboardData?.getData("text/html")?.trim() ?? "";
         if (html) {
-          const clean = stripPastedHtmlStyles(html);
-          if (clean !== html) {
+          event.preventDefault();
+          view.pasteHTML(normalizePastedHtml(html));
+          return true;
+        }
+
+        const plain = event.clipboardData?.getData("text/plain") ?? "";
+        if (plain) {
+          const converted = convertMathNotationInPlainText(plain);
+          if (converted !== plain && /<\/?su[bp]>/i.test(converted)) {
             event.preventDefault();
-            view.pasteHTML(clean);
+            const asHtml = converted
+              .split(/\n+/)
+              .filter((line) => line.length > 0)
+              .map((line) => `<p>${line}</p>`)
+              .join("");
+            view.pasteHTML(asHtml || `<p>${converted}</p>`);
             return true;
           }
         }
+
         return false;
       },
     },
