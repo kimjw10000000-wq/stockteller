@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "crawl": "node scripts/crawl-edgar.mjs",
+    "crawl": "tsx scripts/crawl-edgar.ts",
     "engine": "tsx scripts/run-market-engine.ts"
   },
   "dependencies": {

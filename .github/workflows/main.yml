@@ -1,41 +1,78 @@
-# Periodic SEC poller → Gemini → Supabase (runs every 10 minutes).
-# Set repository secrets:
-#   NEXT_PUBLIC_SUPABASE_URL
-#   SUPABASE_SERVICE_ROLE_KEY
-#   GEMINI_API_KEY
+# SEC poller → Gemini → Supabase (`disclosure-crawl`).
+#
+# Automatic runs: Vercel Cron hits /api/cron/disclosure-crawl (see web/vercel.json).
+# This workflow is for manual runs / backup if Vercel Cron is unavailable.
+#
+# Recommended GitHub secret:
+#   CRON_SECRET — same value as Vercel env CRON_SECRET
 # Optional:
-#   GEMINI_MODEL (default: gemini-3-flash-preview in app; optional override)
-#   SEC_USER_AGENT (SEC requires a descriptive UA with contact info)
-#   CRAWL_MAX_ITEMS (default: 8)
+#   CRAWL_WEBHOOK_URL — default https://whyup.net/api/cron/disclosure-crawl
+#
+# Local fallback secrets (only if remote webhook is not configured):
+#   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
+# Optional: GEMINI_MODEL, SEC_USER_AGENT, CRAWL_MAX_ITEMS
 
 name: disclosure-crawl
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "*/10 * * * *"
+
+concurrency:
+  group: disclosure-crawl
+  cancel-in-progress: false
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Crawl via deployed webhook
+        id: remote
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRAWL_WEBHOOK_URL: ${{ secrets.CRAWL_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "CRON_SECRET not set — will try local crawler fallback"
+            exit 1
+          fi
+          URL="${CRAWL_WEBHOOK_URL:-https://whyup.net/api/cron/disclosure-crawl}"
+          echo "POST $URL"
+          code=$(curl -sS -o /tmp/crawl-body.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            --max-time 290 \
+            "$URL")
+          echo "HTTP $code"
+          cat /tmp/crawl-body.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "Remote crawl failed with HTTP $code"
+            exit 1
+          fi
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        if: steps.remote.outcome != 'success'
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Install
+        if: steps.remote.outcome != 'success'
+        working-directory: web
         run: npm ci
 
-      - name: Run crawler
+      - name: Run local crawler fallback
+        if: steps.remote.outcome != 'success'
+        working-directory: web
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -43,4 +80,10 @@ jobs:
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
           CRAWL_MAX_ITEMS: ${{ secrets.CRAWL_MAX_ITEMS }}
-        run: npm run crawl
+        run: |
+          set -euo pipefail
+          if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Set secrets.CRON_SECRET (recommended) or Supabase/Gemini secrets for local fallback."
+            exit 1
+          fi
+          npm run crawl
