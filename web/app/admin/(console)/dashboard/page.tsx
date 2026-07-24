@@ -20,8 +20,8 @@ export default async function AdminDashboardPage() {
   }
 
   return (
-    <main className="py-8">
-      <header className="mb-8 border-b border-border pb-6">
+    <main>
+      <header className="mb-8">
         <h1 className="text-2xl font-semibold text-foreground">뉴스 작성 대시보드</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           시장·종목·유무료 설정 후 발행하거나, 우측 목록에서 기존 글을 수정하세요.{" "}
