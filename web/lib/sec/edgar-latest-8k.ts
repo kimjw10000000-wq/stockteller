@@ -3,68 +3,14 @@
  * @see https://www.sec.gov/os/webmaster-faq#developers
  */
 
-function secHeaders(): HeadersInit {
-  const ua =
-    process.env.SEC_USER_AGENT?.trim() ||
-    "StockResearchBot/1.0 (https://example.com/contact)";
-  return {
-    "User-Agent": ua,
-    Accept: "application/json,text/html,*/*",
-  };
-}
+import {
+  accessionToFolder,
+  resolveCikPadded,
+  secHeaders,
+  stripHtml,
+} from "@/lib/sec/edgar-client";
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-type TickerEntry = { cik_str: number; ticker: string; title: string };
-
-let cikMapPromise: Promise<Map<string, string>> | null = null;
-
-async function loadCikMap(): Promise<Map<string, string>> {
-  if (cikMapPromise) return cikMapPromise;
-  cikMapPromise = (async () => {
-    const res = await fetch("https://www.sec.gov/files/company_tickers.json", {
-      headers: secHeaders(),
-      next: { revalidate: 86_400 },
-    });
-    if (!res.ok) throw new Error(`SEC company_tickers ${res.status}`);
-    const raw = (await res.json()) as Record<string, TickerEntry>;
-    const map = new Map<string, string>();
-    for (const row of Object.values(raw)) {
-      if (!row?.ticker) continue;
-      const t = String(row.ticker).toUpperCase();
-      const cikPadded = String(row.cik_str).padStart(10, "0");
-      map.set(t, cikPadded);
-    }
-    return map;
-  })();
-  return cikMapPromise;
-}
-
-export async function resolveCikPadded(ticker: string): Promise<string | null> {
-  const t = ticker.trim().toUpperCase();
-  if (!/^[A-Z.\-]{1,10}$/.test(t)) return null;
-  const map = await loadCikMap();
-  const direct = map.get(t);
-  if (direct) return direct;
-  const br = map.get(t.replace(/\./g, "-"));
-  if (br) return br;
-  return null;
-}
-
-function accessionToFolder(acc: string): string {
-  return acc.replace(/-/g, "");
-}
+export { resolveCikPadded } from "@/lib/sec/edgar-client";
 
 export type Latest8kResult = {
   plainText: string;

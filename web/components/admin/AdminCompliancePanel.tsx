@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Pencil, Save, Search } from "lucide-react";
+import { Loader2, Pencil, Save, Search } from "lucide-react";
+import { AdminReverseSplitReport } from "@/components/admin/AdminReverseSplitReport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +14,7 @@ import {
   type ComplianceGraceStatus,
   type ComplianceWatchItem,
 } from "@/lib/compliance-admin";
+import type { ReverseSplitScanResult } from "@/lib/sec/reverse-split-scan";
 import { cn } from "@/lib/utils";
 
 const EMPTY_FORM = {
@@ -23,6 +25,11 @@ const EMPTY_FORM = {
   status: "grace_180" as ComplianceGraceStatus,
 };
 
+function extractTicker(raw: string): string {
+  const parts = raw.trim().split(/[·|,/\s]+/).filter(Boolean);
+  return (parts[0] ?? raw).trim().toUpperCase();
+}
+
 export function AdminCompliancePanel() {
   const [items, setItems] = useState<ComplianceWatchItem[]>(COMPLIANCE_SAMPLE_ITEMS);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -30,6 +37,9 @@ export function AdminCompliancePanel() {
   const [stockQuery, setStockQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [listFilter, setListFilter] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [splitReport, setSplitReport] = useState<ReverseSplitScanResult | null>(null);
 
   const filteredItems = useMemo(() => {
     const q = listFilter.trim().toLowerCase();
@@ -44,7 +54,6 @@ export function AdminCompliancePanel() {
   function setField<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
-      // Notice Date 변경 시 D-Day 기본값(180일) 자동 제안 — 수동 수정도 가능
       if (key === "noticeDate" && typeof value === "string" && value) {
         const suggested = addDaysIso(value, 180);
         if (suggested && (!prev.ddayDate || prev.ddayDate === addDaysIso(prev.noticeDate, 180))) {
@@ -60,24 +69,71 @@ export function AdminCompliancePanel() {
     setStockQuery("");
     setEditingId(null);
     setMessage(null);
+    setScanError(null);
+    setSplitReport(null);
   }
 
-  function applyStockSelection() {
+  async function runSecReverseSplitScan(ticker: string) {
+    setScanLoading(true);
+    setScanError(null);
+    setSplitReport(null);
+    try {
+      const res = await fetch(
+        `/api/admin/compliance/reverse-splits?ticker=${encodeURIComponent(ticker)}`,
+        { cache: "no-store" }
+      );
+      const j = (await res.json()) as ReverseSplitScanResult | { ok: false; error?: string };
+      if (!res.ok || !j.ok) {
+        setScanError(("error" in j && j.error) || "SEC 조회에 실패했습니다.");
+        return null;
+      }
+      setSplitReport(j);
+      return j;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setScanError(msg);
+      return null;
+    } finally {
+      setScanLoading(false);
+    }
+  }
+
+  async function applyStockSelection() {
     const raw = stockQuery.trim();
     if (!raw) {
       setMessage("종목 티커 또는 종목명을 입력하세요.");
       return;
     }
-    // UI 단계: 검색어를 티커/종목명으로 분리해 폼에 반영 (연동은 다음 단계)
+
+    const maybeTicker = extractTicker(raw);
+    setMessage(`${maybeTicker} · SEC EDGAR 병합 이력 조회 중…`);
+
+    const report = await runSecReverseSplitScan(maybeTicker);
+    if (report) {
+      setForm((prev) => ({
+        ...prev,
+        ticker: report.ticker,
+        stockName: report.companyName || prev.stockName,
+        status: report.blocked ? "limit_250" : prev.status === "limit_250" ? "grace_180" : prev.status,
+      }));
+      setStockQuery(`${report.ticker} ${report.companyName}`);
+      setMessage(
+        report.blocked
+          ? `${report.ticker} · 250대 1 한도 초과/임계치 (유예 상태 자동 반영)`
+          : `${report.ticker} · SEC 조회 완료 (병합 ${report.hits.length}건)`
+      );
+      return;
+    }
+
+    // SEC 실패 시에도 티커는 폼에 반영
     const parts = raw.split(/[·|,/\s]+/).filter(Boolean);
-    const maybeTicker = (parts[0] ?? raw).toUpperCase();
     const maybeName = parts.length > 1 ? parts.slice(1).join(" ") : raw;
     setForm((prev) => ({
       ...prev,
       ticker: maybeTicker,
       stockName: maybeName === maybeTicker ? prev.stockName || maybeName : maybeName,
     }));
-    setMessage(`선택 반영: ${maybeTicker}`);
+    setMessage(`선택 반영: ${maybeTicker} (SEC 리포트는 실패 — 아래 오류 확인)`);
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -124,7 +180,9 @@ export function AdminCompliancePanel() {
       setItems((prev) => [row, ...prev.filter((it) => it.ticker !== ticker)]);
       setMessage(`${ticker} 저장됨 (로컬 미리보기 — DB 연동 예정)`);
     }
-    resetForm();
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setStockQuery("");
   }
 
   function onEditRow(item: ComplianceWatchItem) {
@@ -138,6 +196,8 @@ export function AdminCompliancePanel() {
       status: item.status,
     });
     setMessage(null);
+    setScanError(null);
+    void runSecReverseSplitScan(item.ticker);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -150,7 +210,7 @@ export function AdminCompliancePanel() {
               {editingId ? "종목 유예 정보 수정" : "종목 유예 정보 등록"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Notice Date 기준 180일 D-Day를 자동 제안하며, 필요 시 수동으로 수정할 수 있습니다.
+              티커 검색 시 SEC EDGAR에서 최근 2년 8-K/6-K reverse split을 조회해 250대 1 한도를 계산합니다.
             </p>
           </div>
           {editingId ? (
@@ -172,15 +232,35 @@ export function AdminCompliancePanel() {
                 <Input
                   value={stockQuery}
                   onChange={(e) => setStockQuery(e.target.value)}
-                  placeholder="티커 또는 종목명 (예: SDOT · Sadot)"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void applyStockSelection();
+                    }
+                  }}
+                  placeholder="티커 입력 후 Enter 또는 SEC 조회 (예: SDOT)"
                   className="pl-10"
                   aria-label="종목 검색"
+                  disabled={scanLoading}
                 />
               </div>
             </label>
             <div className="flex items-end">
-              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={applyStockSelection}>
-                선택 반영
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => void applyStockSelection()}
+                disabled={scanLoading}
+              >
+                {scanLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    SEC 조회 중
+                  </>
+                ) : (
+                  "SEC 조회"
+                )}
               </Button>
             </div>
           </div>
@@ -254,6 +334,21 @@ export function AdminCompliancePanel() {
           </div>
         </form>
       </section>
+
+      {scanError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {scanError}
+        </div>
+      ) : null}
+
+      {scanLoading ? (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          SEC EDGAR에서 8-K/6-K 본문을 조회·파싱하는 중입니다. 최대 1분 정도 걸릴 수 있습니다.
+        </div>
+      ) : null}
+
+      {splitReport ? <AdminReverseSplitReport report={splitReport} /> : null}
 
       <section className="rounded-lg border border-border bg-card">
         <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
