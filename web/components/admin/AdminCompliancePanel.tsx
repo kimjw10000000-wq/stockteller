@@ -117,10 +117,11 @@ export function AdminCompliancePanel() {
         status: report.blocked ? "limit_250" : prev.status === "limit_250" ? "grace_180" : prev.status,
       }));
       setStockQuery(`${report.ticker} ${report.companyName}`);
+      const excluded = report.excludedHits?.length ?? 0;
       setMessage(
         report.blocked
-          ? `${report.ticker} · 250대 1 한도 초과/임계치 (유예 상태 자동 반영)`
-          : `${report.ticker} · SEC 조회 완료 (병합 ${report.hits.length}건)`
+          ? `${report.ticker} · 250대 1 한도 초과 (유예 상태 자동 반영)`
+          : `${report.ticker} · SEC 조회 완료 (합산 ${report.hits.length}건${excluded ? ` · 중복 제외 ${excluded}건` : ""})`
       );
       return;
     }
