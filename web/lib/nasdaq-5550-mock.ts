@@ -108,16 +108,12 @@ export function formatBidPriceDetectedLabel(item: RuleCheckItem): {
   if (item.detectedDates.length === 0) {
     return { datesLine: "위반 이력 없음", note: null, tone: "clear" };
   }
-  if (item.detectedDates.length === 1) {
-    return {
-      datesLine: item.detectedDates[0],
-      note: item.detectedNote ?? null,
-      tone: "alert",
-    };
-  }
   return {
-    datesLine: `${item.detectedDates.join(", ")} (총 ${item.detectedDates.length}건 포착)`,
-    note: null,
+    datesLine: item.detectedDates.join(", "),
+    note:
+      item.detectedDates.length === 1
+        ? item.detectedNote ?? null
+        : `${item.detectedDates.length}건 포착`,
     tone: "alert",
   };
 }

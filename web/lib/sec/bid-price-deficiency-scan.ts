@@ -1,6 +1,9 @@
 /**
- * SEC EDGAR — 최근 8개월 8-K(Item 3.01) / 6-K(Ex.99.1·본문)에서
- * $1.00 또는 $0.10 최소 입찰가 관련 공시를 모두 수집.
+ * SEC EDGAR — 최근 8개월 bid-price 위반 공시 수집.
+ *
+ * Condition = Document_Type_Check AND Price_Keyword_Check
+ * - Document_Type_Check (OR): 8-K Item 3.01 구역  |  6-K Exhibit 99.1 또는 본문
+ * - Price_Keyword_Check (OR): "$1.00"  |  "$0.10"
  */
 
 import {
@@ -13,13 +16,14 @@ import {
 import { getComplianceSeedTicker } from "@/lib/compliance-seed-tickers";
 
 const LOOKBACK_MS = 8 * 30.44 * 24 * 60 * 60 * 1000;
-const MAX_DOCS = 20;
-const FETCH_GAP_MS = 120;
+/** 누락 최소화 — 8개월 후보를 최대한 순회 */
+const MAX_DOCS = 48;
+const FETCH_GAP_MS = 100;
 
 const FORM_8K = new Set(["8-K", "8-K/A"]);
 const FORM_6K = new Set(["6-K", "6-K/A"]);
 
-/** $1.00 또는 $0.10 문자열 */
+/** Price_Keyword_Check: $1.00 OR $0.10 */
 const BID_PRICE_AMOUNT_RE = /\$1\.00\b|\$0\.10\b/i;
 
 export type BidPriceNoticeHit = {
@@ -53,6 +57,19 @@ export type BidPriceNoticeError = {
 
 export function textHasBidPriceAmount(plainText: string): boolean {
   return BID_PRICE_AMOUNT_RE.test(plainText);
+}
+
+/**
+ * 8-K 본문에서 Item 3.01 섹션만 추출.
+ * 마커를 못 찾으면 null (전체 문서 오탐 방지 — items에 3.01이 있을 때만 후보로 옴).
+ */
+export function extractItem301Section(plainText: string): string | null {
+  if (!plainText) return null;
+  const start = plainText.search(/Item\s*3\.01\b/i);
+  if (start < 0) return null;
+  const rest = plainText.slice(start);
+  const next = rest.search(/\n\s*Item\s*(?!3\.01)\d{1,2}\.\d{2}\b/i);
+  return (next >= 0 ? rest.slice(0, next) : rest).trim() || null;
 }
 
 function parseIsoDate(s: string): Date | null {
@@ -117,17 +134,22 @@ async function scanCandidateText(
   const folder = accessionToFolder(c.accessionNumber);
   const base = `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${folder}`;
 
+  // Document_Type ∩ Price_Keyword
   if (c.kind === "8k-301") {
     const documentUrl = `${base}/${c.primaryDocument}`;
     const text = await fetchText(documentUrl);
+    if (!text) return { matched: false, sourceLabel: `${c.form} Item 3.01`, documentUrl };
+    const section = extractItem301Section(text);
+    // Item 3.01 구역에서만 Price_Keyword 검사 (AND)
+    const scope = section ?? "";
     return {
-      matched: Boolean(text && textHasBidPriceAmount(text)),
+      matched: Boolean(section && textHasBidPriceAmount(scope)),
       sourceLabel: `${c.form} Item 3.01`,
       documentUrl,
     };
   }
 
-  // 6-K: Exhibit 99.1 우선, 없으면 본문
+  // 6-K Document_Type: Exhibit 99.1 OR 본문 — 각 구역에서 Price_Keyword AND
   const names = await listFilingDocuments(cikNumeric, c.accessionNumber);
   const exhibits = pickExhibit99Names(names);
   for (const name of exhibits) {

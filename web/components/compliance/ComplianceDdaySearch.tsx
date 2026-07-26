@@ -85,9 +85,10 @@ export function ComplianceDdaySearch() {
           상장폐지 위험 D-Day 검색
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          시드 등록 {COMPLIANCE_SEED_TICKERS.length}개 티커를 검색하면, 최근 8개월 SEC 8-K(Item
-          3.01)·6-K(Ex.99.1/본문)에서 <span className="text-slate-300">$1.00</span> /
-          <span className="text-slate-300">$0.10</span> 관련 공시를 모두 모아 (2)번 항목에
+          시드 등록 {COMPLIANCE_SEED_TICKERS.length}개 티커 · 조건: (8-K Item 3.01{" "}
+          <span className="text-slate-300">또는</span> 6-K Ex.99.1/본문){" "}
+          <span className="text-slate-300">그리고</span> ($1.00{" "}
+          <span className="text-slate-300">또는</span> $0.10). 최근 8개월 매칭 공시일을 모두
           표시합니다.
         </p>
 
