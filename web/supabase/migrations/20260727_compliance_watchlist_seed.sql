@@ -3,6 +3,7 @@
 
 insert into public.stocks (name, ticker, market)
 values
+  ('Faraday Future Intelligent Electric Inc.', 'FFAI', 'us'),
   ('Atlantic American Corp', 'AAME', 'us'),
   ('ABVC BioPharma Inc', 'ABVC', 'us'),
   ('ACCESS Newswire Inc', 'ACCS', 'us'),

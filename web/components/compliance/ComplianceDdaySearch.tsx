@@ -105,7 +105,7 @@ export function ComplianceDdaySearch() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value.toUpperCase())}
-              placeholder="티커 입력 (예: AAME, AIM, AIRE)"
+              placeholder="티커 입력 (예: FFAI, AAME, AIM)"
               list="compliance-seed-tickers"
               autoCapitalize="characters"
               spellCheck={false}

@@ -1,4 +1,4 @@
-/** 상장폐지 D-Day 검색용 초기 시드 (20종목) */
+/** 상장폐지 D-Day 검색용 초기 시드 */
 
 export type ComplianceSeedTicker = {
   ticker: string;
@@ -6,6 +6,7 @@ export type ComplianceSeedTicker = {
 };
 
 export const COMPLIANCE_SEED_TICKERS: ComplianceSeedTicker[] = [
+  { ticker: "FFAI", companyName: "Faraday Future Intelligent Electric Inc." },
   { ticker: "AAME", companyName: "Atlantic American Corp" },
   { ticker: "ABVC", companyName: "ABVC BioPharma Inc" },
   { ticker: "ACCS", companyName: "ACCESS Newswire Inc" },
