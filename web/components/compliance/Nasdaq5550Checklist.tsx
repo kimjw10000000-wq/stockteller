@@ -29,45 +29,73 @@ function StatusIcon({ ok }: { ok: boolean }) {
   );
 }
 
-function CheckRow({ item }: { item: RuleCheckItem }) {
+function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetectedDate?: boolean }) {
+  const dateLabel = item.detectedDate
+    ? item.detectedDate
+    : showDetectedDate
+      ? "검색 대기 중"
+      : "—";
+
   return (
     <li
       className={cn(
-        "flex items-start gap-3 rounded-lg border px-3 py-3 sm:px-4",
+        "flex flex-col gap-2 rounded-lg border px-3 py-3 sm:flex-row sm:items-start sm:gap-3 sm:px-4",
         item.status
           ? "border-emerald-500/40 bg-emerald-500/10"
           : "border-rose-500/40 bg-rose-500/10"
       )}
     >
-      <StatusIcon ok={item.status} />
-      <div className="min-w-0 flex-1">
-        <p
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <StatusIcon ok={item.status} />
+        <div className="min-w-0 flex-1">
+          <p
+            className={cn(
+              "text-sm font-medium leading-snug",
+              item.status ? "text-emerald-300" : "text-rose-300"
+            )}
+          >
+            {item.label}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">{item.detail}</p>
+        </div>
+        <span
           className={cn(
-            "text-sm font-medium leading-snug",
-            item.status ? "text-emerald-300" : "text-rose-300"
+            "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs font-bold",
+            item.status ? "text-emerald-400" : "text-rose-400"
           )}
         >
-          {item.label}
-        </p>
-        <p className="mt-1 text-xs text-slate-400">{item.detail}</p>
+          {item.status ? "O" : "X"}
+        </span>
       </div>
-      <span
-        className={cn(
-          "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs font-bold",
-          item.status ? "text-emerald-400" : "text-rose-400"
-        )}
-      >
-        {item.status ? "O" : "X"}
-      </span>
+
+      {(showDetectedDate || item.detectedDate) && (
+        <div className="shrink-0 rounded-md border border-slate-600 bg-slate-800/80 px-3 py-2 sm:min-w-[11rem] sm:text-right">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+            감지된 공시일
+          </p>
+          <p
+            className={cn(
+              "mt-0.5 font-mono text-sm",
+              item.detectedDate ? "font-semibold text-rose-300" : "text-slate-500"
+            )}
+          >
+            {dateLabel}
+          </p>
+          {item.detectedNote ? (
+            <p className="mt-0.5 text-[11px] text-slate-400">{item.detectedNote}</p>
+          ) : null}
+        </div>
+      )}
     </li>
   );
 }
 
 type Props = {
   record: Nasdaq5550Record;
+  loading?: boolean;
 };
 
-export function Nasdaq5550Checklist({ record }: Props) {
+export function Nasdaq5550Checklist({ record, loading }: Props) {
   const aItems = rule5550aItems(record);
   const bItems = rule5550bItems(record);
   const aPass = isRule5550aPass(record);
@@ -75,7 +103,7 @@ export function Nasdaq5550Checklist({ record }: Props) {
   const bPassCount = bItems.filter((i) => i.status).length;
 
   return (
-    <div className="space-y-6 text-white">
+    <div className={cn("space-y-6 text-white", loading && "opacity-70")}>
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -121,7 +149,11 @@ export function Nasdaq5550Checklist({ record }: Props) {
         </div>
         <ul className="space-y-2">
           {aItems.map((item) => (
-            <CheckRow key={item.label} item={item} />
+            <CheckRow
+              key={item.key}
+              item={item}
+              showDetectedDate={item.key === "bidPrice"}
+            />
           ))}
         </ul>
         <p
@@ -149,7 +181,7 @@ export function Nasdaq5550Checklist({ record }: Props) {
         </div>
         <ul className="space-y-2">
           {bItems.map((item) => (
-            <CheckRow key={item.label} item={item} />
+            <CheckRow key={item.key} item={item} />
           ))}
         </ul>
         <p

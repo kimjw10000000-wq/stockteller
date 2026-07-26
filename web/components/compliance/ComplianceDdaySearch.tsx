@@ -1,36 +1,75 @@
 "use client";
 
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { Nasdaq5550Checklist } from "@/components/compliance/Nasdaq5550Checklist";
-import { lookupNasdaq5550, type Nasdaq5550Record } from "@/lib/nasdaq-5550-mock";
+import {
+  applyBidPriceDeficiency,
+  createDefaultNasdaq5550Record,
+  type Nasdaq5550Record,
+} from "@/lib/nasdaq-5550-mock";
+import type { BidPriceNoticeResult } from "@/lib/sec/bid-price-deficiency-scan";
 
 export function ComplianceDdaySearch() {
   const [query, setQuery] = useState("");
-  const [record, setRecord] = useState<Nasdaq5550Record | null>(null);
+  const [record, setRecord] = useState<Nasdaq5550Record>(() =>
+    createDefaultNasdaq5550Record()
+  );
   const [error, setError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  function onSearch(e?: React.FormEvent) {
+  async function onSearch(e?: React.FormEvent) {
     e?.preventDefault();
     const ticker = query.trim().toUpperCase();
-    setSearched(true);
 
     if (!ticker) {
-      setRecord(null);
       setError("티커를 입력하세요.");
+      setStatusMsg(null);
+      setRecord(createDefaultNasdaq5550Record());
       return;
     }
 
-    const found = lookupNasdaq5550(ticker);
-    if (!found) {
-      setRecord(null);
-      setError("현재 등록되지 않거나 조회할 수 없는 티커입니다.");
-      return;
-    }
-
+    setLoading(true);
     setError(null);
-    setRecord(found);
+    setStatusMsg(`${ticker} · SEC EDGAR Item 3.01 조회 중…`);
+    // 검색 직후: 전 항목 정상(O)으로 리셋 후 파싱 결과 반영
+    setRecord(createDefaultNasdaq5550Record(ticker, "조회 중…"));
+
+    try {
+      const res = await fetch(
+        `/api/compliance/bid-price-notice?ticker=${encodeURIComponent(ticker)}`,
+        { cache: "no-store" }
+      );
+      const j = (await res.json()) as BidPriceNoticeResult | { ok: false; error?: string };
+
+      if (!res.ok || !j.ok) {
+        setRecord(createDefaultNasdaq5550Record());
+        setError(("error" in j && j.error) || "현재 등록되지 않거나 조회할 수 없는 티커입니다.");
+        setStatusMsg(null);
+        return;
+      }
+
+      let next = createDefaultNasdaq5550Record(j.ticker, j.companyName);
+      if (j.found && j.hit) {
+        next = applyBidPriceDeficiency(next, j.hit.filingDate, j.hit.form);
+        setStatusMsg(
+          `${j.ticker} · 최소 입찰가 미달 통지 감지 (${j.hit.filingDate}, ${j.hit.form} Item 3.01)`
+        );
+      } else {
+        setStatusMsg(
+          `${j.ticker} · 최근 8개월 Item 3.01에서 해당 문장을 찾지 못함 (입찰가 항목 정상 유지)`
+        );
+      }
+      setRecord(next);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      setStatusMsg(null);
+      setRecord(createDefaultNasdaq5550Record());
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -43,12 +82,12 @@ export function ComplianceDdaySearch() {
           상장폐지 위험 D-Day 검색
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          티커를 검색해 나스닥 Rule 5550(a)·(b) 상장 유지 기준 충족 여부를 확인합니다.
-          현재 Mock 데이터: <span className="font-mono text-slate-300">FFAI</span>
+          검색 전 체크리스트는 모두 정상(O)입니다. 티커 조회 시 SEC 8-K/6-K Item 3.01에서
+          최소 입찰가($1.00) 미달 통지 문장을 파싱해 (2)번 항목을 실시간 갱신합니다.
         </p>
 
         <form
-          onSubmit={onSearch}
+          onSubmit={(e) => void onSearch(e)}
           className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-stretch"
         >
           <label className="relative min-w-0 flex-1">
@@ -64,15 +103,24 @@ export function ComplianceDdaySearch() {
               placeholder="티커 입력 (예: FFAI)"
               autoCapitalize="characters"
               spellCheck={false}
-              className="h-11 w-full rounded-lg border border-slate-600 bg-slate-800/80 pl-10 pr-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/40"
+              disabled={loading}
+              className="h-11 w-full rounded-lg border border-slate-600 bg-slate-800/80 pl-10 pr-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/40 disabled:opacity-60"
               aria-label="티커 검색"
             />
           </label>
           <button
             type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-200"
+            disabled={loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-200 disabled:opacity-60"
           >
-            검색
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                SEC 조회 중
+              </>
+            ) : (
+              "검색"
+            )}
           </button>
         </form>
 
@@ -84,22 +132,19 @@ export function ComplianceDdaySearch() {
             {error}
           </p>
         ) : null}
+        {statusMsg ? (
+          <p className="mt-3 text-sm text-slate-400" role="status">
+            {statusMsg}
+          </p>
+        ) : null}
       </div>
 
-      {record ? (
-        <div className="px-4 py-6 sm:px-8 sm:py-8">
-          <p className="mb-4 text-sm font-semibold text-slate-200">
-            나스닥 5550 상장 유지 기준 체크리스트
-          </p>
-          <Nasdaq5550Checklist record={record} />
-        </div>
-      ) : searched && !error ? null : !searched ? (
-        <div className="px-4 py-10 text-center sm:px-8">
-          <p className="text-sm text-slate-500">
-            티커를 검색하면 Rule 5550 체크리스트가 여기에 표시됩니다.
-          </p>
-        </div>
-      ) : null}
+      <div className="px-4 py-6 sm:px-8 sm:py-8">
+        <p className="mb-4 text-sm font-semibold text-slate-200">
+          나스닥 5550 상장 유지 기준 체크리스트
+        </p>
+        <Nasdaq5550Checklist record={record} loading={loading} />
+      </div>
     </div>
   );
 }
