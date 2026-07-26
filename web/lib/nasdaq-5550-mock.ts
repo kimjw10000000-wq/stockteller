@@ -1,12 +1,14 @@
 /** Nasdaq Rule 5550 체크리스트 — 기본 정상(O) + SEC 파싱으로 상태 갱신 */
 
+import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
+
 export type RuleCheckItem = {
   key: string;
   label: string;
   status: boolean;
   detail: string;
-  /** 감지된 공시일 (YYYY-MM-DD) — 없으면 검색 대기/빈칸 */
-  detectedDate: string | null;
+  /** 감지된 공시일 배열 (최신순). null = 아직 검색 전 */
+  detectedDates: string[] | null;
   detectedNote?: string | null;
 };
 
@@ -33,7 +35,7 @@ function okItem(key: string, label: string, detail = "정상"): RuleCheckItem {
     label,
     status: true,
     detail,
-    detectedDate: null,
+    detectedDates: null,
     detectedNote: null,
   };
 }
@@ -76,12 +78,6 @@ export function createDefaultNasdaq5550Record(
   };
 }
 
-/** @deprecated mock 조회 — 호환용. FFAI만 회사명 힌트 */
-export const mockData = createDefaultNasdaq5550Record(
-  "FFAI",
-  "Faraday Future Intelligent Electric Inc."
-);
-
 export function rule5550aItems(record: Nasdaq5550Record): RuleCheckItem[] {
   const a = record.rule5550a;
   return [a.marketMakers, a.bidPrice, a.publicHolders, a.publicShares, a.marketValuePublic];
@@ -100,11 +96,61 @@ export function isRule5550bPass(record: Nasdaq5550Record): boolean {
   return rule5550bItems(record).some((item) => item.status);
 }
 
-export function applyBidPriceDeficiency(
+/** UI용 감지일 라벨 */
+export function formatBidPriceDetectedLabel(item: RuleCheckItem): {
+  datesLine: string;
+  note: string | null;
+  tone: "idle" | "clear" | "alert";
+} {
+  if (item.detectedDates === null) {
+    return { datesLine: "검색 대기 중", note: null, tone: "idle" };
+  }
+  if (item.detectedDates.length === 0) {
+    return { datesLine: "위반 이력 없음", note: null, tone: "clear" };
+  }
+  if (item.detectedDates.length === 1) {
+    return {
+      datesLine: item.detectedDates[0],
+      note: item.detectedNote ?? null,
+      tone: "alert",
+    };
+  }
+  return {
+    datesLine: `${item.detectedDates.join(", ")} (총 ${item.detectedDates.length}건 포착)`,
+    note: null,
+    tone: "alert",
+  };
+}
+
+export function applyBidPriceHits(
   record: Nasdaq5550Record,
-  filingDate: string,
-  form: string
+  hits: BidPriceNoticeHit[]
 ): Nasdaq5550Record {
+  const sorted = [...hits].sort((a, b) => b.filingDate.localeCompare(a.filingDate));
+  const dates = sorted.map((h) => h.filingDate);
+
+  if (dates.length === 0) {
+    return {
+      ...record,
+      rule5550a: {
+        ...record.rule5550a,
+        bidPrice: {
+          ...record.rule5550a.bidPrice,
+          status: true,
+          detail: "최근 8개월 $1.00/$0.10 관련 공시 없음",
+          detectedDates: [],
+          detectedNote: null,
+        },
+      },
+    };
+  }
+
+  const first = sorted[0];
+  const note =
+    dates.length === 1
+      ? first.sourceLabel
+      : `8-K Item 3.01 / 6-K 등 ${dates.length}건`;
+
   return {
     ...record,
     rule5550a: {
@@ -112,10 +158,31 @@ export function applyBidPriceDeficiency(
       bidPrice: {
         ...record.rule5550a.bidPrice,
         status: false,
-        detail: `SEC ${form} Item 3.01 — 최소 입찰가 $1.00 미달 통지 감지`,
-        detectedDate: filingDate,
-        detectedNote: `${form} Item 3.01`,
+        detail:
+          dates.length === 1
+            ? `SEC ${first.sourceLabel} — $1.00/$0.10 관련 공시 감지`
+            : `SEC 공시 ${dates.length}건에서 $1.00/$0.10 관련 내용 감지`,
+        detectedDates: dates,
+        detectedNote: note,
       },
     },
   };
+}
+
+/** @deprecated use applyBidPriceHits */
+export function applyBidPriceDeficiency(
+  record: Nasdaq5550Record,
+  filingDate: string,
+  form: string
+): Nasdaq5550Record {
+  return applyBidPriceHits(record, [
+    {
+      filingDate,
+      form,
+      accessionNumber: "",
+      sourceLabel: `${form} Item 3.01`,
+      documentUrl: "",
+      viewerUrl: "",
+    },
+  ]);
 }

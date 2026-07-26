@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { Nasdaq5550Checklist } from "@/components/compliance/Nasdaq5550Checklist";
+import { COMPLIANCE_SEED_TICKERS } from "@/lib/compliance-seed-tickers";
 import {
-  applyBidPriceDeficiency,
+  applyBidPriceHits,
   createDefaultNasdaq5550Record,
   type Nasdaq5550Record,
 } from "@/lib/nasdaq-5550-mock";
@@ -32,8 +33,7 @@ export function ComplianceDdaySearch() {
 
     setLoading(true);
     setError(null);
-    setStatusMsg(`${ticker} · SEC EDGAR Item 3.01 조회 중…`);
-    // 검색 직후: 전 항목 정상(O)으로 리셋 후 파싱 결과 반영
+    setStatusMsg(`${ticker} · SEC EDGAR 8-K/6-K ($1.00·$0.10) 스캔 중…`);
     setRecord(createDefaultNasdaq5550Record(ticker, "조회 중…"));
 
     try {
@@ -50,18 +50,21 @@ export function ComplianceDdaySearch() {
         return;
       }
 
-      let next = createDefaultNasdaq5550Record(j.ticker, j.companyName);
-      if (j.found && j.hit) {
-        next = applyBidPriceDeficiency(next, j.hit.filingDate, j.hit.form);
+      const next = applyBidPriceHits(
+        createDefaultNasdaq5550Record(j.ticker, j.companyName),
+        j.hits ?? []
+      );
+      setRecord(next);
+
+      if (j.found && j.filingDates.length > 0) {
         setStatusMsg(
-          `${j.ticker} · 최소 입찰가 미달 통지 감지 (${j.hit.filingDate}, ${j.hit.form} Item 3.01)`
+          j.filingDates.length === 1
+            ? `${j.ticker} · 감지일 ${j.filingDates[0]} (${j.hits[0]?.sourceLabel ?? "SEC"})`
+            : `${j.ticker} · 감지일 ${j.filingDates.length}건 포착 (${j.filingDates.join(", ")})`
         );
       } else {
-        setStatusMsg(
-          `${j.ticker} · 최근 8개월 Item 3.01에서 해당 문장을 찾지 못함 (입찰가 항목 정상 유지)`
-        );
+        setStatusMsg(`${j.ticker} · 최근 8개월 $1.00/$0.10 관련 위반 이력 없음`);
       }
-      setRecord(next);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -82,8 +85,10 @@ export function ComplianceDdaySearch() {
           상장폐지 위험 D-Day 검색
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          검색 전 체크리스트는 모두 정상(O)입니다. 티커 조회 시 SEC 8-K/6-K Item 3.01에서
-          최소 입찰가($1.00) 미달 통지 문장을 파싱해 (2)번 항목을 실시간 갱신합니다.
+          시드 등록 {COMPLIANCE_SEED_TICKERS.length}개 티커를 검색하면, 최근 8개월 SEC 8-K(Item
+          3.01)·6-K(Ex.99.1/본문)에서 <span className="text-slate-300">$1.00</span> /
+          <span className="text-slate-300">$0.10</span> 관련 공시를 모두 모아 (2)번 항목에
+          표시합니다.
         </p>
 
         <form
@@ -100,13 +105,21 @@ export function ComplianceDdaySearch() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value.toUpperCase())}
-              placeholder="티커 입력 (예: FFAI)"
+              placeholder="티커 입력 (예: AAME, AIM, AIRE)"
+              list="compliance-seed-tickers"
               autoCapitalize="characters"
               spellCheck={false}
               disabled={loading}
               className="h-11 w-full rounded-lg border border-slate-600 bg-slate-800/80 pl-10 pr-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/40 disabled:opacity-60"
               aria-label="티커 검색"
             />
+            <datalist id="compliance-seed-tickers">
+              {COMPLIANCE_SEED_TICKERS.map((row) => (
+                <option key={row.ticker} value={row.ticker}>
+                  {row.companyName}
+                </option>
+              ))}
+            </datalist>
           </label>
           <button
             type="submit"

@@ -2,6 +2,7 @@
 
 import { Check, X } from "lucide-react";
 import {
+  formatBidPriceDetectedLabel,
   isRule5550aPass,
   isRule5550bPass,
   rule5550aItems,
@@ -30,11 +31,7 @@ function StatusIcon({ ok }: { ok: boolean }) {
 }
 
 function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetectedDate?: boolean }) {
-  const dateLabel = item.detectedDate
-    ? item.detectedDate
-    : showDetectedDate
-      ? "검색 대기 중"
-      : "—";
+  const detected = showDetectedDate ? formatBidPriceDetectedLabel(item) : null;
 
   return (
     <li
@@ -68,24 +65,26 @@ function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetecte
         </span>
       </div>
 
-      {(showDetectedDate || item.detectedDate) && (
-        <div className="shrink-0 rounded-md border border-slate-600 bg-slate-800/80 px-3 py-2 sm:min-w-[11rem] sm:text-right">
+      {detected ? (
+        <div className="shrink-0 rounded-md border border-slate-600 bg-slate-800/80 px-3 py-2 sm:min-w-[14rem] sm:max-w-[18rem] sm:text-right">
           <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
             감지된 공시일
           </p>
           <p
             className={cn(
-              "mt-0.5 font-mono text-sm",
-              item.detectedDate ? "font-semibold text-rose-300" : "text-slate-500"
+              "mt-0.5 text-sm leading-snug",
+              detected.tone === "alert" && "font-semibold text-rose-300",
+              detected.tone === "clear" && "font-medium text-emerald-400/90",
+              detected.tone === "idle" && "text-slate-500"
             )}
           >
-            {dateLabel}
+            {detected.datesLine}
           </p>
-          {item.detectedNote ? (
-            <p className="mt-0.5 text-[11px] text-slate-400">{item.detectedNote}</p>
+          {detected.note ? (
+            <p className="mt-0.5 text-[11px] text-slate-400">{detected.note}</p>
           ) : null}
         </div>
-      )}
+      ) : null}
     </li>
   );
 }
