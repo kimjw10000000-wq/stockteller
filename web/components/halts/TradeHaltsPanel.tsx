@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   formatElapsedKo,
   isLudpReason,
@@ -20,6 +21,14 @@ function formatEtHint(date: string | null, time: string | null): string {
   if (!date && !time) return "미정";
   if (date && time) return `${date} ${time}`;
   return `${date || ""} ${time || ""}`.trim();
+}
+
+function rowKey(row: TradeHaltItem): string {
+  return `${row.symbol}__${row.haltDate}__${row.haltTime}`;
+}
+
+function rowDomId(row: TradeHaltItem): string {
+  return `halt-row-${rowKey(row).replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
 }
 
 function ElapsedCell({
@@ -51,11 +60,28 @@ export function TradeHaltsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [query, setQuery] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [highlightKey, setHighlightKey] = useState<string | null>(null);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+  const highlightTimerRef = useRef<number | null>(null);
 
   const hasLudp = useMemo(
     () => items.some((i) => isLudpReason(i.reasonCode)),
     [items]
   );
+
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return items
+      .filter(
+        (row) =>
+          row.symbol.toLowerCase().includes(q) ||
+          row.name.toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+  }, [items, query]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,8 +118,107 @@ export function TradeHaltsPanel() {
     return () => window.clearInterval(id);
   }, [hasLudp]);
 
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      if (!searchWrapRef.current?.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current != null) {
+        window.clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, []);
+
+  const focusRow = useCallback((row: TradeHaltItem) => {
+    const key = rowKey(row);
+    setQuery(row.symbol);
+    setDropdownOpen(false);
+
+    const el = document.getElementById(rowDomId(row));
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    setHighlightKey(key);
+    if (highlightTimerRef.current != null) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightKey(null);
+      highlightTimerRef.current = null;
+    }, 2800);
+  }, []);
+
   return (
-    <div className="mt-4 space-y-3">
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-neutral-500">Market · Halts</p>
+
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <h1 className="shrink-0 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
+          실시간 서킷 현황
+        </h1>
+        <div ref={searchWrapRef} className="relative min-w-[180px] flex-1 sm:max-w-[260px]">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setDropdownOpen(true);
+            }}
+            onFocus={() => setDropdownOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && suggestions[0]) {
+                e.preventDefault();
+                focusRow(suggestions[0]);
+              }
+              if (e.key === "Escape") setDropdownOpen(false);
+            }}
+            placeholder="티커 · 회사명"
+            className="h-9 rounded-lg border-border bg-input-background pl-8 text-sm"
+            aria-label="현재 Halt 목록 검색"
+            autoComplete="off"
+          />
+          {dropdownOpen && query.trim() ? (
+            <ul
+              className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-64 overflow-auto rounded-lg border border-border bg-white py-1 shadow-md"
+              role="listbox"
+            >
+              {suggestions.length === 0 ? (
+                <li className="px-3 py-2 text-xs text-neutral-500">목록에 일치 항목 없음</li>
+              ) : (
+                suggestions.map((row) => (
+                  <li key={rowKey(row)} role="option">
+                    <button
+                      type="button"
+                      className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors hover:bg-neutral-50"
+                      onClick={() => focusRow(row)}
+                    >
+                      <span className="font-mono text-sm font-bold tracking-wide text-neutral-950">
+                        {row.symbol}
+                      </span>
+                      <span className="line-clamp-1 text-[11px] text-neutral-600">{row.name}</span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+
+      <p className="text-xs text-neutral-600">나스닥/미국 주식 Halt · 재개 일정 (ET)</p>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] leading-snug text-neutral-600">
           NASDAQ RSS · 약 1분 갱신
@@ -150,56 +275,63 @@ export function TradeHaltsPanel() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => (
-                  <tr
-                    key={`${row.symbol}-${row.haltDate}-${row.haltTime}`}
-                    className="border-b border-neutral-100 bg-white last:border-0"
-                  >
-                    <td className="px-2.5 py-2 align-top">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-[15px] font-bold leading-none tracking-tight text-neutral-950">
-                          {row.symbol}
+                {items.map((row) => {
+                  const key = rowKey(row);
+                  const highlighted = highlightKey === key;
+                  return (
+                    <tr
+                      key={key}
+                      id={rowDomId(row)}
+                      className={`border-b border-neutral-100 last:border-0 transition-colors duration-500 ${
+                        highlighted ? "bg-amber-100" : "bg-white"
+                      }`}
+                    >
+                      <td className="px-2.5 py-2.5 align-top">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-mono text-[15px] font-bold leading-none tracking-wide text-neutral-950">
+                            {row.symbol}
+                          </span>
+                          {row.status === "resuming" ? (
+                            <span className="text-[9px] font-semibold uppercase leading-none text-green-700">
+                              Resume
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-semibold uppercase leading-none text-red-600">
+                              Halt
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 max-w-[180px] text-[10px] leading-relaxed text-neutral-600">
+                          {row.name}
+                        </p>
+                      </td>
+                      <td className="px-2 py-2.5 align-top font-medium text-neutral-900">
+                        {row.market || "—"}
+                      </td>
+                      <td className="px-2 py-2.5 align-top">
+                        <span className="font-mono text-[13px] font-bold tracking-wide text-neutral-950">
+                          {row.reasonCode}
                         </span>
-                        {row.status === "resuming" ? (
-                          <span className="text-[9px] font-semibold uppercase leading-none text-green-700">
-                            Resume
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-semibold uppercase leading-none text-red-600">
-                            Halt
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 max-w-[180px] text-[10px] leading-snug text-neutral-600">
-                        {row.name}
-                      </p>
-                    </td>
-                    <td className="px-2 py-2 align-top font-medium text-neutral-900">
-                      {row.market || "—"}
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <span className="font-mono text-[13px] font-bold tracking-wide text-neutral-950">
-                        {row.reasonCode}
-                      </span>
-                      <p className="mt-0.5 max-w-[130px] text-[10px] leading-snug text-neutral-700">
-                        {row.reasonLabel}
-                      </p>
-                    </td>
-                    <td className="px-2 py-2 align-top font-medium tabular-nums text-neutral-900">
-                      <span className="block text-[11px]">{row.haltDate || "—"}</span>
-                      <span className="block text-[10px] text-neutral-700">{row.haltTime || ""}</span>
-                    </td>
-                    <td className="px-2 py-2 align-top font-semibold tabular-nums text-neutral-950">
-                      {formatEtHint(row.resumptionDate, row.resumptionQuoteTime)}
-                    </td>
-                    <td className="px-2 py-2 align-top font-semibold tabular-nums text-neutral-950">
-                      {formatEtHint(row.resumptionDate, row.resumptionTradeTime)}
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <ElapsedCell row={row} nowMs={nowMs} />
-                    </td>
-                  </tr>
-                ))}
+                        <p className="mt-0.5 max-w-[130px] text-[10px] leading-snug text-neutral-700">
+                          {row.reasonLabel}
+                        </p>
+                      </td>
+                      <td className="px-2 py-2.5 align-top font-medium tabular-nums text-neutral-900">
+                        <span className="block text-[11px]">{row.haltDate || "—"}</span>
+                        <span className="block text-[10px] text-neutral-700">{row.haltTime || ""}</span>
+                      </td>
+                      <td className="px-2 py-2.5 align-top font-semibold tabular-nums text-neutral-950">
+                        {formatEtHint(row.resumptionDate, row.resumptionQuoteTime)}
+                      </td>
+                      <td className="px-2 py-2.5 align-top font-semibold tabular-nums text-neutral-950">
+                        {formatEtHint(row.resumptionDate, row.resumptionTradeTime)}
+                      </td>
+                      <td className="px-2 py-2.5 align-top">
+                        <ElapsedCell row={row} nowMs={nowMs} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
