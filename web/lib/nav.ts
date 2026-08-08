@@ -31,10 +31,4 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
     description: "나스닥/미국 주식 거래 정지(Halt) 및 해제 현황",
     match: (pathname) => pathname.startsWith("/halts"),
   },
-  {
-    href: "/market",
-    label: "시세 · 차트",
-    description: "종목 현재가 및 일봉 차트 (토스 / Finnhub)",
-    match: (pathname) => pathname.startsWith("/market"),
-  },
 ];
