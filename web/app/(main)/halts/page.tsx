@@ -10,14 +10,12 @@ export const metadata: Metadata = {
 
 export default function HaltsPage() {
   return (
-    <main>
-      <p className="text-sm font-medium text-muted-foreground">Market · Halts</p>
-      <h1 className="mt-1 text-2xl font-semibold text-foreground sm:text-3xl">
+    <main className="mx-auto w-full max-w-[720px]">
+      <p className="text-xs font-medium text-neutral-500">Market · Halts</p>
+      <h1 className="mt-1 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
         실시간 서킷 현황
       </h1>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        나스닥/미국 주식 Halt · 재개 일정 (ET)
-      </p>
+      <p className="mt-1 text-xs text-neutral-600">나스닥/미국 주식 Halt · 재개 일정 (ET)</p>
 
       <TradeHaltsPanel />
     </main>
