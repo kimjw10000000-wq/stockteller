@@ -56,7 +56,7 @@ export function TradeHaltsPanel() {
   const resuming = items.filter((i) => i.status === "resuming");
 
   return (
-    <div className="mt-8 space-y-4">
+    <div className="mt-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
