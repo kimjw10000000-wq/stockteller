@@ -15,7 +15,7 @@ export const HALT_REASON_CODES: Record<string, string> = {
   C9: "자격/서류 충족 · 호가·거래 재개",
   C11: "타 규제기관 정지 종료 · 재개",
   M1: "시장 전체 관련",
-  LUDP: "Limit Up-Limit Down Pause",
+  LUDP: "변동성 정지 (LULD Pause)",
   LUDS: "Limit Up-Limit Down Straddle",
 };
 

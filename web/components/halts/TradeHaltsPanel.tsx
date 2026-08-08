@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
+import {
+  formatElapsedKo,
+  isLudpReason,
+  parseHaltEtMs,
+} from "@/lib/halts/elapsed";
 import type { TradeHaltItem } from "@/lib/halts/nasdaq-trade-halts";
 
 type HaltsResponse = {
@@ -17,11 +22,40 @@ function formatEtHint(date: string | null, time: string | null): string {
   return `${date || ""} ${time || ""}`.trim();
 }
 
+function ElapsedCell({
+  row,
+  nowMs,
+}: {
+  row: TradeHaltItem;
+  nowMs: number;
+}) {
+  if (!isLudpReason(row.reasonCode)) {
+    return <span className="text-[11px] font-medium text-neutral-500">장기 정지</span>;
+  }
+
+  const haltMs = parseHaltEtMs(row.haltDate, row.haltTime);
+  if (haltMs == null) {
+    return <span className="text-[11px] font-medium text-neutral-500">—</span>;
+  }
+
+  return (
+    <span className="font-mono text-[12px] font-bold tabular-nums text-neutral-950">
+      {formatElapsedKo(haltMs, nowMs)}
+    </span>
+  );
+}
+
 export function TradeHaltsPanel() {
   const [items, setItems] = useState<TradeHaltItem[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const hasLudp = useMemo(
+    () => items.some((i) => isLudpReason(i.reasonCode)),
+    [items]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,8 +85,12 @@ export function TradeHaltsPanel() {
     return () => window.clearInterval(id);
   }, [load]);
 
-  const halted = items.filter((i) => i.status === "halted");
-  const resuming = items.filter((i) => i.status === "resuming");
+  useEffect(() => {
+    if (!hasLudp) return;
+    setNowMs(Date.now());
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [hasLudp]);
 
   return (
     <div className="mt-4 space-y-3">
@@ -63,6 +101,9 @@ export function TradeHaltsPanel() {
             <span className="ml-1.5 text-neutral-500">
               · {new Date(fetchedAt).toLocaleString("ko-KR")}
             </span>
+          ) : null}
+          {hasLudp ? (
+            <span className="ml-1.5 text-neutral-500">· LUDP 경과 실시간</span>
           ) : null}
         </p>
         <button
@@ -80,23 +121,8 @@ export function TradeHaltsPanel() {
         <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded border border-neutral-300 bg-neutral-100 px-2.5 py-1.5">
-          <p className="text-[10px] font-medium leading-tight text-neutral-600">현재 Halt</p>
-          <p className="mt-0.5 text-lg font-bold tabular-nums leading-none text-neutral-950">
-            {halted.length}
-          </p>
-        </div>
-        <div className="rounded border border-neutral-300 bg-neutral-100 px-2.5 py-1.5">
-          <p className="text-[10px] font-medium leading-tight text-neutral-600">재개 일정 공지</p>
-          <p className="mt-0.5 text-lg font-bold tabular-nums leading-none text-neutral-950">
-            {resuming.length}
-          </p>
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded border border-neutral-300">
-        <div className="border-b border-neutral-300 bg-neutral-100 px-3 py-2">
+      <div className="overflow-hidden rounded border border-neutral-300 bg-white">
+        <div className="border-b border-neutral-200 bg-white px-3 py-2">
           <h2 className="text-xs font-bold text-neutral-950">현재 Halt / Resume</h2>
         </div>
 
@@ -111,24 +137,23 @@ export function TradeHaltsPanel() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left text-[12px] text-neutral-950">
+            <table className="w-full min-w-[720px] border-collapse bg-white text-left text-[12px] text-neutral-950">
               <thead>
-                <tr className="border-b border-neutral-300 bg-white text-[10px] font-semibold uppercase tracking-wide text-neutral-700">
-                  <th className="w-[28%] px-2.5 py-2">종목</th>
-                  <th className="w-[10%] px-2 py-2">시장</th>
-                  <th className="w-[18%] px-2 py-2">사유</th>
-                  <th className="w-[15%] px-2 py-2">정지</th>
-                  <th className="w-[14.5%] px-2 py-2">호가 재개</th>
-                  <th className="w-[14.5%] px-2 py-2">거래 재개</th>
+                <tr className="border-b border-neutral-200 bg-white text-[10px] font-semibold uppercase tracking-wide text-neutral-700">
+                  <th className="w-[22%] px-2.5 py-2">종목</th>
+                  <th className="w-[9%] px-2 py-2">시장</th>
+                  <th className="w-[16%] px-2 py-2">사유</th>
+                  <th className="w-[13%] px-2 py-2">정지</th>
+                  <th className="w-[12%] px-2 py-2">예상 재개</th>
+                  <th className="w-[12%] px-2 py-2">거래 재개</th>
+                  <th className="w-[16%] px-2 py-2">정지 경과 시간</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((row, idx) => (
+                {items.map((row) => (
                   <tr
                     key={`${row.symbol}-${row.haltDate}-${row.haltTime}`}
-                    className={`border-b border-neutral-200 last:border-0 ${
-                      idx % 2 === 0 ? "bg-[#e8f1fb]" : "bg-white"
-                    }`}
+                    className="border-b border-neutral-100 bg-white last:border-0"
                   >
                     <td className="px-2.5 py-2 align-top">
                       <div className="flex items-baseline gap-1.5">
@@ -145,7 +170,7 @@ export function TradeHaltsPanel() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 max-w-[200px] text-[10px] leading-snug text-neutral-600">
+                      <p className="mt-1 max-w-[180px] text-[10px] leading-snug text-neutral-600">
                         {row.name}
                       </p>
                     </td>
@@ -156,7 +181,7 @@ export function TradeHaltsPanel() {
                       <span className="font-mono text-[13px] font-bold tracking-wide text-neutral-950">
                         {row.reasonCode}
                       </span>
-                      <p className="mt-0.5 max-w-[140px] text-[10px] leading-snug text-neutral-700">
+                      <p className="mt-0.5 max-w-[130px] text-[10px] leading-snug text-neutral-700">
                         {row.reasonLabel}
                       </p>
                     </td>
@@ -170,6 +195,9 @@ export function TradeHaltsPanel() {
                     <td className="px-2 py-2 align-top font-semibold tabular-nums text-neutral-950">
                       {formatEtHint(row.resumptionDate, row.resumptionTradeTime)}
                     </td>
+                    <td className="px-2 py-2 align-top">
+                      <ElapsedCell row={row} nowMs={nowMs} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -179,7 +207,8 @@ export function TradeHaltsPanel() {
       </div>
 
       <p className="text-[10px] leading-relaxed text-neutral-500">
-        출처: NASDAQ Trader Trade Halt RSS. 시각은 동부시간(ET) 기준.
+        출처: NASDAQ Trader Trade Halt RSS. 시각은 동부시간(ET) 기준. LUDP(변동성 정지)만 경과
+        타이머를 표시합니다.
       </p>
     </div>
   );

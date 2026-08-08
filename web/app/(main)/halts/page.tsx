@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function HaltsPage() {
   return (
-    <main className="mx-auto w-full max-w-[720px]">
+    <main className="mx-auto w-full max-w-[760px]">
       <p className="text-xs font-medium text-neutral-500">Market · Halts</p>
       <h1 className="mt-1 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
         실시간 서킷 현황
