@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Activity, PauseCircle, PlayCircle } from "lucide-react";
+import { TradeHaltsPanel } from "@/components/halts/TradeHaltsPanel";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -17,12 +18,12 @@ const HIGHLIGHTS = [
   {
     icon: PlayCircle,
     title: "정지 해제",
-    body: "재개(Resume)된 종목과 정지 구간을 구분해, 방금 풀린 이슈를 빠르게 확인합니다.",
+    body: "호가 재개·거래 재개 시각(ET)이 공지되면 바로 표에 표시합니다.",
   },
   {
     icon: Activity,
-    title: "서킷브레이커 맥락",
-    body: "개별 종목 LULD·시장 전체 서킷과 연결되는 이벤트를 한 화면에서 추적합니다.",
+    title: "1분 갱신",
+    body: "NASDAQ Trade Halt RSS를 약 1분 간격으로 동기화합니다.",
   },
 ] as const;
 
@@ -34,8 +35,8 @@ export default function HaltsPage() {
         실시간 서킷 현황
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-        현재 나스닥/미국 주식의 거래 정지(Halt)와 해제 현황을 확인하는 페이지입니다.
-        실시간 피드 연동 후 종목·사유·시각이 자동 갱신됩니다.
+        나스닥/미국 주식의 거래 정지(Halt)와 재개(Resume) 일정을 확인합니다. 거래 재개 시각이
+        공지된 종목은 &quot;재개 예정&quot;으로 표시됩니다.
       </p>
 
       <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -55,17 +56,7 @@ export default function HaltsPage() {
         ))}
       </ul>
 
-      <div className="mt-8 overflow-hidden rounded-lg border border-border">
-        <div className="border-b border-border bg-input-background px-4 py-3">
-          <h2 className="text-sm font-semibold text-foreground">현재 Halt / Resume</h2>
-        </div>
-        <div className="px-4 py-10 text-center">
-          <p className="text-sm font-medium text-foreground">실시간 목록 연동 준비 중</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            거래소 halt 피드가 연결되면 이 표에 종목·사유·정지/해제 시각이 표시됩니다.
-          </p>
-        </div>
-      </div>
+      <TradeHaltsPanel />
     </main>
   );
 }
