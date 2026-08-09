@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { Nasdaq5550Checklist } from "@/components/compliance/Nasdaq5550Checklist";
-import { COMPLIANCE_SEED_TICKERS } from "@/lib/compliance-seed-tickers";
 import {
   applyBidPriceHits,
   createDefaultNasdaq5550Record,
@@ -11,19 +10,71 @@ import {
 } from "@/lib/nasdaq-5550-mock";
 import type { BidPriceNoticeResult } from "@/lib/sec/bid-price-deficiency-scan";
 
+type CompanyHit = {
+  ticker: string;
+  name: string;
+  marketCap: number | null;
+  cik: string;
+  exchange: string;
+};
+
+function formatCap(n: number | null): string {
+  if (n == null || !Number.isFinite(n) || n <= 0) return "";
+  if (n >= 1e12) return `시총 ${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `시총 ${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `시총 ${(n / 1e6).toFixed(1)}M`;
+  return `시총 ${n.toLocaleString()}`;
+}
+
 export function ComplianceDdaySearch() {
   const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<CompanyHit[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [record, setRecord] = useState<Nasdaq5550Record>(() =>
     createDefaultNasdaq5550Record()
   );
   const [error, setError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const suggestTimer = useRef<number | null>(null);
 
-  async function onSearch(e?: React.FormEvent) {
-    e?.preventDefault();
-    const ticker = query.trim().toUpperCase();
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
+  useEffect(() => {
+    if (suggestTimer.current != null) window.clearTimeout(suggestTimer.current);
+    const q = query.trim();
+    if (q.length < 1) {
+      setSuggestions([]);
+      return;
+    }
+    suggestTimer.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/compliance/companies?q=${encodeURIComponent(q)}&limit=12`,
+            { cache: "no-store" }
+          );
+          const j = (await res.json()) as { items?: CompanyHit[] };
+          setSuggestions(j.items ?? []);
+        } catch {
+          setSuggestions([]);
+        }
+      })();
+    }, 220);
+    return () => {
+      if (suggestTimer.current != null) window.clearTimeout(suggestTimer.current);
+    };
+  }, [query]);
+
+  async function runScan(tickerInput: string) {
+    const ticker = tickerInput.trim().toUpperCase().replace(/\./g, "-");
     if (!ticker) {
       setError("티커를 입력하세요.");
       setStatusMsg(null);
@@ -33,6 +84,7 @@ export function ComplianceDdaySearch() {
 
     setLoading(true);
     setError(null);
+    setDropdownOpen(false);
     setStatusMsg(`${ticker} · SEC EDGAR 8-K/6-K ($1.00·$0.10) 스캔 중…`);
     setRecord(createDefaultNasdaq5550Record(ticker, "조회 중…"));
 
@@ -45,7 +97,7 @@ export function ComplianceDdaySearch() {
 
       if (!res.ok || !j.ok) {
         setRecord(createDefaultNasdaq5550Record());
-        setError(("error" in j && j.error) || "현재 등록되지 않거나 조회할 수 없는 티커입니다.");
+        setError(("error" in j && j.error) || "조회할 수 없는 티커입니다.");
         setStatusMsg(null);
         return;
       }
@@ -55,6 +107,7 @@ export function ComplianceDdaySearch() {
         j.hits ?? []
       );
       setRecord(next);
+      setQuery(j.ticker);
 
       if (j.found && j.filingDates.length > 0) {
         setStatusMsg(
@@ -85,7 +138,7 @@ export function ComplianceDdaySearch() {
           상장폐지 위험 D-Day 검색
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          시드 등록 {COMPLIANCE_SEED_TICKERS.length}개 티커 · 조건: (8-K Item 3.01{" "}
+          NYSE / NASDAQ 상장사 전체 검색 · 조건: (8-K Item 3.01{" "}
           <span className="text-slate-300">또는</span> 6-K Ex.99.1/본문){" "}
           <span className="text-slate-300">그리고</span> ($1.00{" "}
           <span className="text-slate-300">또는</span> $0.10). 최근 8개월 매칭 공시일을 모두
@@ -93,35 +146,65 @@ export function ComplianceDdaySearch() {
         </p>
 
         <form
-          onSubmit={(e) => void onSearch(e)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void runScan(query);
+          }}
           className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-stretch"
         >
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">티커 검색</span>
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-              aria-hidden
-            />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value.toUpperCase())}
-              placeholder="티커 입력 (예: FFAI, AAME, AIM)"
-              list="compliance-seed-tickers"
-              autoCapitalize="characters"
-              spellCheck={false}
-              disabled={loading}
-              className="h-11 w-full rounded-lg border border-slate-600 bg-slate-800/80 pl-10 pr-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/40 disabled:opacity-60"
-              aria-label="티커 검색"
-            />
-            <datalist id="compliance-seed-tickers">
-              {COMPLIANCE_SEED_TICKERS.map((row) => (
-                <option key={row.ticker} value={row.ticker}>
-                  {row.companyName}
-                </option>
-              ))}
-            </datalist>
-          </label>
+          <div ref={wrapRef} className="relative min-w-0 flex-1">
+            <label className="relative block">
+              <span className="sr-only">티커 · 회사명 검색</span>
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setDropdownOpen(true);
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                placeholder="티커 또는 회사명 (예: AAPL, NVIDIA)"
+                autoCapitalize="characters"
+                spellCheck={false}
+                disabled={loading}
+                className="h-11 w-full rounded-lg border border-slate-600 bg-slate-800/80 pl-10 pr-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/40 disabled:opacity-60"
+                aria-label="티커 · 회사명 검색"
+                autoComplete="off"
+              />
+            </label>
+            {dropdownOpen && query.trim() && suggestions.length > 0 ? (
+              <ul
+                className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-72 overflow-auto rounded-lg border border-slate-600 bg-slate-900 py-1 shadow-xl"
+                role="listbox"
+              >
+                {suggestions.map((row) => (
+                  <li key={row.ticker} role="option" aria-selected={query.toUpperCase() === row.ticker}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-slate-800"
+                      onClick={() => {
+                        setQuery(row.ticker);
+                        void runScan(row.ticker);
+                      }}
+                    >
+                      <span className="flex flex-wrap items-baseline gap-2">
+                        <span className="font-mono text-sm font-bold text-white">{row.ticker}</span>
+                        <span className="text-[11px] text-slate-400">{row.exchange}</span>
+                        {row.marketCap != null ? (
+                          <span className="text-[11px] text-slate-500">{formatCap(row.marketCap)}</span>
+                        ) : null}
+                      </span>
+                      <span className="line-clamp-1 text-[11px] text-slate-400">{row.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           <button
             type="submit"
             disabled={loading}

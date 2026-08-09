@@ -69,3 +69,27 @@ begin
     alter publication supabase_realtime add table public.disclosures;
   end if;
 end $$;
+
+-- us_listed_companies (NYSE/NASDAQ master for compliance search)
+create extension if not exists pg_trgm;
+
+create table if not exists public.us_listed_companies (
+  ticker text primary key,
+  name text not null,
+  market_cap numeric,
+  cik text not null,
+  exchange text not null,
+  updated_at timestamptz not null default now(),
+  market_cap_updated_at timestamptz
+);
+
+create index if not exists us_listed_companies_exchange_idx
+  on public.us_listed_companies (exchange);
+create index if not exists us_listed_companies_updated_at_idx
+  on public.us_listed_companies (updated_at desc);
+create index if not exists us_listed_companies_market_cap_updated_at_idx
+  on public.us_listed_companies (market_cap_updated_at nulls first);
+create index if not exists us_listed_companies_name_trgm
+  on public.us_listed_companies using gin (name gin_trgm_ops);
+create index if not exists us_listed_companies_ticker_trgm
+  on public.us_listed_companies using gin (ticker gin_trgm_ops);

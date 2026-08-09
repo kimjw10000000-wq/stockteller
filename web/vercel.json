@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/disclosure-crawl",
       "schedule": "17 0 * * *"
+    },
+    {
+      "path": "/api/cron/us-listed-sync",
+      "schedule": "42 1 * * *"
     }
   ],
   "redirects": [

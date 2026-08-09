@@ -13,8 +13,6 @@ import {
   sleep,
   stripHtml,
 } from "@/lib/sec/edgar-client";
-import { getComplianceSeedTicker } from "@/lib/compliance-seed-tickers";
-
 const LOOKBACK_MS = 8 * 30.44 * 24 * 60 * 60 * 1000;
 /** 누락 최소화 — 8개월 후보를 최대한 순회 */
 const MAX_DOCS = 48;
@@ -176,18 +174,13 @@ export async function scanBidPriceDeficiencyNotice(
   const ticker = tickerInput.trim().toUpperCase();
   if (!ticker) return { ok: false, error: "티커를 입력하세요." };
 
-  const seed = getComplianceSeedTicker(ticker);
-  if (!seed) {
-    return { ok: false, error: "현재 등록되지 않거나 조회할 수 없는 티커입니다." };
-  }
-
   let meta: { cikPadded: string; title: string };
   try {
     const resolved = await resolveTickerMeta(ticker);
     if (!resolved) {
       return {
         ok: false,
-        error: `시드에는 있으나 SEC에서 티커 ${ticker} CIK를 찾지 못했습니다.`,
+        error: `SEC에서 티커 ${ticker} 를 찾지 못했습니다. (NYSE/NASDAQ 상장 티커인지 확인하세요)`,
       };
     }
     meta = resolved;
@@ -217,7 +210,7 @@ export async function scanBidPriceDeficiencyNotice(
     };
   };
 
-  const companyName = seed.companyName || (sub.name || meta.title || ticker).trim();
+  const companyName = (sub.name || meta.title || ticker).trim();
   const recent = sub.filings?.recent;
   const forms = recent?.form ?? [];
   const dates = recent?.filingDate ?? [];

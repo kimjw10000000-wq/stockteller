@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "crawl": "tsx scripts/crawl-edgar.ts",
-    "engine": "tsx scripts/run-market-engine.ts"
+    "engine": "tsx scripts/run-market-engine.ts",
+    "sync:us-listed": "tsx scripts/sync-us-listed-companies.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
