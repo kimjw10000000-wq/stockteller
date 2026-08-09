@@ -16,7 +16,15 @@ type HaltsResponse = {
   fetchedAt?: string;
   count?: number;
   error?: string;
+  servedFromCache?: boolean;
+  upstreamAgeMs?: number;
+  upstreamPollIntervalMs?: number;
+  relay?: string;
+  providerLabel?: string;
 };
+
+/** 서버 메모리 캐시를 자주 읽어, NASDAQ 업스트림이 바뀌면 수 초 내 UI 반영 */
+const CLIENT_POLL_MS = 5_000;
 
 function LocalDateTimeCell({
   etDate,
@@ -85,6 +93,11 @@ export function TradeHaltsPanel() {
   const [query, setQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
+  const [relayMeta, setRelayMeta] = useState<{
+    servedFromCache?: boolean;
+    upstreamAgeMs?: number;
+    providerLabel?: string;
+  }>({});
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const highlightTimerRef = useRef<number | null>(null);
 
@@ -105,31 +118,42 @@ export function TradeHaltsPanel() {
       .slice(0, 8);
   }, [items, query]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await fetch("/api/halts", { cache: "no-store" });
       const j = (await res.json()) as HaltsResponse;
       if (!res.ok && j.error) {
-        setError(j.error);
-        setItems([]);
+        if (!opts?.silent) {
+          setError(j.error);
+          setItems([]);
+        }
       } else {
         setItems(j.items ?? []);
         setFetchedAt(j.fetchedAt ?? null);
-        if (j.error) setError(j.error);
+        setRelayMeta({
+          servedFromCache: j.servedFromCache,
+          upstreamAgeMs: j.upstreamAgeMs,
+          providerLabel: j.providerLabel,
+        });
+        if (j.error && !opts?.silent) setError(j.error);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "불러오기 실패");
-      setItems([]);
+      if (!opts?.silent) {
+        setError(e instanceof Error ? e.message : "불러오기 실패");
+        setItems([]);
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 60_000);
+    const id = window.setInterval(() => void load({ silent: true }), CLIENT_POLL_MS);
     return () => window.clearInterval(id);
   }, [load]);
 
@@ -220,7 +244,7 @@ export function TradeHaltsPanel() {
                 <li className="px-3 py-2 text-xs text-neutral-500">목록에 일치 항목 없음</li>
               ) : (
                 suggestions.map((row) => (
-                  <li key={rowKey(row)} role="option">
+                  <li key={rowKey(row)} role="option" aria-selected={query.trim().toUpperCase() === row.symbol}>
                     <button
                       type="button"
                       className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors hover:bg-neutral-50"
@@ -245,7 +269,18 @@ export function TradeHaltsPanel() {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] leading-snug text-neutral-600">
-          NASDAQ RSS · 약 1분 갱신
+          서버 중계 · 목록 {CLIENT_POLL_MS / 1000}초마다 동기화
+          <span className="ml-1.5 text-neutral-500">
+            · NASDAQ RSS 원본 최대 1분 (가이드 준수)
+          </span>
+          {relayMeta.servedFromCache != null ? (
+            <span className="ml-1.5 text-neutral-500">
+              · {relayMeta.servedFromCache ? "캐시" : "원본 갱신"}
+              {typeof relayMeta.upstreamAgeMs === "number"
+                ? ` ${Math.round(relayMeta.upstreamAgeMs / 1000)}초 전`
+                : ""}
+            </span>
+          ) : null}
           {fetchedAt ? (
             <span className="ml-1.5 text-neutral-500">
               · {new Date(fetchedAt).toLocaleString("ko-KR")}

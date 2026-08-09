@@ -81,12 +81,13 @@ function sortHalts(a: TradeHaltItem, b: TradeHaltItem): number {
 }
 
 export async function fetchNasdaqTradeHalts(): Promise<TradeHaltsResult> {
+  // 캐시/TTL은 `halts-cache.ts`가 담당. Next Data Cache에 맡기지 않는다.
   const res = await fetch(RSS_URL, {
     headers: {
       Accept: "application/rss+xml, application/xml, text/xml, */*",
       "User-Agent": process.env.SEC_USER_AGENT?.trim() || "Whyup/1.0 (halts@whyup.net)",
     },
-    next: { revalidate: 60 },
+    cache: "no-store",
   });
 
   if (!res.ok) {
