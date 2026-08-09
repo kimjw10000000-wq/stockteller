@@ -5,10 +5,12 @@ import { Loader2, Search } from "lucide-react";
 import { Nasdaq5550Checklist } from "@/components/compliance/Nasdaq5550Checklist";
 import {
   applyBidPriceHits,
+  applyShelfRegistration,
   createDefaultNasdaq5550Record,
   type Nasdaq5550Record,
 } from "@/lib/nasdaq-5550-mock";
 import type { BidPriceNoticeResult } from "@/lib/sec/bid-price-deficiency-scan";
+import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
 type CompanyHit = {
   ticker: string;
@@ -85,39 +87,59 @@ export function ComplianceDdaySearch() {
     setLoading(true);
     setError(null);
     setDropdownOpen(false);
-    setStatusMsg(`${ticker} · SEC EDGAR 8-K/6-K ($1.00·$0.10) 스캔 중…`);
+    setStatusMsg(`${ticker} · SEC EDGAR 스캔 중 (bid-price · S-3/F-3)…`);
     setRecord(createDefaultNasdaq5550Record(ticker, "조회 중…"));
 
     try {
-      const res = await fetch(
-        `/api/compliance/bid-price-notice?ticker=${encodeURIComponent(ticker)}`,
-        { cache: "no-store" }
-      );
-      const j = (await res.json()) as BidPriceNoticeResult | { ok: false; error?: string };
+      const [bidRes, shelfRes] = await Promise.all([
+        fetch(`/api/compliance/bid-price-notice?ticker=${encodeURIComponent(ticker)}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/compliance/shelf-registration?ticker=${encodeURIComponent(ticker)}`, {
+          cache: "no-store",
+        }),
+      ]);
 
-      if (!res.ok || !j.ok) {
+      const j = (await bidRes.json()) as BidPriceNoticeResult | { ok: false; error?: string };
+      const shelf = (await shelfRes.json()) as
+        | ShelfRegistrationResult
+        | { ok: false; error?: string };
+
+      if (!bidRes.ok || !j.ok) {
         setRecord(createDefaultNasdaq5550Record());
         setError(("error" in j && j.error) || "조회할 수 없는 티커입니다.");
         setStatusMsg(null);
         return;
       }
 
-      const next = applyBidPriceHits(
+      let next = applyBidPriceHits(
         createDefaultNasdaq5550Record(j.ticker, j.companyName),
         j.hits ?? []
       );
+      if (shelf.ok) {
+        next = applyShelfRegistration(next, shelf);
+      }
       setRecord(next);
       setQuery(j.ticker);
 
+      const parts: string[] = [];
       if (j.found && j.filingDates.length > 0) {
-        setStatusMsg(
+        parts.push(
           j.filingDates.length === 1
-            ? `${j.ticker} · 감지일 ${j.filingDates[0]} (${j.hits[0]?.sourceLabel ?? "SEC"})`
-            : `${j.ticker} · 감지일 ${j.filingDates.length}건 포착 (${j.filingDates.join(", ")})`
+            ? `bid-price ${j.filingDates[0]}`
+            : `bid-price ${j.filingDates.length}건`
         );
       } else {
-        setStatusMsg(`${j.ticker} · 최근 8개월 $1.00/$0.10 관련 위반 이력 없음`);
+        parts.push("bid-price 위반 없음");
       }
+      if (shelf.ok) {
+        parts.push(
+          shelf.hasS3
+            ? `S-3/F-3 ${shelf.filingDateLabel ?? shelf.filingDate}`
+            : "S-3/F-3 없음"
+        );
+      }
+      setStatusMsg(`${j.ticker} · ${parts.join(" · ")}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);

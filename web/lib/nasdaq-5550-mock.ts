@@ -1,6 +1,7 @@
 /** Nasdaq Rule 5550 체크리스트 — 기본 정상(O) + SEC 파싱으로 상태 갱신 */
 
 import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
+import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
 export type RuleCheckItem = {
   key: string;
@@ -10,6 +11,8 @@ export type RuleCheckItem = {
   /** 감지된 공시일 배열 (최신순). null = 아직 검색 전 */
   detectedDates: string[] | null;
   detectedNote?: string | null;
+  filingUrl?: string | null;
+  formType?: string | null;
 };
 
 export type Nasdaq5550Record = {
@@ -27,6 +30,8 @@ export type Nasdaq5550Record = {
     marketCap: RuleCheckItem;
     netIncome: RuleCheckItem;
   };
+  /** (6) Shelf Registration / S-3·F-3 */
+  offering: RuleCheckItem;
 };
 
 function okItem(key: string, label: string, detail = "정상"): RuleCheckItem {
@@ -75,6 +80,48 @@ export function createDefaultNasdaq5550Record(
         "(3) 최근 회계연도/3년 중 2년 순이익 $500,000 이상"
       ),
     },
+    offering: okItem(
+      "offering",
+      "(6) 오퍼링(유상증자) 가능성 (Shelf Registration / S-3 감지)",
+      "검색 대기 중"
+    ),
+  };
+}
+
+export function applyShelfRegistration(
+  record: Nasdaq5550Record,
+  shelf: Pick<
+    ShelfRegistrationResult,
+    "hasS3" | "filingDate" | "filingDateLabel" | "formType" | "filingUrl"
+  >
+): Nasdaq5550Record {
+  if (!shelf.hasS3) {
+    return {
+      ...record,
+      offering: {
+        ...record.offering,
+        status: true,
+        detail: "최근 3년 내 S-3/F-3 공시 없음 (기습 오퍼링 가능성 낮음)",
+        detectedDates: [],
+        detectedNote: null,
+        filingUrl: null,
+        formType: null,
+      },
+    };
+  }
+
+  const label = shelf.filingDateLabel ?? shelf.filingDate ?? "—";
+  return {
+    ...record,
+    offering: {
+      ...record.offering,
+      status: true,
+      detail: "오퍼링 가능성 있음 (S-3/F-3 등록 완료)",
+      detectedDates: [label],
+      detectedNote: shelf.formType ? `${shelf.formType} 공시` : "Shelf Registration",
+      filingUrl: shelf.filingUrl,
+      formType: shelf.formType,
+    },
   };
 }
 
@@ -106,7 +153,11 @@ export function formatBidPriceDetectedLabel(item: RuleCheckItem): {
     return { datesLine: "검색 대기 중", note: null, tone: "idle" };
   }
   if (item.detectedDates.length === 0) {
-    return { datesLine: "위반 이력 없음", note: null, tone: "clear" };
+    return {
+      datesLine: item.key === "offering" ? "S-3/F-3 없음" : "위반 이력 없음",
+      note: null,
+      tone: "clear",
+    };
   }
   return {
     datesLine: item.detectedDates.join(", "),
@@ -114,7 +165,7 @@ export function formatBidPriceDetectedLabel(item: RuleCheckItem): {
       item.detectedDates.length === 1
         ? item.detectedNote ?? null
         : `${item.detectedDates.length}건 포착`,
-    tone: "alert",
+    tone: item.key === "offering" ? "alert" : "alert",
   };
 }
 

@@ -21,8 +21,8 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   },
   {
     href: "/compliance",
-    label: "상장유지 D-Day",
-    description: "나스닥 $1 미달·주식 병합·상장폐지 유예기간 카운트다운",
+    label: "상장폐지 D-Day / 종목 분석",
+    description: "나스닥 5550·S-3/F-3 오퍼링 가능성·상장폐지 유예기간",
     match: (pathname) => pathname.startsWith("/compliance"),
   },
   {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { Check, ExternalLink, X } from "lucide-react";
 import {
   formatBidPriceDetectedLabel,
   isRule5550aPass,
@@ -30,15 +30,27 @@ function StatusIcon({ ok }: { ok: boolean }) {
   );
 }
 
-function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetectedDate?: boolean }) {
+function CheckRow({
+  item,
+  showDetectedDate,
+  showFilingLink,
+}: {
+  item: RuleCheckItem;
+  showDetectedDate?: boolean;
+  showFilingLink?: boolean;
+}) {
   const detected = showDetectedDate ? formatBidPriceDetectedLabel(item) : null;
+  const hasOfferingHit =
+    item.key === "offering" && item.detectedDates != null && item.detectedDates.length > 0;
 
   return (
     <li
       className={cn(
         "flex flex-col gap-2 rounded-lg border px-3 py-3 sm:flex-row sm:items-start sm:gap-3 sm:px-4",
         item.status
-          ? "border-emerald-500/40 bg-emerald-500/10"
+          ? hasOfferingHit
+            ? "border-amber-500/40 bg-amber-500/10"
+            : "border-emerald-500/40 bg-emerald-500/10"
           : "border-rose-500/40 bg-rose-500/10"
       )}
     >
@@ -48,7 +60,11 @@ function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetecte
           <p
             className={cn(
               "text-sm font-medium leading-snug",
-              item.status ? "text-emerald-300" : "text-rose-300"
+              item.status
+                ? hasOfferingHit
+                  ? "text-amber-200"
+                  : "text-emerald-300"
+                : "text-rose-300"
             )}
           >
             {item.label}
@@ -58,7 +74,11 @@ function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetecte
         <span
           className={cn(
             "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs font-bold",
-            item.status ? "text-emerald-400" : "text-rose-400"
+            item.status
+              ? hasOfferingHit
+                ? "text-amber-300"
+                : "text-emerald-400"
+              : "text-rose-400"
           )}
         >
           {item.status ? "O" : "X"}
@@ -75,13 +95,27 @@ function CheckRow({ item, showDetectedDate }: { item: RuleCheckItem; showDetecte
               "mt-0.5 text-sm leading-snug",
               detected.tone === "alert" && "font-semibold text-rose-300",
               detected.tone === "clear" && "font-medium text-emerald-400/90",
-              detected.tone === "idle" && "text-slate-500"
+              detected.tone === "idle" && "text-slate-500",
+              item.key === "offering" && hasOfferingHit && "font-semibold text-amber-200"
             )}
           >
-            {detected.datesLine}
+            {item.key === "offering" && hasOfferingHit
+              ? `감지된 공시일: ${detected.datesLine}`
+              : detected.datesLine}
           </p>
           {detected.note ? (
             <p className="mt-0.5 text-[11px] text-slate-400">{detected.note}</p>
+          ) : null}
+          {showFilingLink && item.filingUrl ? (
+            <a
+              href={item.filingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 rounded border border-slate-500 bg-slate-900/60 px-2 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:border-slate-300 hover:text-white"
+            >
+              원문 공시 보기
+              <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
           ) : null}
         </div>
       ) : null}
@@ -196,6 +230,19 @@ export function Nasdaq5550Checklist({ record, loading }: Props) {
             ? `🟢 b항목 기준 충족 (1개 이상 달성 · ${bPassCount}/3)`
             : "🔴 b항목 기준 위반 (3개 항목 모두 미달)"}
         </p>
+      </section>
+
+      <section>
+        <div className="mb-3">
+          <h3 className="text-base font-semibold text-white">(c) 종목 분석</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            최근 3년 SEC Shelf Registration(S-3 / F-3) 공시로 유상증자(오퍼링) 가능성을
+            점검합니다.
+          </p>
+        </div>
+        <ul className="space-y-2">
+          <CheckRow item={record.offering} showDetectedDate showFilingLink />
+        </ul>
       </section>
     </div>
   );
