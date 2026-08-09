@@ -1,5 +1,6 @@
 /** Nasdaq Rule 5550 체크리스트 — 기본 정상(O) + SEC 파싱으로 상태 갱신 */
 
+import type { CompanyAnalysisApiOk } from "@/lib/companies/analysis-types";
 import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
 import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
@@ -174,6 +175,30 @@ export function formatBidPriceDetectedLabel(item: RuleCheckItem): {
         : `${item.detectedDates.length}건 포착`,
     tone: item.key === "offering" ? "alert" : "alert",
   };
+}
+
+/** Map DB-cached analysis API payload → checklist record */
+export function applyCachedAnalysis(
+  api: CompanyAnalysisApiOk,
+  offeringLocalLabel?: string | null
+): Nasdaq5550Record {
+  let next = applyBidPriceHits(
+    createDefaultNasdaq5550Record(api.ticker, api.companyName),
+    api.bidPriceHits ?? []
+  );
+  next = applyShelfRegistration(
+    next,
+    {
+      hasS3: api.hasOfferingRisk,
+      filingDate: api.offeringFilingDateTime?.slice(0, 10) ?? null,
+      filingDateTime: api.offeringFilingDateTime,
+      filingDateLabel: offeringLocalLabel ?? api.offeringFilingDateTime,
+      formType: api.offeringFormType,
+      filingUrl: api.offeringFilingUrl,
+    },
+    offeringLocalLabel
+  );
+  return next;
 }
 
 export function applyBidPriceHits(

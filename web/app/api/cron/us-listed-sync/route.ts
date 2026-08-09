@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { analyzeCompanyBatch } from "@/lib/companies/analyze-company";
 import { syncUsListedCompanies } from "@/lib/companies/sync-us-listed";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -38,7 +39,30 @@ export async function GET(req: Request) {
       newswireBatchSize,
       skipNewswire,
     });
-    return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+
+    // Fold EDGAR analysis refresh into this cron (Hobby plan: 2 cron slots)
+    const analysisLimitRaw = Number(url.searchParams.get("analysisLimit") ?? "5");
+    const analysisLimit = Number.isFinite(analysisLimitRaw)
+      ? Math.min(Math.max(analysisLimitRaw, 0), 20)
+      : 5;
+    const skipAnalysis = url.searchParams.get("skipAnalysis") === "1";
+    let analysis: Awaited<ReturnType<typeof analyzeCompanyBatch>> | null = null;
+    if (!skipAnalysis && analysisLimit > 0) {
+      try {
+        analysis = await analyzeCompanyBatch(admin, analysisLimit);
+      } catch (e) {
+        analysis = {
+          attempted: 0,
+          ok: 0,
+          errors: [e instanceof Error ? e.message : String(e)],
+        };
+      }
+    }
+
+    return NextResponse.json(
+      { ...result, analysis },
+      { status: result.ok ? 200 : 500 }
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[cron/us-listed-sync]", message);

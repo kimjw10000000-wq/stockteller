@@ -3,15 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { Nasdaq5550Checklist } from "@/components/compliance/Nasdaq5550Checklist";
+import type { CompanyAnalysisApiOk } from "@/lib/companies/analysis-types";
 import {
-  applyBidPriceHits,
-  applyShelfRegistration,
+  applyCachedAnalysis,
   createDefaultNasdaq5550Record,
   type Nasdaq5550Record,
 } from "@/lib/nasdaq-5550-mock";
-import type { BidPriceNoticeResult } from "@/lib/sec/bid-price-deficiency-scan";
 import { formatLocalDateTimeKo } from "@/lib/format-local-datetime";
-import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
 type CompanyHit = {
   ticker: string;
@@ -88,61 +86,48 @@ export function ComplianceDdaySearch() {
     setLoading(true);
     setError(null);
     setDropdownOpen(false);
-    setStatusMsg(`${ticker} · SEC EDGAR 스캔 중 (bid-price · S-3/F-3)…`);
+    setStatusMsg(`${ticker} · DB 캐시 조회 중…`);
     setRecord(createDefaultNasdaq5550Record(ticker, "조회 중…"));
 
     try {
-      const [bidRes, shelfRes] = await Promise.all([
-        fetch(`/api/compliance/bid-price-notice?ticker=${encodeURIComponent(ticker)}`, {
-          cache: "no-store",
-        }),
-        fetch(`/api/compliance/shelf-registration?ticker=${encodeURIComponent(ticker)}`, {
-          cache: "no-store",
-        }),
-      ]);
+      const res = await fetch(
+        `/api/compliance/analysis?ticker=${encodeURIComponent(ticker)}`,
+        { cache: "no-store" }
+      );
+      const j = (await res.json()) as CompanyAnalysisApiOk | { ok: false; error?: string };
 
-      const j = (await bidRes.json()) as BidPriceNoticeResult | { ok: false; error?: string };
-      const shelf = (await shelfRes.json()) as
-        | ShelfRegistrationResult
-        | { ok: false; error?: string };
-
-      if (!bidRes.ok || !j.ok) {
+      if (!res.ok || !j.ok) {
         setRecord(createDefaultNasdaq5550Record());
         setError(("error" in j && j.error) || "조회할 수 없는 티커입니다.");
         setStatusMsg(null);
         return;
       }
 
-      let next = applyBidPriceHits(
-        createDefaultNasdaq5550Record(j.ticker, j.companyName),
-        j.hits ?? []
-      );
-      if (shelf.ok) {
-        const localLabel = formatLocalDateTimeKo(shelf.filingDateTime);
-        next = applyShelfRegistration(next, shelf, localLabel);
-      }
-      setRecord(next);
+      const offeringLocal = formatLocalDateTimeKo(j.offeringFilingDateTime);
+      setRecord(applyCachedAnalysis(j, offeringLocal));
       setQuery(j.ticker);
 
       const parts: string[] = [];
-      if (j.found && j.filingDates.length > 0) {
+      if (j.bidPriceFound && j.bidPriceHits.length > 0) {
         parts.push(
-          j.filingDates.length === 1
-            ? `bid-price ${j.filingDates[0]}`
-            : `bid-price ${j.filingDates.length}건`
+          j.bidPriceHits.length === 1
+            ? `bid-price ${j.bidPriceHits[0].filingDate}`
+            : `bid-price ${j.bidPriceHits.length}건`
         );
       } else {
         parts.push("bid-price 위반 없음");
       }
-      if (shelf.ok) {
-        const localLabel = formatLocalDateTimeKo(shelf.filingDateTime);
-        parts.push(
-          shelf.hasS3
-            ? `S-3/F-3 ${localLabel ?? shelf.filingDateTime ?? shelf.filingDate}`
-            : "S-3/F-3 없음"
-        );
+      parts.push(
+        j.hasOfferingRisk
+          ? `S-3/F-3 ${offeringLocal ?? j.offeringFilingDateTime ?? "—"}`
+          : "S-3/F-3 없음"
+      );
+      if (j.delistingDdayType != null && j.delistingDdayValue != null) {
+        parts.push(`D-Day ${j.delistingDdayValue} (${j.delistingDdayType})`);
       }
-      setStatusMsg(`${j.ticker} · ${parts.join(" · ")}`);
+      const analyzed = formatLocalDateTimeKo(j.lastAnalyzedAt) ?? j.lastAnalyzedAt;
+      const src = j.source === "cache" ? "캐시" : "최초 분석";
+      setStatusMsg(`${j.ticker} · ${parts.join(" · ")} · ${src} ${analyzed}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -238,7 +223,7 @@ export function ComplianceDdaySearch() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                SEC 조회 중
+                조회 중
               </>
             ) : (
               "검색"
