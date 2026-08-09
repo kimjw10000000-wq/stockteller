@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMarketCaps } from "./market-cap";
 import { fetchSecExchangeTickers } from "./sec-exchange-tickers";
+import {
+  DEFAULT_NEWSWIRE_BATCH,
+  refreshPrimaryNewswires,
+  type NewswireSyncResult,
+} from "./sync-newswire";
 import { sleep } from "@/lib/sec/edgar-client";
 
 const UPSERT_CHUNK = 500;
@@ -13,6 +18,7 @@ export type UsListedSyncResult = {
   upserted: number;
   marketCapUpdated: number;
   marketCapBatchSize: number;
+  newswire?: NewswireSyncResult;
   error?: string;
   durationMs: number;
 };
@@ -86,10 +92,16 @@ async function refreshMarketCaps(
  */
 export async function syncUsListedCompanies(
   admin: SupabaseClient,
-  opts?: { marketCapBatchSize?: number; skipMarketCap?: boolean }
+  opts?: {
+    marketCapBatchSize?: number;
+    skipMarketCap?: boolean;
+    newswireBatchSize?: number;
+    skipNewswire?: boolean;
+  }
 ): Promise<UsListedSyncResult> {
   const started = Date.now();
   const marketCapBatchSize = opts?.marketCapBatchSize ?? DEFAULT_MARKET_CAP_BATCH;
+  const newswireBatchSize = opts?.newswireBatchSize ?? DEFAULT_NEWSWIRE_BATCH;
 
   try {
     const sec = await fetchSecExchangeTickers();
@@ -109,12 +121,18 @@ export async function syncUsListedCompanies(
       marketCapUpdated = await refreshMarketCaps(admin, marketCapBatchSize);
     }
 
+    let newswire: NewswireSyncResult | undefined;
+    if (!opts?.skipNewswire) {
+      newswire = await refreshPrimaryNewswires(admin, newswireBatchSize);
+    }
+
     return {
       ok: true,
       secFetched: sec.length,
       upserted,
       marketCapUpdated,
       marketCapBatchSize,
+      newswire,
       durationMs: Date.now() - started,
     };
   } catch (e) {

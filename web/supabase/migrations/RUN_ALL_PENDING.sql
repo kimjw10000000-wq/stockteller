@@ -80,8 +80,15 @@ create table if not exists public.us_listed_companies (
   cik text not null,
   exchange text not null,
   updated_at timestamptz not null default now(),
-  market_cap_updated_at timestamptz
+  market_cap_updated_at timestamptz,
+  primary_newswire text,
+  newswire_updated_at timestamptz
 );
+
+alter table public.us_listed_companies
+  add column if not exists primary_newswire text;
+alter table public.us_listed_companies
+  add column if not exists newswire_updated_at timestamptz;
 
 create index if not exists us_listed_companies_exchange_idx
   on public.us_listed_companies (exchange);

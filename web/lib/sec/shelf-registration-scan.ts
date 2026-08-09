@@ -98,7 +98,13 @@ export function acceptanceDateTimeToUtcIso(raw: string | null | undefined): stri
   return new Date(utc).toISOString();
 }
 
-function baseFormType(form: string): "S-3" | "F-3" | string {
+/**
+ * US domestic vs foreign issuer shelf form — decided ONLY from EDGAR `form`
+ * in memory. No country column / DB lookup.
+ * - S-3* → US domestic shelf
+ * - F-3* → foreign private issuer / ADR shelf
+ */
+export function classifyShelfFormType(form: string): "S-3" | "F-3" | string {
   const u = form.trim().toUpperCase();
   if (u.startsWith("S-3")) return "S-3";
   if (u.startsWith("F-3")) return "F-3";
@@ -235,7 +241,7 @@ export async function scanShelfRegistration(
     filingDate: latest.filingDate,
     filingDateTime: latest.filingDateTime,
     filingDateLabel: latest.filingDateTime,
-    formType: baseFormType(latest.form),
+    formType: classifyShelfFormType(latest.form),
     filingUrl: buildFilingUrl(meta.cikPadded, latest.accessionNumber, latest.primaryDocument),
     filingsScanned: n,
   };

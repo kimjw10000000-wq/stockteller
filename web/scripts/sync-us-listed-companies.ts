@@ -2,7 +2,7 @@
  * Local / CI batch:
  *   npx tsx scripts/sync-us-listed-companies.ts
  *   npx tsx scripts/sync-us-listed-companies.ts --market-cap-batch=2000
- *   npx tsx scripts/sync-us-listed-companies.ts --skip-market-cap
+ *   npx tsx scripts/sync-us-listed-companies.ts --skip-market-cap --newswire-batch=20
  */
 import { config } from "dotenv";
 import { resolve } from "path";
@@ -21,9 +21,16 @@ function argNum(name: string, fallback: number): number {
 
 async function main() {
   const skipMarketCap = process.argv.includes("--skip-market-cap");
+  const skipNewswire = process.argv.includes("--skip-newswire");
   const marketCapBatchSize = argNum("market-cap-batch", 2000);
+  const newswireBatchSize = argNum("newswire-batch", 8);
   const admin = createAdminClient();
-  const result = await syncUsListedCompanies(admin, { marketCapBatchSize, skipMarketCap });
+  const result = await syncUsListedCompanies(admin, {
+    marketCapBatchSize,
+    skipMarketCap,
+    newswireBatchSize,
+    skipNewswire,
+  });
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok) process.exitCode = 1;
 }

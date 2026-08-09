@@ -16,7 +16,7 @@ export async function searchUsListedCompanies(
   const safeLimit = Math.min(Math.max(limit, 1), 50);
   const pattern = `%${q}%`;
   const select =
-    "ticker,name,market_cap,cik,exchange,updated_at,market_cap_updated_at";
+    "ticker,name,market_cap,cik,exchange,primary_newswire,updated_at,market_cap_updated_at,newswire_updated_at";
 
   const [byTicker, byName] = await Promise.all([
     admin
@@ -63,7 +63,9 @@ export async function getUsListedCompany(
   if (!t) return null;
   const { data, error } = await admin
     .from("us_listed_companies")
-    .select("ticker,name,market_cap,cik,exchange,updated_at,market_cap_updated_at")
+    .select(
+      "ticker,name,market_cap,cik,exchange,primary_newswire,updated_at,market_cap_updated_at,newswire_updated_at"
+    )
     .eq("ticker", t)
     .maybeSingle();
   if (error) throw new Error(error.message);

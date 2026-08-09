@@ -26,6 +26,7 @@ export async function GET(req: Request) {
           marketCap: r.market_cap,
           cik: r.cik,
           exchange: r.exchange,
+          primaryNewswire: r.primary_newswire,
         })),
         q,
         count: items.length,

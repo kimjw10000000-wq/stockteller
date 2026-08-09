@@ -24,13 +24,19 @@ export async function GET(req: Request) {
 
   try {
     const admin = createAdminClient();
-    const batchRaw = Number(new URL(req.url).searchParams.get("marketCapBatch") ?? "300");
+    const url = new URL(req.url);
+    const batchRaw = Number(url.searchParams.get("marketCapBatch") ?? "300");
     const marketCapBatchSize = Number.isFinite(batchRaw) ? Math.min(Math.max(batchRaw, 0), 2000) : 300;
-    const skipMarketCap = new URL(req.url).searchParams.get("skipMarketCap") === "1";
+    const nwRaw = Number(url.searchParams.get("newswireBatch") ?? "8");
+    const newswireBatchSize = Number.isFinite(nwRaw) ? Math.min(Math.max(nwRaw, 0), 40) : 8;
+    const skipMarketCap = url.searchParams.get("skipMarketCap") === "1";
+    const skipNewswire = url.searchParams.get("skipNewswire") === "1";
 
     const result = await syncUsListedCompanies(admin, {
       marketCapBatchSize,
       skipMarketCap,
+      newswireBatchSize,
+      skipNewswire,
     });
     return NextResponse.json(result, { status: result.ok ? 200 : 500 });
   } catch (e) {
