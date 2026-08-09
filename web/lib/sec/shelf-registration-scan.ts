@@ -17,7 +17,12 @@ export type ShelfRegistrationResult = {
   hasS3: boolean;
   /** ISO YYYY-MM-DD of most recent shelf filing, or null */
   filingDate: string | null;
-  /** Display e.g. 2024년 05월 */
+  /**
+   * SEC acceptanceDateTime → ISO 8601 UTC
+   * e.g. "2026-07-23T20:15:00.000Z"
+   */
+  filingDateTime: string | null;
+  /** @deprecated use filingDateTime + client local format */
   filingDateLabel: string | null;
   formType: string | null;
   filingUrl: string | null;
@@ -35,12 +40,62 @@ function parseIsoDate(s: string): Date | null {
   return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
 }
 
-export function formatFilingMonthKo(isoDate: string): string {
-  const d = parseIsoDate(isoDate);
-  if (!d) return isoDate;
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${y}년 ${m}월`;
+/**
+ * Parse SEC acceptanceDateTime into UTC ISO.
+ * Handles:
+ * - `2024-11-01T10:49:43.000Z` (UTC, modern API)
+ * - `2026-07-23 16:15:00` (Eastern wall clock, legacy-style)
+ */
+export function acceptanceDateTimeToUtcIso(raw: string | null | undefined): string | null {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+
+  // Already ISO with Z or offset
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const d = new Date(s.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s}Z`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
+  // `YYYY-MM-DD HH:mm:ss` → treat as America/New_York wall time
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const day = Number(m[3]);
+  const hh = Number(m[4]);
+  const mm = Number(m[5]);
+  const ss = Number(m[6]);
+
+  let utc = Date.UTC(y, mo - 1, day, hh, mm, ss);
+  for (let i = 0; i < 4; i++) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(utc));
+    const map: Record<string, string> = {};
+    for (const p of parts) {
+      if (p.type !== "literal") map[p.type] = p.value;
+    }
+    const hour = map.hour === "24" ? 0 : Number(map.hour);
+    const asUtc = Date.UTC(
+      Number(map.year),
+      Number(map.month) - 1,
+      Number(map.day),
+      hour,
+      Number(map.minute),
+      Number(map.second)
+    );
+    const want = Date.UTC(y, mo - 1, day, hh, mm, ss);
+    utc += want - asUtc;
+  }
+  return new Date(utc).toISOString();
 }
 
 function baseFormType(form: string): "S-3" | "F-3" | string {
@@ -98,6 +153,7 @@ export async function scanShelfRegistration(
       recent?: {
         form?: string[];
         filingDate?: string[];
+        acceptanceDateTime?: string[];
         accessionNumber?: string[];
         primaryDocument?: string[];
       };
@@ -107,6 +163,7 @@ export async function scanShelfRegistration(
   const recent = sub.filings?.recent;
   const forms = recent?.form ?? [];
   const dates = recent?.filingDate ?? [];
+  const accepts = recent?.acceptanceDateTime ?? [];
   const accessions = recent?.accessionNumber ?? [];
   const primaryDocs = recent?.primaryDocument ?? [];
   const n = Math.min(forms.length, dates.length, accessions.length);
@@ -115,8 +172,10 @@ export async function scanShelfRegistration(
   type Hit = {
     form: string;
     filingDate: string;
+    filingDateTime: string | null;
     accessionNumber: string;
     primaryDocument: string;
+    sortKey: string;
   };
   const hits: Hit[] = [];
 
@@ -126,15 +185,28 @@ export async function scanShelfRegistration(
     const filingDate = String(dates[i] ?? "").trim();
     const d = parseIsoDate(filingDate);
     if (!d || d.getTime() < cutoff) continue;
+
+    const acceptanceRaw = String(accepts[i] ?? "").trim();
+    const filingDateTime = acceptanceDateTimeToUtcIso(acceptanceRaw);
+    const sortKey = filingDateTime ?? `${filingDate}T23:59:59.000Z`;
+
+    // Also drop if acceptance is older than lookback when available
+    if (filingDateTime) {
+      const t = new Date(filingDateTime).getTime();
+      if (Number.isFinite(t) && t < cutoff) continue;
+    }
+
     hits.push({
       form,
       filingDate,
+      filingDateTime,
       accessionNumber: String(accessions[i] ?? ""),
       primaryDocument: String(primaryDocs[i] ?? ""),
+      sortKey,
     });
   }
 
-  hits.sort((a, b) => b.filingDate.localeCompare(a.filingDate));
+  hits.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
   const latest = hits[0] ?? null;
   const companyName = (sub.name || meta.title || ticker).trim();
 
@@ -146,6 +218,7 @@ export async function scanShelfRegistration(
       cikPadded: meta.cikPadded,
       hasS3: false,
       filingDate: null,
+      filingDateTime: null,
       filingDateLabel: null,
       formType: null,
       filingUrl: null,
@@ -160,7 +233,8 @@ export async function scanShelfRegistration(
     cikPadded: meta.cikPadded,
     hasS3: true,
     filingDate: latest.filingDate,
-    filingDateLabel: formatFilingMonthKo(latest.filingDate),
+    filingDateTime: latest.filingDateTime,
+    filingDateLabel: latest.filingDateTime,
     formType: baseFormType(latest.form),
     filingUrl: buildFilingUrl(meta.cikPadded, latest.accessionNumber, latest.primaryDocument),
     filingsScanned: n,

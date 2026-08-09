@@ -10,6 +10,7 @@ import {
   type Nasdaq5550Record,
 } from "@/lib/nasdaq-5550-mock";
 import type { BidPriceNoticeResult } from "@/lib/sec/bid-price-deficiency-scan";
+import { formatLocalDateTimeKo } from "@/lib/format-local-datetime";
 import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
 type CompanyHit = {
@@ -117,7 +118,8 @@ export function ComplianceDdaySearch() {
         j.hits ?? []
       );
       if (shelf.ok) {
-        next = applyShelfRegistration(next, shelf);
+        const localLabel = formatLocalDateTimeKo(shelf.filingDateTime);
+        next = applyShelfRegistration(next, shelf, localLabel);
       }
       setRecord(next);
       setQuery(j.ticker);
@@ -133,9 +135,10 @@ export function ComplianceDdaySearch() {
         parts.push("bid-price 위반 없음");
       }
       if (shelf.ok) {
+        const localLabel = formatLocalDateTimeKo(shelf.filingDateTime);
         parts.push(
           shelf.hasS3
-            ? `S-3/F-3 ${shelf.filingDateLabel ?? shelf.filingDate}`
+            ? `S-3/F-3 ${localLabel ?? shelf.filingDateTime ?? shelf.filingDate}`
             : "S-3/F-3 없음"
         );
       }

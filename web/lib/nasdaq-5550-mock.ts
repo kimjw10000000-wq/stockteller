@@ -92,8 +92,10 @@ export function applyShelfRegistration(
   record: Nasdaq5550Record,
   shelf: Pick<
     ShelfRegistrationResult,
-    "hasS3" | "filingDate" | "filingDateLabel" | "formType" | "filingUrl"
-  >
+    "hasS3" | "filingDate" | "filingDateTime" | "filingDateLabel" | "formType" | "filingUrl"
+  >,
+  /** Pre-formatted local label from the client, e.g. 2026년 07월 24일 05:15 (KST) */
+  localDateTimeLabel?: string | null
 ): Nasdaq5550Record {
   if (!shelf.hasS3) {
     return {
@@ -110,7 +112,12 @@ export function applyShelfRegistration(
     };
   }
 
-  const label = shelf.filingDateLabel ?? shelf.filingDate ?? "—";
+  const label =
+    localDateTimeLabel?.trim() ||
+    shelf.filingDateTime ||
+    shelf.filingDateLabel ||
+    shelf.filingDate ||
+    "—";
   return {
     ...record,
     offering: {
