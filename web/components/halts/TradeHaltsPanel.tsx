@@ -5,6 +5,7 @@ import { Loader2, RefreshCw, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   formatElapsedKo,
+  formatEtWallToLocal,
   isLudpReason,
   parseHaltEtMs,
 } from "@/lib/halts/elapsed";
@@ -17,10 +18,31 @@ type HaltsResponse = {
   error?: string;
 };
 
-function formatEtHint(date: string | null, time: string | null): string {
-  if (!date && !time) return "미정";
-  if (date && time) return `${date} ${time}`;
-  return `${date || ""} ${time || ""}`.trim();
+function LocalDateTimeCell({
+  etDate,
+  etTime,
+  requireTime = false,
+}: {
+  etDate: string | null | undefined;
+  etTime: string | null | undefined;
+  /** 재개 시각처럼 시간 필드가 비면 '미정' */
+  requireTime?: boolean;
+}) {
+  if (requireTime && !(etTime ?? "").trim()) {
+    return <span className="text-[11px] font-medium text-neutral-500">미정</span>;
+  }
+  const parts = formatEtWallToLocal(etDate, etTime);
+  if (parts.empty) {
+    return <span className="text-[11px] font-medium text-neutral-500">미정</span>;
+  }
+  return (
+    <span className="block tabular-nums">
+      <span className="block text-[12px] font-bold leading-tight text-neutral-950">{parts.time}</span>
+      <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-500">
+        {parts.date}
+      </span>
+    </span>
+  );
 }
 
 function rowKey(row: TradeHaltItem): string {
@@ -217,7 +239,9 @@ export function TradeHaltsPanel() {
         </div>
       </div>
 
-      <p className="text-xs text-neutral-600">나스닥/미국 주식 Halt · 재개 일정 (ET)</p>
+      <p className="text-xs text-neutral-600">
+        나스닥/미국 주식 Halt · 재개 일정 (사용자 현지 시간 기준)
+      </p>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] leading-snug text-neutral-600">
@@ -316,15 +340,22 @@ export function TradeHaltsPanel() {
                           {row.reasonLabel}
                         </p>
                       </td>
-                      <td className="px-2 py-2.5 align-top font-medium tabular-nums text-neutral-900">
-                        <span className="block text-[11px]">{row.haltDate || "—"}</span>
-                        <span className="block text-[10px] text-neutral-700">{row.haltTime || ""}</span>
+                      <td className="px-2 py-2.5 align-top">
+                        <LocalDateTimeCell etDate={row.haltDate} etTime={row.haltTime} />
                       </td>
-                      <td className="px-2 py-2.5 align-top font-semibold tabular-nums text-neutral-950">
-                        {formatEtHint(row.resumptionDate, row.resumptionQuoteTime)}
+                      <td className="px-2 py-2.5 align-top">
+                        <LocalDateTimeCell
+                          etDate={row.resumptionDate}
+                          etTime={row.resumptionQuoteTime}
+                          requireTime
+                        />
                       </td>
-                      <td className="px-2 py-2.5 align-top font-semibold tabular-nums text-neutral-950">
-                        {formatEtHint(row.resumptionDate, row.resumptionTradeTime)}
+                      <td className="px-2 py-2.5 align-top">
+                        <LocalDateTimeCell
+                          etDate={row.resumptionDate}
+                          etTime={row.resumptionTradeTime}
+                          requireTime
+                        />
                       </td>
                       <td className="px-2 py-2.5 align-top">
                         <ElapsedCell row={row} nowMs={nowMs} />
@@ -339,8 +370,8 @@ export function TradeHaltsPanel() {
       </div>
 
       <p className="text-[10px] leading-relaxed text-neutral-500">
-        출처: NASDAQ Trader Trade Halt RSS. 시각은 동부시간(ET) 기준. LUDP(변동성 정지)만 경과
-        타이머를 표시합니다.
+        출처: NASDAQ Trader Trade Halt RSS. 원본은 ET이며 화면에는 브라우저 현지 시간으로
+        변환해 표시합니다. LUDP(변동성 정지)만 경과 타이머를 표시합니다.
       </p>
     </div>
   );
