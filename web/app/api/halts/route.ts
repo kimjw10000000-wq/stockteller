@@ -4,6 +4,7 @@ import { getHaltProviderMeta } from "@/lib/halts/provider";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(req: Request) {
   const force = new URL(req.url).searchParams.get("force") === "1";
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
       {
         items: [],
         count: 0,
-        source: "nasdaq-rss" as const,
+        source: "hybrid" as const,
         fetchedAt: new Date().toISOString(),
         servedFromCache: false,
         upstreamAgeMs: 0,

@@ -17,6 +17,15 @@ export const HALT_REASON_CODES: Record<string, string> = {
   M1: "시장 전체 관련",
   LUDP: "변동성 정지 (LULD Pause)",
   LUDS: "Limit Up-Limit Down Straddle",
+  VI_STATIC: "정적 VI (변동성완화)",
+  VI_DYNAMIC: "동적 VI (변동성완화)",
+  VI_STATIC_AND_DYNAMIC: "정적·동적 VI",
+  OVERHEATED: "단기과열종목",
+  INVESTMENT_WARNING: "투자경고",
+  INVESTMENT_RISK: "투자위험",
+  LIQUIDATION_TRADING: "정리매매",
+  TRADING_SUSPENDED: "거래정지",
+  STOCK_WARRANTS: "신주인수권 유의",
 };
 
 export function haltReasonLabel(code: string): string {

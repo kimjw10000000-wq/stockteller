@@ -54,7 +54,8 @@ export function parseHaltEtMs(haltDate: string, haltTime: string): number | null
 }
 
 export function isLudpReason(reasonCode: string): boolean {
-  return reasonCode.toUpperCase().includes("LUDP");
+  const c = reasonCode.toUpperCase();
+  return c.includes("LUDP") || c.startsWith("VI_");
 }
 
 /** "XX분 XX초" count-up from halt start. */
@@ -63,6 +64,19 @@ export function formatElapsedKo(haltMs: number, nowMs: number): string {
   const mins = Math.floor(totalSec / 60);
   const secs = totalSec % 60;
   return `${mins}분 ${String(secs).padStart(2, "0")}초`;
+}
+
+/** Sort key for halt rows: prefer absolute ISO, else ET wall clock. */
+export function haltEventMs(row: {
+  haltDate: string;
+  haltTime: string;
+  eventAtIso?: string | null;
+}): number {
+  if (row.eventAtIso) {
+    const t = Date.parse(row.eventAtIso);
+    if (Number.isFinite(t)) return t;
+  }
+  return parseHaltEtMs(row.haltDate, row.haltTime) ?? 0;
 }
 
 export type LocalDateTimeParts = {

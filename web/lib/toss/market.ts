@@ -91,13 +91,15 @@ export async function fetchTossPrices(symbols: string[]): Promise<TossPrice[]> {
 function normalizeCandle(row: unknown): TossCandle | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
-  const open = num(r.open) ?? num(r.o);
-  const high = num(r.high) ?? num(r.h);
-  const low = num(r.low) ?? num(r.l);
-  const close = num(r.close) ?? num(r.c);
+  const open = num(r.open) ?? num(r.openPrice) ?? num(r.o);
+  const high = num(r.high) ?? num(r.highPrice) ?? num(r.h);
+  const low = num(r.low) ?? num(r.lowPrice) ?? num(r.l);
+  const close = num(r.close) ?? num(r.closePrice) ?? num(r.c);
   if (open == null || high == null || low == null || close == null) return null;
 
-  const time = String(r.datetime ?? r.dateTime ?? r.time ?? r.t ?? r.date ?? "").trim();
+  const time = String(
+    r.datetime ?? r.dateTime ?? r.timestamp ?? r.time ?? r.t ?? r.date ?? ""
+  ).trim();
   return {
     time,
     open,

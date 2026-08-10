@@ -1,4 +1,11 @@
+import { isTossConfigured } from "@/lib/toss/client";
 import { fetchNasdaqTradeHalts, type TradeHaltsResult } from "./nasdaq-trade-halts";
+import { ACTIVE_HALT_PROVIDER, getHaltProviderMeta } from "./provider";
+import {
+  enrichHaltsWithTossStocks,
+  fetchTossCircuitEvents,
+} from "./toss-circuit";
+import { haltEventMs } from "./elapsed";
 
 /**
  * NASDAQ Trade Halt RSS 공식 가이드:
@@ -28,10 +35,83 @@ type CacheEntry = {
 let cache: CacheEntry | null = null;
 let inflight: Promise<TradeHaltsResult> | null = null;
 
+function mergeAndSort(
+  nasdaq: TradeHaltsResult | null,
+  toss: TradeHaltsResult | null
+): TradeHaltsResult {
+  const items = [...(nasdaq?.items ?? []), ...(toss?.items ?? [])];
+  items.sort((a, b) => {
+    const d = haltEventMs(b) - haltEventMs(a);
+    if (d !== 0) return d;
+    return a.symbol.localeCompare(b.symbol);
+  });
+  return {
+    items,
+    fetchedAt: new Date().toISOString(),
+    source: nasdaq && toss ? "hybrid" : toss ? "toss-vi" : "nasdaq-rss",
+    count: items.length,
+  };
+}
+
+async function fetchUpstream(): Promise<TradeHaltsResult> {
+  const provider = ACTIVE_HALT_PROVIDER;
+  const tossOn = isTossConfigured();
+
+  if (provider === "toss-vi") {
+    return fetchTossCircuitEvents();
+  }
+
+  if (provider === "hybrid" || (provider === "nasdaq-rss" && tossOn)) {
+    const [rssSettled, tossSettled] = await Promise.allSettled([
+      fetchNasdaqTradeHalts(),
+      provider === "hybrid" && tossOn
+        ? fetchTossCircuitEvents()
+        : Promise.resolve(null as TradeHaltsResult | null),
+    ]);
+
+    let nasdaq =
+      rssSettled.status === "fulfilled" ? rssSettled.value : null;
+    const toss =
+      tossSettled.status === "fulfilled" ? tossSettled.value : null;
+
+    if (nasdaq && tossOn) {
+      try {
+        nasdaq = {
+          ...nasdaq,
+          items: await enrichHaltsWithTossStocks(nasdaq.items),
+        };
+      } catch {
+        /* keep raw RSS names */
+      }
+    }
+
+    if (!nasdaq && !toss) {
+      if (rssSettled.status === "rejected") throw rssSettled.reason;
+      throw new Error("Halt upstream empty");
+    }
+
+    // nasdaq-rss + toss enrich only (no VI merge) when provider is nasdaq-rss
+    if (provider === "nasdaq-rss") {
+      return (
+        nasdaq ?? {
+          items: [],
+          fetchedAt: new Date().toISOString(),
+          source: "nasdaq-rss",
+          count: 0,
+        }
+      );
+    }
+
+    return mergeAndSort(nasdaq, toss);
+  }
+
+  return fetchNasdaqTradeHalts();
+}
+
 async function refreshUpstream(): Promise<TradeHaltsResult> {
   if (inflight) return inflight;
 
-  inflight = fetchNasdaqTradeHalts()
+  inflight = fetchUpstream()
     .then((data) => {
       cache = { data, fetchedAtMs: Date.now() };
       return data;
@@ -46,23 +126,23 @@ async function refreshUpstream(): Promise<TradeHaltsResult> {
 function toPayload(data: TradeHaltsResult, servedFromCache: boolean): HaltsCachePayload {
   const fetchedAtMs = cache?.fetchedAtMs ?? Date.now();
   const upstreamAgeMs = Math.max(0, Date.now() - fetchedAtMs);
+  const meta = getHaltProviderMeta();
   return {
     ...data,
     servedFromCache,
     upstreamAgeMs,
     upstreamRetryAfterMs: Math.max(0, UPSTREAM_TTL_MS - upstreamAgeMs),
-    upstreamPollIntervalMs: NASDAQ_RSS_MIN_INTERVAL_MS,
+    upstreamPollIntervalMs: meta.minUpstreamIntervalMs,
     relay: "server-memory",
   };
 }
 
 /**
  * 모든 유저 요청은 이 함수만 탄다.
- * - TTL 안: 메모리 즉시 반환 (나스닥 호출 0)
+ * - TTL 안: 메모리 즉시 반환
  * - TTL 만료: 프로세스당 1개의 업스트림 fetch만 실행 (single-flight)
  */
 export async function getTradeHaltsCached(options?: {
-  /** true면 TTL을 무시하고 업스트림 재요청(단, 최소 간격은 준수) */
   force?: boolean;
 }): Promise<HaltsCachePayload> {
   const now = Date.now();
@@ -73,7 +153,6 @@ export async function getTradeHaltsCached(options?: {
     return toPayload(cache!.data, true);
   }
 
-  // force여도 NASDAQ 1분 가이드를 깨지 않도록 최소 간격 보장
   if (options?.force && cache && age < UPSTREAM_TTL_MS) {
     return toPayload(cache.data, true);
   }
@@ -82,7 +161,6 @@ export async function getTradeHaltsCached(options?: {
     const data = await refreshUpstream();
     return toPayload(data, false);
   } catch (e) {
-    // 업스트림 실패 시 stale 캐시라도 반환
     if (cache) {
       return toPayload(cache.data, true);
     }

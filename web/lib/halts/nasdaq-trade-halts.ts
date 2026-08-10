@@ -1,4 +1,4 @@
-import { parseHaltEtMs } from "./elapsed";
+import { haltEventMs } from "./elapsed";
 import { haltReasonLabel } from "./reason-codes";
 
 const RSS_URL = "https://www.nasdaqtrader.com/rss.aspx?feed=tradehalts";
@@ -18,12 +18,19 @@ export type TradeHaltItem = {
   /** true when Resumption Trade Time is set (scheduled or done) */
   hasResumptionSchedule: boolean;
   status: "halted" | "resuming";
+  /** nasdaq-rss | toss-vi */
+  source?: "nasdaq-rss" | "toss-vi";
+  /** Absolute event time for DESC sort / local display (Toss VI etc.) */
+  eventAtIso?: string | null;
+  englishName?: string | null;
+  nameKo?: string | null;
+  warningType?: string | null;
 };
 
 export type TradeHaltsResult = {
   items: TradeHaltItem[];
   fetchedAt: string;
-  source: "nasdaq-rss";
+  source: "nasdaq-rss" | "toss-vi" | "hybrid";
   count: number;
 };
 
@@ -67,16 +74,21 @@ function parseItems(xml: string): TradeHaltItem[] {
       resumptionTradeTime,
       hasResumptionSchedule,
       status: hasResumptionSchedule ? "resuming" : "halted",
+      source: "nasdaq-rss",
+      eventAtIso: null,
+      englishName: null,
+      nameKo: null,
+      warningType: null,
     });
   }
 
   return items;
 }
 
-/** Newest Halt Date+Time first (ET → epoch). Status is not used as a primary key. */
+/** Newest Halt Date+Time first. */
 function sortHalts(a: TradeHaltItem, b: TradeHaltItem): number {
-  const am = parseHaltEtMs(a.haltDate, a.haltTime) ?? 0;
-  const bm = parseHaltEtMs(b.haltDate, b.haltTime) ?? 0;
+  const am = haltEventMs(a);
+  const bm = haltEventMs(b);
   if (bm !== am) return bm - am;
   return a.symbol.localeCompare(b.symbol);
 }

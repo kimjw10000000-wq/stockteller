@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import {
   formatElapsedKo,
   formatEtWallToLocal,
+  haltEventMs,
   isLudpReason,
   parseHaltEtMs,
 } from "@/lib/halts/elapsed";
@@ -29,13 +30,42 @@ const CLIENT_POLL_MS = 5_000;
 function LocalDateTimeCell({
   etDate,
   etTime,
+  eventAtIso,
   requireTime = false,
 }: {
   etDate: string | null | undefined;
   etTime: string | null | undefined;
+  /** Absolute ISO (Toss VI 등) — ET wall clock보다 우선 */
+  eventAtIso?: string | null;
   /** 재개 시각처럼 시간 필드가 비면 '미정' */
   requireTime?: boolean;
 }) {
+  if (eventAtIso?.trim()) {
+    const ms = Date.parse(eventAtIso);
+    if (Number.isFinite(ms)) {
+      const d = new Date(ms);
+      const time = d.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      });
+      const date = d.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      return (
+        <span className="block tabular-nums">
+          <span className="block text-[12px] font-bold leading-tight text-neutral-950">{time}</span>
+          <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-500">
+            {date}
+          </span>
+        </span>
+      );
+    }
+  }
+
   if (requireTime && !(etTime ?? "").trim()) {
     return <span className="text-[11px] font-medium text-neutral-500">미정</span>;
   }
@@ -54,7 +84,7 @@ function LocalDateTimeCell({
 }
 
 function rowKey(row: TradeHaltItem): string {
-  return `${row.symbol}__${row.haltDate}__${row.haltTime}`;
+  return `${row.symbol}__${row.haltDate}__${row.haltTime}__${row.reasonCode}__${row.source ?? ""}`;
 }
 
 function rowDomId(row: TradeHaltItem): string {
@@ -72,8 +102,8 @@ function ElapsedCell({
     return <span className="text-[11px] font-medium text-neutral-500">장기 정지</span>;
   }
 
-  const haltMs = parseHaltEtMs(row.haltDate, row.haltTime);
-  if (haltMs == null) {
+  const haltMs = haltEventMs(row) || parseHaltEtMs(row.haltDate, row.haltTime);
+  if (haltMs == null || haltMs <= 0) {
     return <span className="text-[11px] font-medium text-neutral-500">—</span>;
   }
 
@@ -359,6 +389,11 @@ export function TradeHaltsPanel() {
                               Halt
                             </span>
                           )}
+                          {row.source === "toss-vi" ? (
+                            <span className="text-[9px] font-semibold uppercase leading-none text-blue-700">
+                              Toss
+                            </span>
+                          ) : null}
                         </div>
                         <p className="mt-2 max-w-[180px] text-[10px] leading-relaxed text-neutral-600">
                           {row.name}
@@ -376,7 +411,11 @@ export function TradeHaltsPanel() {
                         </p>
                       </td>
                       <td className="px-2 py-2.5 align-top">
-                        <LocalDateTimeCell etDate={row.haltDate} etTime={row.haltTime} />
+                        <LocalDateTimeCell
+                          etDate={row.haltDate}
+                          etTime={row.haltTime}
+                          eventAtIso={row.eventAtIso}
+                        />
                       </td>
                       <td className="px-2 py-2.5 align-top">
                         <LocalDateTimeCell
@@ -405,8 +444,8 @@ export function TradeHaltsPanel() {
       </div>
 
       <p className="text-[10px] leading-relaxed text-neutral-500">
-        출처: NASDAQ Trader Trade Halt RSS. 원본은 ET이며 화면에는 브라우저 현지 시간으로
-        변환해 표시합니다. LUDP(변동성 정지)만 경과 타이머를 표시합니다.
+        출처: NASDAQ Trade Halt RSS(미국 Halt/Resume) + 토스 Open API(VI/유의·종목명·시장).
+        목록은 정지 발생 일시 최신순입니다. LUDP·VI만 경과 타이머를 표시합니다.
       </p>
     </div>
   );

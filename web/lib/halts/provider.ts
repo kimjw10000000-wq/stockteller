@@ -1,23 +1,23 @@
 /**
  * Halt 데이터 소스 추상화.
  *
- * 현재 프로덕션: `nasdaq-rss`
- * - 공식 RSS는 거래일 기준 약 1분마다 갱신되며, 1분보다 잦은 폴링을 금지한다.
- * - 0.1초~1초 실시간은 RSS로는 불가능하다.
- *
- * 초단위·틱 단위가 필요하면 WebSocket 계열로 교체:
- * - Polygon.io  (stocks / trade status — 유료 플랜·상품 확인 필요)
- * - Alpaca      (market data; halt 전용 피드 여부는 플랜별 확인)
- * - Direct NASDAQ proprietary feeds (유료)
- *
- * 교체 시 `getTradeHaltsCached()` 내부만 provider 구현체로 바꾸면
- * `/api/halts` · 프론트는 그대로 유지할 수 있다.
+ * - nasdaq-rss: NASDAQ Trade Halt RSS (미국 Halt/Resume 전체 피드)
+ * - toss-vi: 토스 랭킹 후보 + warnings(VI/유의) + 거래정지 플래그 스캔
+ * - hybrid: RSS + Toss VI 병합 (Toss 키 있으면 기본)
  */
 
-export type HaltDataProviderId = "nasdaq-rss" | "polygon-ws" | "alpaca-ws";
+export type HaltDataProviderId = "nasdaq-rss" | "toss-vi" | "hybrid" | "polygon-ws" | "alpaca-ws";
 
-export const ACTIVE_HALT_PROVIDER: HaltDataProviderId =
-  (process.env.HALT_DATA_PROVIDER as HaltDataProviderId | undefined) ?? "nasdaq-rss";
+function resolveDefaultProvider(): HaltDataProviderId {
+  const env = process.env.HALT_DATA_PROVIDER?.trim() as HaltDataProviderId | undefined;
+  if (env) return env;
+  const toss =
+    Boolean(process.env.TOSSINVEST_CLIENT_ID?.trim()) &&
+    Boolean(process.env.TOSSINVEST_CLIENT_SECRET?.trim());
+  return toss ? "hybrid" : "nasdaq-rss";
+}
+
+export const ACTIVE_HALT_PROVIDER: HaltDataProviderId = resolveDefaultProvider();
 
 export type HaltProviderMeta = {
   id: HaltDataProviderId;
@@ -30,6 +30,24 @@ export type HaltProviderMeta = {
 
 export function getHaltProviderMeta(id: HaltDataProviderId = ACTIVE_HALT_PROVIDER): HaltProviderMeta {
   switch (id) {
+    case "toss-vi":
+      return {
+        id,
+        label: "Toss Open API (VI/유의/정지)",
+        minUpstreamIntervalMs: 15_000,
+        supportsSubSecond: false,
+        notes:
+          "종목별 warnings + 랭킹 스캔. 미국 전체 Halt 피드는 아님. TOSSINVEST_* 및 허용 IP 필요.",
+      };
+    case "hybrid":
+      return {
+        id,
+        label: "NASDAQ RSS + Toss VI",
+        minUpstreamIntervalMs: 55_000,
+        supportsSubSecond: false,
+        notes:
+          "미국 Halt/Resume은 NASDAQ RSS, VI/유의·종목명·시장은 Toss로 보강/병합. 최신순 정렬.",
+      };
     case "polygon-ws":
       return {
         id,
