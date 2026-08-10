@@ -1,3 +1,4 @@
+import { parseHaltEtMs } from "./elapsed";
 import { haltReasonLabel } from "./reason-codes";
 
 const RSS_URL = "https://www.nasdaqtrader.com/rss.aspx?feed=tradehalts";
@@ -72,12 +73,12 @@ function parseItems(xml: string): TradeHaltItem[] {
   return items;
 }
 
-/** Prefer actively halted / with resume schedule first; then newest halt date. */
+/** Newest Halt Date+Time first (ET → epoch). Status is not used as a primary key. */
 function sortHalts(a: TradeHaltItem, b: TradeHaltItem): number {
-  if (a.status !== b.status) return a.status === "halted" ? -1 : 1;
-  const ad = `${a.haltDate} ${a.haltTime}`;
-  const bd = `${b.haltDate} ${b.haltTime}`;
-  return bd.localeCompare(ad);
+  const am = parseHaltEtMs(a.haltDate, a.haltTime) ?? 0;
+  const bm = parseHaltEtMs(b.haltDate, b.haltTime) ?? 0;
+  if (bm !== am) return bm - am;
+  return a.symbol.localeCompare(b.symbol);
 }
 
 export async function fetchNasdaqTradeHalts(): Promise<TradeHaltsResult> {
