@@ -8,6 +8,7 @@ import {
   formatEtWallToLocal,
   haltEventMs,
   isLudpReason,
+  ludpElapsedEndMs,
   parseHaltEtMs,
 } from "@/lib/halts/elapsed";
 import type { TradeHaltItem } from "@/lib/halts/nasdaq-trade-halts";
@@ -107,9 +108,17 @@ function ElapsedCell({
     return <span className="text-[11px] font-medium text-neutral-500">—</span>;
   }
 
+  // 거래 재개 시각이 있으면 타이머 고정 = 재개 − 정지 (RSS 1분 지연 보정)
+  const endMs = ludpElapsedEndMs(row, nowMs);
+  const frozen = Boolean((row.resumptionTradeTime ?? "").trim());
+
   return (
-    <span className="font-mono text-[12px] font-bold tabular-nums text-neutral-950">
-      {formatElapsedKo(haltMs, nowMs)}
+    <span
+      className={`font-mono text-[12px] font-bold tabular-nums ${
+        frozen ? "text-neutral-600" : "text-neutral-950"
+      }`}
+    >
+      {formatElapsedKo(haltMs, endMs)}
     </span>
   );
 }

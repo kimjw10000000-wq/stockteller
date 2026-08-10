@@ -58,12 +58,31 @@ export function isLudpReason(reasonCode: string): boolean {
   return c.includes("LUDP") || c.startsWith("VI_");
 }
 
-/** "XX분 XX초" count-up from halt start. */
-export function formatElapsedKo(haltMs: number, nowMs: number): string {
-  const totalSec = Math.max(0, Math.floor((nowMs - haltMs) / 1000));
+/** "XX분 XX초" from start→end (or start→now). */
+export function formatElapsedKo(startMs: number, endMs: number): string {
+  const totalSec = Math.max(0, Math.floor((endMs - startMs) / 1000));
   const mins = Math.floor(totalSec / 60);
   const secs = totalSec % 60;
   return `${mins}분 ${String(secs).padStart(2, "0")}초`;
+}
+
+/**
+ * LUDP elapsed end timestamp:
+ * - trade resume time set → freeze at resume (RSS delay 보정: 재개−정지)
+ * - otherwise → live now
+ */
+export function ludpElapsedEndMs(
+  row: {
+    haltDate: string;
+    resumptionDate?: string | null;
+    resumptionTradeTime?: string | null;
+  },
+  nowMs: number
+): number {
+  const tradeTime = (row.resumptionTradeTime ?? "").trim();
+  if (!tradeTime) return nowMs;
+  const date = (row.resumptionDate ?? "").trim() || row.haltDate;
+  return parseHaltEtMs(date, tradeTime) ?? nowMs;
 }
 
 /** Sort key for halt rows: prefer absolute ISO, else ET wall clock. */
