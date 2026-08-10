@@ -22,11 +22,20 @@ export class TossApiError extends Error {
     message: string,
     readonly httpStatus: number,
     readonly code?: string,
-    readonly requestId?: string
+    readonly requestId?: string,
+    readonly path?: string
   ) {
     super(message);
     this.name = "TossApiError";
   }
+}
+
+function logToss(level: "info" | "warn" | "error", msg: string, extra?: Record<string, unknown>) {
+  const payload = extra ? ` ${JSON.stringify(extra)}` : "";
+  const line = `[toss] ${msg}${payload}`;
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else console.info(line);
 }
 
 async function fetchAccessToken(): Promise<string> {
@@ -61,11 +70,17 @@ async function fetchAccessToken(): Promise<string> {
   };
 
   if (!res.ok || !json.access_token) {
+    logToss("error", "token_failed", {
+      status: res.status,
+      code: json.error?.code,
+      requestId: json.error?.requestId,
+    });
     throw new TossApiError(
       json.error?.message || `토스 토큰 발급 실패 (${res.status})`,
       res.status,
       json.error?.code,
-      json.error?.requestId
+      json.error?.requestId,
+      "/oauth2/token"
     );
   }
 
@@ -100,18 +115,61 @@ export async function tossFetch<T>(
 
   if (res.status === 401 && init?.retryAuth !== false) {
     tokenCache = null;
+    logToss("warn", "auth_retry", { path });
     return tossFetch<T>(path, { ...init, retryAuth: false });
   }
 
   if (!res.ok) {
     const err = (json as { error?: { code?: string; message?: string; requestId?: string } }).error;
+    logToss("error", "request_failed", {
+      path,
+      status: res.status,
+      code: err?.code,
+      requestId: err?.requestId,
+      message: err?.message,
+    });
     throw new TossApiError(
       err?.message || `토스 API 오류 (${res.status})`,
       res.status,
       err?.code,
-      err?.requestId
+      err?.requestId,
+      path
     );
   }
 
   return json as T;
+}
+
+/**
+ * Never throws — returns { ok:true, data } or { ok:false, error }.
+ * Use in aggregators so one failing endpoint does not take down the process.
+ */
+export async function tossSafe<T>(
+  label: string,
+  fn: () => Promise<T>
+): Promise<{ ok: true; data: T } | { ok: false; error: string; code?: string; status?: number }> {
+  try {
+    const data = await fn();
+    return { ok: true, data };
+  } catch (e) {
+    const err = e as TossApiError;
+    const message = e instanceof Error ? e.message : String(e);
+    logToss("warn", `safe_fail:${label}`, {
+      message,
+      code: err?.code,
+      status: err?.httpStatus,
+    });
+    return {
+      ok: false,
+      error: message,
+      code: err?.code,
+      status: err?.httpStatus,
+    };
+  }
+}
+
+export function requireTossConfigured(): void {
+  if (!isTossConfigured()) {
+    throw new TossApiError("TOSSINVEST_CLIENT_ID / TOSSINVEST_CLIENT_SECRET 미설정", 503);
+  }
 }

@@ -10,8 +10,8 @@
  */
 
 import { isTossConfigured } from "@/lib/toss/client";
+import { fetchTossRankings } from "@/lib/toss/rankings";
 import {
-  fetchTossRankings,
   fetchTossStockMap,
   fetchTossStockWarnings,
   type TossStockInfo,
