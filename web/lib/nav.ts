@@ -31,4 +31,10 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
     description: "나스닥/미국 주식 거래 정지(Halt) 및 해제 현황",
     match: (pathname) => pathname.startsWith("/halts"),
   },
+  {
+    href: "/indicators",
+    label: "주요지표 바로 보기",
+    description: "미국 CPI / PPI 예측·실제 발표 실시간",
+    match: (pathname) => pathname.startsWith("/indicators"),
+  },
 ];
