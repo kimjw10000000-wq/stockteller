@@ -92,9 +92,15 @@ export function startIndicatorScrapeWindow(
         if (parsed.ok) {
           await applyParsedActual(id, parsed.actual, {
             period: parsed.period,
-            message: parsed.message,
+            message: `[${parsed.method}] ${parsed.message}`,
           });
-          console.info("[indicators/scrape] parsed", id, parsed.actual, parsed.period);
+          console.info(
+            "[indicators/scrape] parsed",
+            id,
+            parsed.actual,
+            parsed.period,
+            parsed.method
+          );
           break;
         }
         lastReason = parsed.reason;
