@@ -118,6 +118,7 @@ function IndicatorCard({
             )}
             {!pending && item.period && item.period !== "unknown" ? (
               <p className="mt-1 text-[10px] font-medium uppercase text-neutral-500">
+                {item.observationPeriod ? `${item.observationPeriod} · ` : ""}
                 {item.period === "mom" ? "전월 대비" : "전년 대비"}
               </p>
             ) : null}
@@ -145,6 +146,7 @@ export function IndicatorsLivePanel() {
   const [flashIds, setFlashIds] = useState<Record<string, number>>({});
   const [mockBusy, setMockBusy] = useState(false);
   const scrapeArmed = useRef<Record<string, boolean>>({});
+  const catchUpArmed = useRef(false);
   const allowMock = process.env.NODE_ENV !== "production";
 
   const applySnapshot = useCallback((snap: IndicatorsSnapshot) => {
@@ -256,7 +258,7 @@ export function IndicatorsLivePanel() {
     };
   }, [applySnapshot, flash]);
 
-  // Auto-wake BLS scrape ~12s before scheduled release
+  // Auto-wake BLS scrape ~12s before scheduled release, or once if actual is still empty
   useEffect(() => {
     for (const item of items) {
       if (!item.nextReleaseAt || item.actual != null) continue;
@@ -271,6 +273,19 @@ export function IndicatorsLivePanel() {
           body: JSON.stringify({ indicator: item.indicator, durationMs: 120_000 }),
         });
       }
+    }
+
+    if (
+      items.length &&
+      items.some((item) => item.actual == null) &&
+      !catchUpArmed.current
+    ) {
+      catchUpArmed.current = true;
+      void fetch("/api/indicators/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indicator: "ALL", durationMs: 20_000 }),
+      });
     }
   }, [items, nowMs]);
 
@@ -302,8 +317,8 @@ export function IndicatorsLivePanel() {
           주요지표 바로 보기
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">
-          CPI / PPI 예측치와 BLS 실제 발표치를 나란히 표시합니다. 발표 순간 서버가 페이지를
-          파싱하면 새로고침 없이 화면이 갱신됩니다.
+          CPI / PPI 예측치와 BLS 실제 발표치를 나란히 표시합니다. 발표 직후는 보도자료
+          페이지를, 그 이후에는 BLS 공식 API의 최신 전월대비(계절조정) 수치를 사용합니다.
         </p>
         <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-neutral-500">
           <Radio className={`h-3.5 w-3.5 ${connected ? "text-emerald-600" : "text-neutral-400"}`} />

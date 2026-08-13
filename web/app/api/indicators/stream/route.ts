@@ -1,3 +1,4 @@
+import { hydrateLatestActuals } from "@/lib/indicators/hydrate";
 import { subscribeIndicators } from "@/lib/indicators/hub";
 import { getSnapshot } from "@/lib/indicators/store";
 
@@ -6,6 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET() {
+  await hydrateLatestActuals();
   const encoder = new TextEncoder();
   let cleanup: (() => void) | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;

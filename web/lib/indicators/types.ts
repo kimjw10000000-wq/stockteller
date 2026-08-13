@@ -10,6 +10,8 @@ export type IndicatorReleasePayload = {
   period?: "mom" | "yoy" | "unknown";
   status: IndicatorCompareStatus;
   releasedAt: string | null;
+  /** Latest BLS month, e.g. 2026-07 */
+  observationPeriod?: string | null;
   sourceUrl: string;
   message?: string | null;
 };

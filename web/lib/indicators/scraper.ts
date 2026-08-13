@@ -1,7 +1,9 @@
+import { fetchBlsApiActualsMemo } from "./bls-api";
 import { parseBlsReleaseHtml } from "./bls-parse";
 import { broadcastIndicator } from "./hub";
 import {
   buildPayload,
+  getNextReleaseAt,
   getSnapshot,
   isScraping,
   setActual,
@@ -52,10 +54,31 @@ function publish(id: IndicatorId) {
 export async function applyParsedActual(
   id: IndicatorId,
   actual: number,
-  meta?: { period?: "mom" | "yoy" | "unknown"; message?: string }
+  meta?: { period?: "mom" | "yoy" | "unknown"; message?: string; observationPeriod?: string }
 ) {
   setActual(id, actual, meta);
   publish(id);
+}
+
+function isNearScheduledRelease(id: IndicatorId): boolean {
+  const iso = getNextReleaseAt(id);
+  if (!iso) return false;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return false;
+  const delta = Date.now() - t;
+  return delta >= -15_000 && delta <= 180_000;
+}
+
+async function applyFromOfficialApi(id: IndicatorId): Promise<boolean> {
+  const bundle = await fetchBlsApiActualsMemo();
+  const hit = bundle[id];
+  if (!hit) return false;
+  await applyParsedActual(id, hit.actual, {
+    period: hit.period,
+    message: `[bls_api] ${hit.message}`,
+    observationPeriod: hit.observationPeriod,
+  });
+  return true;
 }
 
 /**
@@ -84,6 +107,24 @@ export function startIndicatorScrapeWindow(
     const url = BLS_URLS[id];
     const deadline = Date.now() + durationMs;
     let lastReason = "";
+    const liveWindow = isNearScheduledRelease(id);
+
+    // After the print (or when no schedule is set), official JSON API is enough.
+    // Vercel datacenter IPs are often blocked on www.bls.gov HTML.
+    if (!liveWindow) {
+      try {
+        if (await applyFromOfficialApi(id)) {
+          setScraping(id, false);
+          broadcastIndicator("scraping", { indicator: id, scraping: false, lastReason: null });
+          broadcastIndicator("snapshot", getSnapshot());
+          delete loops[id];
+          return;
+        }
+      } catch (e) {
+        lastReason = e instanceof Error ? e.message : String(e);
+        console.warn("[indicators/scrape] api", id, lastReason);
+      }
+    }
 
     while (!loop.stop && Date.now() < deadline) {
       try {
@@ -101,14 +142,41 @@ export function startIndicatorScrapeWindow(
             parsed.period,
             parsed.method
           );
+          lastReason = "";
           break;
         }
         lastReason = parsed.reason;
+        if (parsed.reason === "access_denied") {
+          if (await applyFromOfficialApi(id)) {
+            lastReason = "";
+            break;
+          }
+          break;
+        }
       } catch (e) {
         lastReason = e instanceof Error ? e.message : String(e);
         console.warn("[indicators/scrape]", id, lastReason);
+        if (/BLS HTTP 403|BLS HTTP 429/.test(lastReason)) {
+          try {
+            if (await applyFromOfficialApi(id)) {
+              lastReason = "";
+              break;
+            }
+          } catch {
+            /* keep html error */
+          }
+          if (!liveWindow) break;
+        }
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+
+    if (buildPayload(id).actual == null) {
+      try {
+        if (await applyFromOfficialApi(id)) lastReason = "";
+      } catch (e) {
+        lastReason = e instanceof Error ? e.message : lastReason;
+      }
     }
 
     setScraping(id, false);

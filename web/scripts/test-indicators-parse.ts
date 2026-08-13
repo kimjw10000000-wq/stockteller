@@ -1,3 +1,4 @@
+import { actualFromObservations, momPercentFromIndexes } from "../lib/indicators/bls-api";
 import {
   parseBlsReleaseHtml,
   parseFromFirstParagraph,
@@ -64,5 +65,15 @@ assert(anchor?.ok && anchor.actual === 0.2, `anchor want 0.2 got ${JSON.stringif
 assert(compareActualForecast(3.2, 3.1) === "HIGHER", "HIGHER");
 assert(compareActualForecast(2.9, 3.1) === "LOWER", "LOWER");
 assert(compareActualForecast(3.1, 3.1) === "EQUAL", "EQUAL");
+
+assert(momPercentFromIndexes(332.813, 332.568) === 0.1, "July 2026 CPI MoM");
+assert(momPercentFromIndexes(332.568, 333.979) === -0.4, "June 2026 CPI MoM");
+assert(momPercentFromIndexes(156.566, 157.001) === -0.3, "June 2026 PPI MoM");
+
+const fromApi = actualFromObservations([
+  { year: "2026", period: "M07", value: "332.813" },
+  { year: "2026", period: "M06", value: "332.568" },
+]);
+assert(fromApi?.actual === 0.1 && fromApi.observationPeriod === "2026-07", `api obs ${JSON.stringify(fromApi)}`);
 
 console.log("indicators headline parse OK");

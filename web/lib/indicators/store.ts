@@ -42,6 +42,7 @@ const runtimeActual: Partial<
       period: "mom" | "yoy" | "unknown";
       releasedAt: string;
       message?: string;
+      observationPeriod?: string;
     }
   >
 > = {};
@@ -79,13 +80,19 @@ export function setForecasts(input: {
 export function setActual(
   id: IndicatorId,
   actual: number,
-  meta?: { period?: "mom" | "yoy" | "unknown"; message?: string; releasedAt?: string }
+  meta?: {
+    period?: "mom" | "yoy" | "unknown";
+    message?: string;
+    releasedAt?: string;
+    observationPeriod?: string;
+  }
 ) {
   runtimeActual[id] = {
     actual,
     period: meta?.period ?? "unknown",
     releasedAt: meta?.releasedAt ?? new Date().toISOString(),
     message: meta?.message,
+    observationPeriod: meta?.observationPeriod,
   };
 }
 
@@ -108,6 +115,7 @@ export function buildPayload(id: IndicatorId): IndicatorReleasePayload {
     period: act?.period ?? "unknown",
     status: compareActualForecast(actual, forecast),
     releasedAt: act?.releasedAt ?? null,
+    observationPeriod: act?.observationPeriod ?? null,
     sourceUrl: BLS_URLS[id],
     message: act?.message ?? null,
   };
