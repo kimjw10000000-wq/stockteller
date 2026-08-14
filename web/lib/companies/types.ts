@@ -8,6 +8,10 @@ export type UsListedCompany = {
   updated_at?: string;
   market_cap_updated_at?: string | null;
   newswire_updated_at?: string | null;
+  issuer_type?: "DOMESTIC" | "FOREIGN" | null;
+  is_unlimited_shelf?: boolean;
+  total_registered_offering_capacity?: number | null;
+  registered_capacity_updated_at?: string | null;
 };
 
 export type UsListedCompanyRow = {
@@ -20,4 +24,8 @@ export type UsListedCompanyRow = {
   updated_at: string;
   market_cap_updated_at: string | null;
   newswire_updated_at: string | null;
+  issuer_type: "DOMESTIC" | "FOREIGN" | null;
+  is_unlimited_shelf: boolean;
+  total_registered_offering_capacity: number | null;
+  registered_capacity_updated_at: string | null;
 };

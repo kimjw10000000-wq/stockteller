@@ -36,10 +36,7 @@ let cikMapPromise: Promise<Map<string, { cik: string; title: string }>> | null =
 async function loadCikMap(): Promise<Map<string, { cik: string; title: string }>> {
   if (cikMapPromise) return cikMapPromise;
   cikMapPromise = (async () => {
-    const res = await fetch("https://www.sec.gov/files/company_tickers.json", {
-      headers: secHeaders(),
-      next: { revalidate: 86_400 },
-    });
+    const res = await secFetch("https://www.sec.gov/files/company_tickers.json");
     if (!res.ok) throw new Error(`SEC company_tickers ${res.status}`);
     const raw = (await res.json()) as Record<string, TickerEntry>;
     const map = new Map<string, { cik: string; title: string }>();
@@ -76,4 +73,35 @@ export async function resolveCikPadded(ticker: string): Promise<string | null> {
 
 export function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/** SEC fair-access: max 10 requests/second. Serialize starts ~110ms apart. */
+const SEC_MIN_GAP_MS = 110;
+let secSlotChain: Promise<void> = Promise.resolve();
+let secNextAt = 0;
+
+function waitSecSlot(): Promise<void> {
+  const run = secSlotChain.then(async () => {
+    const now = Date.now();
+    const wait = Math.max(0, secNextAt - now);
+    secNextAt = Math.max(now, secNextAt) + SEC_MIN_GAP_MS;
+    if (wait > 0) await sleep(wait);
+  });
+  secSlotChain = run.catch(() => undefined);
+  return run;
+}
+
+export async function secFetch(url: string, init?: RequestInit): Promise<Response> {
+  const headers = {
+    ...secHeaders(),
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await waitSecSlot();
+    const res = await fetch(url, { ...init, headers, cache: "no-store" });
+    if (res.status !== 429 && res.status !== 503) return res;
+    await sleep(600 * (attempt + 1));
+    secNextAt = Date.now() + 500;
+  }
+  return fetch(url, { ...init, headers, cache: "no-store" });
 }

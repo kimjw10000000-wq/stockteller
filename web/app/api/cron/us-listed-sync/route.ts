@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeCompanyBatch } from "@/lib/companies/analyze-company";
+import { recomputeExpiredCapacity } from "@/lib/companies/registered-capacity";
 import { syncUsListedCompanies } from "@/lib/companies/sync-us-listed";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -59,8 +60,19 @@ export async function GET(req: Request) {
       }
     }
 
+    const skipShelfExpire = url.searchParams.get("skipShelfExpire") === "1";
+    let shelfExpire: Awaited<ReturnType<typeof recomputeExpiredCapacity>> | { error: string } | null =
+      null;
+    if (!skipShelfExpire) {
+      try {
+        shelfExpire = await recomputeExpiredCapacity(admin);
+      } catch (e) {
+        shelfExpire = { error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+
     return NextResponse.json(
-      { ...result, analysis },
+      { ...result, analysis, shelfExpire },
       { status: result.ok ? 200 : 500 }
     );
   } catch (e) {

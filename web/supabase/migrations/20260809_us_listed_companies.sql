@@ -7,6 +7,7 @@ create table if not exists public.us_listed_companies (
   market_cap numeric,
   cik text not null,
   exchange text not null,
+  issuer_type text,
   updated_at timestamptz not null default now(),
   market_cap_updated_at timestamptz,
   primary_newswire text,

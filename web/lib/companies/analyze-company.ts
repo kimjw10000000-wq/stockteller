@@ -78,7 +78,13 @@ export async function upsertAnalysis(
   const { error } = await admin.from("company_analysis_results").upsert(payload, {
     onConflict: "ticker",
   });
-  if (error) throw new Error(`company_analysis_results upsert: ${error.message}`);
+  if (error) {
+    if (error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message)) {
+      console.warn("[analyze-company] cache table missing, skip upsert");
+      return;
+    }
+    throw new Error(`company_analysis_results upsert: ${error.message}`);
+  }
 }
 
 /**

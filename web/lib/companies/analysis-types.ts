@@ -1,4 +1,5 @@
 import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
+import type { ShelfCapacitySnapshot } from "@/lib/companies/registered-capacity";
 
 export type Rule5550aStatus = {
   marketMakers: boolean;
@@ -44,6 +45,7 @@ export type CompanyAnalysisApiOk = {
   marketCap?: number | null;
   cik?: string | null;
   primaryNewswire?: string | null;
+  shelfCapacity?: ShelfCapacitySnapshot | null;
 };
 
 /** Nasdaq Rule 5550(a)(2) common cure window used for D-Day estimate */

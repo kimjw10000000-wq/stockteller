@@ -10,7 +10,9 @@
     "crawl": "tsx scripts/crawl-edgar.ts",
     "engine": "tsx scripts/run-market-engine.ts",
     "sync:us-listed": "tsx scripts/sync-us-listed-companies.ts",
-    "count:us-listed": "tsx scripts/count-us-listed.ts"
+    "count:us-listed": "tsx scripts/count-us-listed.ts",
+    "backfill:issuer-type": "tsx scripts/backfill-issuer-type.ts",
+    "backfill:registered-capacity": "tsx scripts/backfill-registered-capacity.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

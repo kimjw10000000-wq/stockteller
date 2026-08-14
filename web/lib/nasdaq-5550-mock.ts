@@ -1,6 +1,7 @@
 /** Nasdaq Rule 5550 체크리스트 — 기본 정상(O) + SEC 파싱으로 상태 갱신 */
 
 import type { CompanyAnalysisApiOk } from "@/lib/companies/analysis-types";
+import type { ShelfCapacitySnapshot } from "@/lib/companies/registered-capacity";
 import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
 import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
@@ -33,6 +34,7 @@ export type Nasdaq5550Record = {
   };
   /** (6) Shelf Registration / S-3·F-3 */
   offering: RuleCheckItem;
+  shelfCapacity?: ShelfCapacitySnapshot | null;
 };
 
 function okItem(key: string, label: string, detail = "정상"): RuleCheckItem {
@@ -86,6 +88,7 @@ export function createDefaultNasdaq5550Record(
       "(6) 오퍼링(유상증자) 가능성 (Shelf Registration / S-3 감지)",
       "검색 대기 중"
     ),
+    shelfCapacity: null,
   };
 }
 
@@ -198,7 +201,50 @@ export function applyCachedAnalysis(
     },
     offeringLocalLabel
   );
+  next = applyShelfCapacity(next, api.shelfCapacity ?? null);
   return next;
+}
+
+export function applyShelfCapacity(
+  record: Nasdaq5550Record,
+  snap: ShelfCapacitySnapshot | null | undefined
+): Nasdaq5550Record {
+  if (!snap) return { ...record, shelfCapacity: null };
+  const amount = snap.totalRegisteredOfferingCapacity ?? 0;
+  const hasShelf = snap.isUnlimitedShelf || amount > 0;
+  const asrForm = snap.filings.find(
+    (f) => f.isActive && (f.formType === "S-3ASR" || f.formType === "F-3ASR")
+  )?.formType;
+  let detail: string;
+  if (snap.isUnlimitedShelf) {
+    detail = `무제한 (${asrForm || (snap.issuerType === "FOREIGN" ? "F-3ASR" : "S-3ASR")} 등록)`;
+  } else if (hasShelf) {
+    detail = `유효 선반 ${formatShelfUsd(amount)}`;
+  } else {
+    detail = "최근 3년 내 활성화된 S-1/S-3 선반 등록이 없습니다.";
+  }
+  return {
+    ...record,
+    shelfCapacity: snap,
+    offering: {
+      ...record.offering,
+      status: true,
+      detail,
+      detectedDates: hasShelf
+        ? snap.filings.filter((f) => f.isActive).map((f) => f.effectDate)
+        : [],
+      detectedNote: snap.isUnlimitedShelf ? "WKSI ASR" : hasShelf ? "선반 등록 유효" : null,
+    },
+  };
+}
+
+export function formatShelfUsd(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n))) return "$0";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(n));
 }
 
 export function applyBidPriceHits(

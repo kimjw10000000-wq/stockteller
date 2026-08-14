@@ -6,9 +6,11 @@ import { Nasdaq5550Checklist } from "@/components/compliance/Nasdaq5550Checklist
 import type { CompanyAnalysisApiOk } from "@/lib/companies/analysis-types";
 import {
   applyCachedAnalysis,
+  applyShelfCapacity,
   createDefaultNasdaq5550Record,
   type Nasdaq5550Record,
 } from "@/lib/nasdaq-5550-mock";
+import type { ShelfCapacitySnapshot } from "@/lib/companies/registered-capacity";
 import { formatLocalDateTimeKo } from "@/lib/format-local-datetime";
 
 type CompanyHit = {
@@ -90,11 +92,19 @@ export function ComplianceDdaySearch() {
     setRecord(createDefaultNasdaq5550Record(ticker, "조회 중…"));
 
     try {
-      const res = await fetch(
-        `/api/compliance/analysis?ticker=${encodeURIComponent(ticker)}`,
-        { cache: "no-store" }
-      );
+      const [res, shelfRes] = await Promise.all([
+        fetch(`/api/compliance/analysis?ticker=${encodeURIComponent(ticker)}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/compliance/registered-capacity?ticker=${encodeURIComponent(ticker)}`, {
+          cache: "no-store",
+        }),
+      ]);
       const j = (await res.json()) as CompanyAnalysisApiOk | { ok: false; error?: string };
+      const shelfJson = (await shelfRes.json().catch(() => null)) as
+        | (ShelfCapacitySnapshot & { ok?: boolean })
+        | { ok: false }
+        | null;
 
       if (!res.ok || !j.ok) {
         setRecord(createDefaultNasdaq5550Record());
@@ -104,7 +114,13 @@ export function ComplianceDdaySearch() {
       }
 
       const offeringLocal = formatLocalDateTimeKo(j.offeringFilingDateTime);
-      setRecord(applyCachedAnalysis(j, offeringLocal));
+      let next = applyCachedAnalysis(j, offeringLocal);
+      const snap =
+        shelfJson && "ticker" in shelfJson && shelfJson.ok !== false
+          ? (shelfJson as ShelfCapacitySnapshot)
+          : j.shelfCapacity ?? null;
+      next = applyShelfCapacity(next, snap);
+      setRecord(next);
       setQuery(j.ticker);
 
       const parts: string[] = [];
@@ -117,6 +133,13 @@ export function ComplianceDdaySearch() {
       } else {
         parts.push("bid-price 위반 없음");
       }
+      parts.push(
+        snap?.isUnlimitedShelf
+          ? "선반 무제한 (WKSI)"
+          : (snap?.totalRegisteredOfferingCapacity ?? 0) > 0
+            ? `선반 $${Number(snap?.totalRegisteredOfferingCapacity).toLocaleString("en-US")}`
+            : "선반 $0"
+      );
       parts.push(
         j.hasOfferingRisk
           ? `S-3/F-3 ${offeringLocal ?? j.offeringFilingDateTime ?? "—"}`

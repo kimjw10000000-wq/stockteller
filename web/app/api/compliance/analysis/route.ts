@@ -8,6 +8,7 @@ import {
   getCachedAnalysis,
 } from "@/lib/companies/analyze-company";
 import { getUsListedCompany } from "@/lib/companies/search";
+import { loadRegisteredCapacitySnapshot } from "@/lib/companies/registered-capacity";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,8 @@ function rowToApi(
     marketCap?: number | null;
     cik?: string | null;
     primaryNewswire?: string | null;
-  }
+  },
+  shelfCapacity?: CompanyAnalysisApiOk["shelfCapacity"]
 ): CompanyAnalysisApiOk {
   const rule = row.rule_5550a_status;
   return {
@@ -44,6 +46,7 @@ function rowToApi(
     marketCap: meta?.marketCap ?? null,
     cik: meta?.cik ?? null,
     primaryNewswire: meta?.primaryNewswire ?? null,
+    shelfCapacity: shelfCapacity ?? null,
   };
 }
 
@@ -66,13 +69,14 @@ export async function GET(req: Request) {
       : undefined;
 
     const cached = await getCachedAnalysis(admin, ticker);
+    const shelfCapacity = await loadRegisteredCapacitySnapshot(admin, ticker).catch(() => null);
     if (cached && !cached.analysis_error) {
-      return NextResponse.json(rowToApi(cached, "cache", meta));
+      return NextResponse.json(rowToApi(cached, "cache", meta, shelfCapacity));
     }
 
     // Cache miss (or prior error): one-shot EDGAR analyze + upsert
     const fresh = await analyzeAndCacheCompany(admin, ticker);
-    return NextResponse.json(rowToApi(fresh, "fresh", meta));
+    return NextResponse.json(rowToApi(fresh, "fresh", meta, shelfCapacity));
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[compliance/analysis]", message);
