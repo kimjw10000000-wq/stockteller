@@ -21,7 +21,9 @@ export type ShelfRolloverInput = {
  * Rule 415(a)(6): within a single CIK, a successor shelf that cites
  * Prior Registration No. retires the predecessor. Never crosses CIKs.
  */
-export function applyShelfRollover<T extends ShelfRolloverInput>(drafts: T[]): T[] {
+export function applyShelfRollover<T extends ShelfRolloverInput>(
+  drafts: T[]
+): Array<T & { status: FilingStatus }> {
   const copies = drafts.map((d) => ({ ...d, priorFileNumbers: [...d.priorFileNumbers] }));
   const byCikFile = new Map<string, T>();
   for (const d of copies) {

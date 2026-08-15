@@ -280,7 +280,7 @@ export async function recomputeExpiredCapacity(admin: SupabaseClient): Promise<{
   }
 
   let companiesUpdated = 0;
-  for (const [cik, acc] of byCik.entries()) {
+  for (const [cik, acc] of Array.from(byCik.entries())) {
     const { error } = await admin
       .from("us_listed_companies")
       .update({
