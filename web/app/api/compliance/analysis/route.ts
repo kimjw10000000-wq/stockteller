@@ -42,6 +42,8 @@ function rowToApi(
     delistingDdayValue: row.delisting_dday_value,
     bidPriceHits: row.bid_price_hits ?? [],
     bidPriceFound: !(rule?.bidPrice ?? true),
+    bidPriceEventDate: row.bid_price_event_date ?? null,
+    bidPriceEventKind: row.bid_price_event_kind ?? null,
     exchange: meta?.exchange ?? null,
     marketCap: meta?.marketCap ?? null,
     cik: meta?.cik ?? null,

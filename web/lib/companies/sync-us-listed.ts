@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMarketCaps } from "./market-cap";
 import { fetchSecExchangeTickers } from "./sec-exchange-tickers";
+import { fetchNasdaqTraderExchanges } from "./nasdaq-trader-exchanges";
 import {
   DEFAULT_NEWSWIRE_BATCH,
   refreshPrimaryNewswires,
@@ -104,13 +105,16 @@ export async function syncUsListedCompanies(
   const newswireBatchSize = opts?.newswireBatchSize ?? DEFAULT_NEWSWIRE_BATCH;
 
   try {
-    const sec = await fetchSecExchangeTickers();
+    const [sec, trader] = await Promise.all([
+      fetchSecExchangeTickers(),
+      fetchNasdaqTraderExchanges().catch(() => new Map()),
+    ]);
     const now = new Date().toISOString();
     const rows = sec.map((r) => ({
       ticker: r.ticker,
       name: r.name,
       cik: r.cik,
-      exchange: r.exchange,
+      exchange: trader.get(r.ticker) ?? r.exchange,
       updated_at: now,
     }));
 

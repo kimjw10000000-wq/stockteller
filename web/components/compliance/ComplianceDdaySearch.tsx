@@ -125,13 +125,11 @@ export function ComplianceDdaySearch() {
 
       const parts: string[] = [];
       if (j.bidPriceFound && j.bidPriceHits.length > 0) {
-        parts.push(
-          j.bidPriceHits.length === 1
-            ? `bid-price ${j.bidPriceHits[0].filingDate}`
-            : `bid-price ${j.bidPriceHits.length}건`
-        );
+        const kind = j.bidPriceEventKind === "deadline" ? "마감" : "통보";
+        const when = j.bidPriceEventDate ?? j.bidPriceHits[0].storedDate ?? j.bidPriceHits[0].filingDate;
+        parts.push(`1달러 ${kind} ${when}`);
       } else {
-        parts.push("bid-price 위반 없음");
+        parts.push("1달러 통보 없음");
       }
       parts.push(
         snap?.isUnlimitedShelf
@@ -171,10 +169,9 @@ export function ComplianceDdaySearch() {
           상장폐지 위험 D-Day 검색
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          NYSE / NASDAQ 상장사 전체 검색 · 조건: (8-K Item 3.01{" "}
-          <span className="text-slate-300">또는</span> 6-K Ex.99.1/본문){" "}
-          <span className="text-slate-300">그리고</span> ($1.00{" "}
-          <span className="text-slate-300">또는</span> $0.10). 최근 8개월 매칭 공시일을 모두
+          NYSE / NASDAQ / AMEX 상장사 검색. 미국 기업은 8-K Item 3.01에서 $1.00 문단만
+          읽어 통보·마감일을 뽑고, 외국 기업은 6-K 제목 필터 후 Exhibit 99.1만 파싱합니다.
+          마감일이 있으면 마감일 기준 D-Day, 없으면 통보일(+180일) 기준으로 남은 일수를
           표시합니다.
         </p>
 

@@ -20,8 +20,10 @@ type SecPayload = {
 function normalizeExchange(raw: string): string {
   const e = raw.trim();
   if (/^nasdaq/i.test(e)) return "NASDAQ";
-  if (/^nyse\s*american/i.test(e) || /^amex/i.test(e)) return "NYSE American";
-  if (/^nyse\s*arca/i.test(e)) return "NYSE Arca";
+  if (/^nyse\s*american/i.test(e) || /^amex/i.test(e) || /^nyse\s*mkt/i.test(e)) {
+    return "AMEX";
+  }
+  if (/^nyse\s*arca/i.test(e)) return "NYSE";
   if (/^nyse/i.test(e)) return "NYSE";
   return e.toUpperCase();
 }

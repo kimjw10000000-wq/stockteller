@@ -1,28 +1,29 @@
 /**
- * SEC EDGAR — 최근 8개월 bid-price 위반 공시 수집.
+ * SEC EDGAR — bid-price ($1.00) deficiency notices.
  *
- * Condition = Document_Type_Check AND Price_Keyword_Check
- * - Document_Type_Check (OR): 8-K Item 3.01 구역  |  6-K Exhibit 99.1 또는 본문
- * - Price_Keyword_Check (OR): "$1.00"  |  "$0.10"
+ * US: 8-K Item 3.01, dates only from $1.00 / 5550(a)(2) paragraphs.
+ * Foreign: 6-K title/description filter, then Exhibit 99.1 only, same paragraph isolation.
  */
 
 import {
   accessionToFolder,
   resolveTickerMeta,
-  secHeaders,
+  secFetch,
   sleep,
-  stripHtml,
 } from "@/lib/sec/edgar-client";
+import {
+  parseBidPriceDatesFromHtml,
+  sixKMetaLooksRelevant,
+  type BidPriceDateExtract,
+  type BidPriceEventKind,
+} from "@/lib/sec/bid-price-paragraph-parse";
+
 const LOOKBACK_MS = 8 * 30.44 * 24 * 60 * 60 * 1000;
-/** 누락 최소화 — 8개월 후보를 최대한 순회 */
 const MAX_DOCS = 48;
 const FETCH_GAP_MS = 100;
 
 const FORM_8K = new Set(["8-K", "8-K/A"]);
 const FORM_6K = new Set(["6-K", "6-K/A"]);
-
-/** Price_Keyword_Check: $1.00 OR $0.10 */
-const BID_PRICE_AMOUNT_RE = /\$1\.00\b|\$0\.10\b/i;
 
 export type BidPriceNoticeHit = {
   filingDate: string;
@@ -31,6 +32,11 @@ export type BidPriceNoticeHit = {
   sourceLabel: string;
   documentUrl: string;
   viewerUrl: string;
+  noticeDate: string | null;
+  deadlineDate: string | null;
+  storedDate: string | null;
+  storedKind: BidPriceEventKind | null;
+  excerpt: string | null;
 };
 
 export type BidPriceNoticeResult = {
@@ -39,13 +45,14 @@ export type BidPriceNoticeResult = {
   companyName: string;
   cikPadded: string;
   found: boolean;
-  /** 최신순 Filing Date 배열 */
   filingDates: string[];
   hits: BidPriceNoticeHit[];
   /** @deprecated 호환 — 최신 1건 */
   hit: BidPriceNoticeHit | null;
   filingsScanned: number;
   filingsFetched: number;
+  canonicalDate: string | null;
+  canonicalKind: BidPriceEventKind | null;
 };
 
 export type BidPriceNoticeError = {
@@ -53,22 +60,9 @@ export type BidPriceNoticeError = {
   error: string;
 };
 
-export function textHasBidPriceAmount(plainText: string): boolean {
-  return BID_PRICE_AMOUNT_RE.test(plainText);
-}
-
-/**
- * 8-K 본문에서 Item 3.01 섹션만 추출.
- * 마커를 못 찾으면 null (전체 문서 오탐 방지 — items에 3.01이 있을 때만 후보로 옴).
- */
-export function extractItem301Section(plainText: string): string | null {
-  if (!plainText) return null;
-  const start = plainText.search(/Item\s*3\.01\b/i);
-  if (start < 0) return null;
-  const rest = plainText.slice(start);
-  const next = rest.search(/\n\s*Item\s*(?!3\.01)\d{1,2}\.\d{2}\b/i);
-  return (next >= 0 ? rest.slice(0, next) : rest).trim() || null;
-}
+export type ScanBidPriceOptions = {
+  issuerType?: "DOMESTIC" | "FOREIGN" | null;
+};
 
 function parseIsoDate(s: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
@@ -80,10 +74,10 @@ function hasItem301(items: string): boolean {
   return /\b3\.01\b/.test(items);
 }
 
-async function fetchText(url: string): Promise<string | null> {
-  const res = await fetch(url, { headers: secHeaders(), cache: "no-store" });
+async function fetchHtml(url: string): Promise<string | null> {
+  const res = await secFetch(url);
   if (!res.ok) return null;
-  return stripHtml(await res.text());
+  return res.text();
 }
 
 async function listFilingDocuments(
@@ -93,7 +87,7 @@ async function listFilingDocuments(
   const folder = accessionToFolder(accessionNumber);
   const indexUrl = `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${folder}/index.json`;
   try {
-    const res = await fetch(indexUrl, { headers: secHeaders(), cache: "no-store" });
+    const res = await secFetch(indexUrl);
     if (!res.ok) return [];
     const data = (await res.json()) as {
       directory?: { item?: Array<{ name?: string }> | { name?: string } };
@@ -117,59 +111,110 @@ function pickExhibit99Names(names: string[]): string[] {
   });
 }
 
+async function filingSummaryBlob(
+  cikNumeric: number,
+  accessionNumber: string
+): Promise<string> {
+  const folder = accessionToFolder(accessionNumber);
+  const url = `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${folder}/FilingSummary.xml`;
+  const html = await fetchHtml(url);
+  return html ?? "";
+}
+
 type Cand = {
   form: string;
   filingDate: string;
   accessionNumber: string;
   primaryDocument: string;
+  primaryDocDescription: string;
   kind: "8k-301" | "6k";
 };
 
-async function scanCandidateText(
+function emptyExtract(): BidPriceDateExtract {
+  return {
+    noticeDate: null,
+    deadlineDate: null,
+    storedDate: null,
+    storedKind: null,
+    excerpt: null,
+  };
+}
+
+function extractLooksLikeHit(parsed: BidPriceDateExtract | null): boolean {
+  if (!parsed) return false;
+  return Boolean(parsed.storedDate || parsed.excerpt);
+}
+
+async function scanCandidateHtml(
   cikNumeric: number,
   c: Cand
-): Promise<{ matched: boolean; sourceLabel: string; documentUrl: string }> {
+): Promise<{
+  matched: boolean;
+  sourceLabel: string;
+  documentUrl: string;
+  dates: BidPriceDateExtract;
+}> {
   const folder = accessionToFolder(c.accessionNumber);
   const base = `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${folder}`;
 
-  // Document_Type ∩ Price_Keyword
   if (c.kind === "8k-301") {
     const documentUrl = `${base}/${c.primaryDocument}`;
-    const text = await fetchText(documentUrl);
-    if (!text) return { matched: false, sourceLabel: `${c.form} Item 3.01`, documentUrl };
-    const section = extractItem301Section(text);
-    // Item 3.01 구역에서만 Price_Keyword 검사 (AND)
-    const scope = section ?? "";
+    const html = await fetchHtml(documentUrl);
+    const dates = html ? parseBidPriceDatesFromHtml(html, "us-8k") : null;
     return {
-      matched: Boolean(section && textHasBidPriceAmount(scope)),
+      matched: extractLooksLikeHit(dates),
       sourceLabel: `${c.form} Item 3.01`,
       documentUrl,
+      dates: dates ?? emptyExtract(),
     };
   }
 
-  // 6-K Document_Type: Exhibit 99.1 OR 본문 — 각 구역에서 Price_Keyword AND
+  const metaBits = [c.primaryDocDescription];
+  const summary = await filingSummaryBlob(cikNumeric, c.accessionNumber);
+  if (summary) metaBits.push(summary);
+  if (!sixKMetaLooksRelevant(metaBits.join("\n"))) {
+    return {
+      matched: false,
+      sourceLabel: `${c.form} skipped`,
+      documentUrl: `${base}/${c.primaryDocument}`,
+      dates: emptyExtract(),
+    };
+  }
+
   const names = await listFilingDocuments(cikNumeric, c.accessionNumber);
   const exhibits = pickExhibit99Names(names);
   for (const name of exhibits) {
     const documentUrl = `${base}/${name}`;
-    const text = await fetchText(documentUrl);
-    if (text && textHasBidPriceAmount(text)) {
-      return { matched: true, sourceLabel: `${c.form} Exhibit 99.1`, documentUrl };
+    const html = await fetchHtml(documentUrl);
+    const dates = html ? parseBidPriceDatesFromHtml(html, "foreign-6k") : null;
+    if (extractLooksLikeHit(dates)) {
+      return {
+        matched: true,
+        sourceLabel: `${c.form} Exhibit 99.1`,
+        documentUrl,
+        dates: dates ?? emptyExtract(),
+      };
     }
     await sleep(FETCH_GAP_MS);
   }
 
-  const documentUrl = `${base}/${c.primaryDocument}`;
-  const body = await fetchText(documentUrl);
   return {
-    matched: Boolean(body && textHasBidPriceAmount(body)),
-    sourceLabel: `${c.form} 본문`,
-    documentUrl,
+    matched: false,
+    sourceLabel: `${c.form} Exhibit 99.1`,
+    documentUrl: `${base}/${c.primaryDocument}`,
+    dates: emptyExtract(),
   };
 }
 
+export function pickCanonicalHit(hits: BidPriceNoticeHit[]): BidPriceNoticeHit | null {
+  if (hits.length === 0) return null;
+  const sorted = [...hits].sort((a, b) => b.filingDate.localeCompare(a.filingDate));
+  return sorted.find((h) => h.storedDate) ?? sorted[0] ?? null;
+}
+
 export async function scanBidPriceDeficiencyNotice(
-  tickerInput: string
+  tickerInput: string,
+  opts?: ScanBidPriceOptions
 ): Promise<BidPriceNoticeResult | BidPriceNoticeError> {
   const ticker = tickerInput.trim().toUpperCase();
   if (!ticker) return { ok: false, error: "티커를 입력하세요." };
@@ -189,10 +234,7 @@ export async function scanBidPriceDeficiencyNotice(
     return { ok: false, error: `SEC 티커 맵 조회 실패: ${msg}` };
   }
 
-  const subRes = await fetch(`https://data.sec.gov/submissions/CIK${meta.cikPadded}.json`, {
-    headers: secHeaders(),
-    cache: "no-store",
-  });
+  const subRes = await secFetch(`https://data.sec.gov/submissions/CIK${meta.cikPadded}.json`);
   if (!subRes.ok) {
     return { ok: false, error: `SEC submissions 조회 실패 (${subRes.status})` };
   }
@@ -205,6 +247,7 @@ export async function scanBidPriceDeficiencyNotice(
         filingDate?: string[];
         accessionNumber?: string[];
         primaryDocument?: string[];
+        primaryDocDescription?: string[];
         items?: string[];
       };
     };
@@ -216,10 +259,14 @@ export async function scanBidPriceDeficiencyNotice(
   const dates = recent?.filingDate ?? [];
   const accs = recent?.accessionNumber ?? [];
   const docs = recent?.primaryDocument ?? [];
+  const descs = recent?.primaryDocDescription ?? [];
   const itemsArr = recent?.items ?? [];
 
   const cutoff = new Date(Date.now() - LOOKBACK_MS);
   const candidates: Cand[] = [];
+  const issuer = opts?.issuerType ?? null;
+  const want8k = issuer !== "FOREIGN";
+  const want6k = issuer !== "DOMESTIC";
 
   for (let i = 0; i < forms.length; i++) {
     const form = forms[i] ?? "";
@@ -230,23 +277,26 @@ export async function scanBidPriceDeficiencyNotice(
     const primaryDocument = docs[i] ?? "";
     if (!accessionNumber || !primaryDocument) continue;
     const items = itemsArr[i] ?? "";
+    const primaryDocDescription = descs[i] ?? "";
 
-    if (FORM_8K.has(form) && hasItem301(items)) {
+    if (want8k && FORM_8K.has(form) && hasItem301(items)) {
       candidates.push({
         form,
         filingDate,
         accessionNumber,
         primaryDocument,
+        primaryDocDescription,
         kind: "8k-301",
       });
       continue;
     }
-    if (FORM_6K.has(form)) {
+    if (want6k && FORM_6K.has(form)) {
       candidates.push({
         form,
         filingDate,
         accessionNumber,
         primaryDocument,
+        primaryDocDescription,
         kind: "6k",
       });
     }
@@ -261,7 +311,7 @@ export async function scanBidPriceDeficiencyNotice(
   for (let i = 0; i < toFetch.length; i++) {
     const c = toFetch[i];
     if (i > 0) await sleep(FETCH_GAP_MS);
-    const scanned = await scanCandidateText(cikNumeric, c);
+    const scanned = await scanCandidateHtml(cikNumeric, c);
     if (!scanned.matched) continue;
     if (seenAcc.has(c.accessionNumber)) continue;
     seenAcc.add(c.accessionNumber);
@@ -273,11 +323,17 @@ export async function scanBidPriceDeficiencyNotice(
       sourceLabel: scanned.sourceLabel,
       documentUrl: scanned.documentUrl,
       viewerUrl: `https://www.sec.gov/cgi-bin/viewer?action=view&cik=${encodeURIComponent(meta.cikPadded)}&accession_number=${encodeURIComponent(c.accessionNumber)}&xbrl_type=v`,
+      noticeDate: scanned.dates.noticeDate,
+      deadlineDate: scanned.dates.deadlineDate,
+      storedDate: scanned.dates.storedDate ?? c.filingDate,
+      storedKind: scanned.dates.storedKind ?? "notice",
+      excerpt: scanned.dates.excerpt,
     });
   }
 
   hits.sort((a, b) => b.filingDate.localeCompare(a.filingDate));
   const filingDates = hits.map((h) => h.filingDate);
+  const canonical = pickCanonicalHit(hits);
 
   return {
     ok: true,
@@ -290,5 +346,7 @@ export async function scanBidPriceDeficiencyNotice(
     hit: hits[0] ?? null,
     filingsScanned: candidates.length,
     filingsFetched: toFetch.length,
+    canonicalDate: canonical?.storedDate ?? null,
+    canonicalKind: canonical?.storedKind ?? null,
   };
 }

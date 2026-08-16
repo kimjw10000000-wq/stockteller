@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  BID_PRICE_GRACE_DAYS,
   type CompanyAnalysisRow,
   type Rule5550aStatus,
 } from "./analysis-types";
 import { getUsListedCompany } from "./search";
 import { scanBidPriceDeficiencyNotice } from "@/lib/sec/bid-price-deficiency-scan";
 import { scanShelfRegistration } from "@/lib/sec/shelf-registration-scan";
+import { computeBidPriceDaysRemaining } from "@/lib/sec/bid-price-paragraph-parse";
 
 function defaultRule5550a(bidPricePass: boolean, detail: string, dates: string[]): Rule5550aStatus {
   return {
@@ -20,16 +20,15 @@ function defaultRule5550a(bidPricePass: boolean, detail: string, dates: string[]
   };
 }
 
-function computeBidPriceDday(latestFilingIsoDate: string | null): {
+function computeBidPriceDday(
+  storedDate: string | null,
+  storedKind: "deadline" | "notice" | null
+): {
   type: string | null;
   value: number | null;
 } {
-  if (!latestFilingIsoDate) return { type: null, value: null };
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(latestFilingIsoDate);
-  if (!m) return { type: "$1미만", value: null };
-  const start = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  const deadline = start + BID_PRICE_GRACE_DAYS * 86_400_000;
-  const days = Math.ceil((deadline - Date.now()) / 86_400_000);
+  const days = computeBidPriceDaysRemaining(storedDate, storedKind);
+  if (days == null || !storedDate) return { type: null, value: null };
   return { type: "$1미만", value: days };
 }
 
@@ -62,6 +61,11 @@ export async function getCachedAnalysis(
     delisting_dday_type: (row.delisting_dday_type as string | null) ?? null,
     delisting_dday_value: (row.delisting_dday_value as number | null) ?? null,
     bid_price_hits: Array.isArray(row.bid_price_hits) ? row.bid_price_hits : [],
+    bid_price_event_date: (row.bid_price_event_date as string | null) ?? null,
+    bid_price_event_kind:
+      row.bid_price_event_kind === "deadline" || row.bid_price_event_kind === "notice"
+        ? row.bid_price_event_kind
+        : null,
     last_analyzed_at: String(row.last_analyzed_at ?? new Date().toISOString()),
     analysis_error: (row.analysis_error as string | null) ?? null,
   };
@@ -83,6 +87,15 @@ export async function upsertAnalysis(
       console.warn("[analyze-company] cache table missing, skip upsert");
       return;
     }
+    if (/bid_price_event_/i.test(error.message) || error.code === "PGRST204") {
+      const rest: Record<string, unknown> = { ...payload };
+      delete rest.bid_price_event_date;
+      delete rest.bid_price_event_kind;
+      const retry = await admin.from("company_analysis_results").upsert(rest, {
+        onConflict: "ticker",
+      });
+      if (!retry.error) return;
+    }
     throw new Error(`company_analysis_results upsert: ${error.message}`);
   }
 }
@@ -98,7 +111,7 @@ export async function analyzeAndCacheCompany(
   const company = await getUsListedCompany(admin, ticker).catch(() => null);
 
   const [bid, shelf] = await Promise.all([
-    scanBidPriceDeficiencyNotice(ticker),
+    scanBidPriceDeficiencyNotice(ticker, { issuerType: company?.issuer_type ?? null }),
     scanShelfRegistration(ticker),
   ]);
 
@@ -115,6 +128,8 @@ export async function analyzeAndCacheCompany(
       delisting_dday_type: null,
       delisting_dday_value: null,
       bid_price_hits: [],
+      bid_price_event_date: null,
+      bid_price_event_kind: null,
       last_analyzed_at: new Date().toISOString(),
       analysis_error: err,
     };
@@ -135,14 +150,18 @@ export async function analyzeAndCacheCompany(
   const hits = bid.ok ? bid.hits : [];
   const dates = bid.ok ? bid.filingDates : [];
   const bidPass = !(bid.ok && bid.found);
+  const eventDate = bid.ok ? bid.canonicalDate : null;
+  const eventKind = bid.ok ? bid.canonicalKind : null;
   const bidDetail =
     bid.ok && bid.found
-      ? dates.length === 1
-        ? `SEC ${hits[0]?.sourceLabel ?? "공시"} — $1.00/$0.10 관련 공시 감지`
-        : `SEC 공시 ${dates.length}건에서 $1.00/$0.10 관련 내용 감지`
-      : "최근 8개월 $1.00/$0.10 관련 공시 없음";
+      ? eventKind === "deadline" && eventDate
+        ? `1달러 미달 통보 · 마감일 ${eventDate}`
+        : eventDate
+          ? `1달러 미달 통보 · 통보일 ${eventDate}`
+          : `SEC ${hits[0]?.sourceLabel ?? "공시"} — $1.00 관련 공시 감지`
+      : "최근 8개월 $1.00 미달 통보 없음";
 
-  const dday = bidPass ? { type: null, value: null } : computeBidPriceDday(dates[0] ?? null);
+  const dday = bidPass ? { type: null, value: null } : computeBidPriceDday(eventDate, eventKind);
 
   const shelfOk = shelf.ok ? shelf : null;
   const hasOffering = Boolean(shelfOk?.hasS3);
@@ -157,6 +176,8 @@ export async function analyzeAndCacheCompany(
     delisting_dday_type: dday.type,
     delisting_dday_value: dday.value,
     bid_price_hits: hits,
+    bid_price_event_date: eventDate,
+    bid_price_event_kind: eventKind,
     last_analyzed_at: new Date().toISOString(),
     analysis_error: !bid.ok ? bid.error : !shelf.ok ? shelf.error : null,
   };

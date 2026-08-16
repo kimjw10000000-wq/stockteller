@@ -91,7 +91,13 @@ function CheckRow({
       {detected ? (
         <div className="shrink-0 rounded-md border border-slate-600 bg-slate-800/80 px-3 py-2 sm:min-w-[14rem] sm:max-w-[18rem] sm:text-right">
           <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-            감지된 공시일
+            {item.key === "bidPrice"
+              ? item.eventKind === "deadline"
+                ? "마감일"
+                : item.eventKind === "notice"
+                  ? "통보일"
+                  : "1달러 통보"
+              : "감지된 공시일"}
           </p>
           <p
             className={cn(
@@ -108,6 +114,18 @@ function CheckRow({
           </p>
           {detected.note ? (
             <p className="mt-0.5 text-[11px] text-slate-400">{detected.note}</p>
+          ) : null}
+          {item.key === "bidPrice" && item.daysRemaining != null ? (
+            <p
+              className={cn(
+                "mt-1 text-sm font-semibold",
+                item.daysRemaining >= 0 ? "text-rose-200" : "text-slate-400"
+              )}
+            >
+              {item.daysRemaining >= 0
+                ? `${item.daysRemaining}일 남음`
+                : `${Math.abs(item.daysRemaining)}일 경과`}
+            </p>
           ) : null}
           {showFilingLink && item.filingUrl ? (
             <a
@@ -374,6 +392,7 @@ export function Nasdaq5550Checklist({ record, loading }: Props) {
               key={item.key}
               item={item}
               showDetectedDate={item.key === "bidPrice"}
+              showFilingLink={item.key === "bidPrice"}
             />
           ))}
         </ul>

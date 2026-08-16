@@ -1,5 +1,9 @@
 import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
+import type { BidPriceEventKind } from "@/lib/sec/bid-price-paragraph-parse";
+import { BID_PRICE_GRACE_DAYS } from "@/lib/sec/bid-price-paragraph-parse";
 import type { ShelfCapacitySnapshot } from "@/lib/companies/registered-capacity";
+
+export { BID_PRICE_GRACE_DAYS };
 
 export type Rule5550aStatus = {
   marketMakers: boolean;
@@ -22,6 +26,8 @@ export type CompanyAnalysisRow = {
   delisting_dday_type: string | null;
   delisting_dday_value: number | null;
   bid_price_hits: BidPriceNoticeHit[];
+  bid_price_event_date: string | null;
+  bid_price_event_kind: BidPriceEventKind | null;
   last_analyzed_at: string;
   analysis_error: string | null;
 };
@@ -41,6 +47,8 @@ export type CompanyAnalysisApiOk = {
   delistingDdayValue: number | null;
   bidPriceHits: BidPriceNoticeHit[];
   bidPriceFound: boolean;
+  bidPriceEventDate?: string | null;
+  bidPriceEventKind?: BidPriceEventKind | null;
   exchange?: string | null;
   marketCap?: number | null;
   cik?: string | null;
@@ -48,5 +56,3 @@ export type CompanyAnalysisApiOk = {
   shelfCapacity?: ShelfCapacitySnapshot | null;
 };
 
-/** Nasdaq Rule 5550(a)(2) common cure window used for D-Day estimate */
-export const BID_PRICE_GRACE_DAYS = 180;

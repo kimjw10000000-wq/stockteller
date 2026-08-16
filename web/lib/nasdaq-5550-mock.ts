@@ -3,6 +3,8 @@
 import type { CompanyAnalysisApiOk } from "@/lib/companies/analysis-types";
 import type { ShelfCapacitySnapshot } from "@/lib/companies/registered-capacity";
 import type { BidPriceNoticeHit } from "@/lib/sec/bid-price-deficiency-scan";
+import { pickCanonicalHit } from "@/lib/sec/bid-price-deficiency-scan";
+import { computeBidPriceDaysRemaining } from "@/lib/sec/bid-price-paragraph-parse";
 import type { ShelfRegistrationResult } from "@/lib/sec/shelf-registration-scan";
 
 export type RuleCheckItem = {
@@ -15,6 +17,8 @@ export type RuleCheckItem = {
   detectedNote?: string | null;
   filingUrl?: string | null;
   formType?: string | null;
+  eventKind?: "deadline" | "notice" | null;
+  daysRemaining?: number | null;
 };
 
 export type Nasdaq5550Record = {
@@ -252,9 +256,12 @@ export function applyBidPriceHits(
   hits: BidPriceNoticeHit[]
 ): Nasdaq5550Record {
   const sorted = [...hits].sort((a, b) => b.filingDate.localeCompare(a.filingDate));
-  const dates = sorted.map((h) => h.filingDate);
+  const canonical = pickCanonicalHit(sorted);
+  const eventDate = canonical?.storedDate ?? canonical?.filingDate ?? null;
+  const eventKind = canonical?.storedKind ?? (eventDate ? "notice" : null);
+  const daysRemaining = computeBidPriceDaysRemaining(eventDate, eventKind);
 
-  if (dates.length === 0) {
+  if (sorted.length === 0) {
     return {
       ...record,
       rule5550a: {
@@ -262,19 +269,28 @@ export function applyBidPriceHits(
         bidPrice: {
           ...record.rule5550a.bidPrice,
           status: true,
-          detail: "최근 8개월 $1.00/$0.10 관련 공시 없음",
+          detail: "최근 8개월 $1.00 미달 통보 없음",
           detectedDates: [],
           detectedNote: null,
+          eventKind: null,
+          daysRemaining: null,
         },
       },
     };
   }
 
-  const first = sorted[0];
-  const note =
-    dates.length === 1
-      ? first.sourceLabel
-      : `8-K Item 3.01 / 6-K 등 ${dates.length}건`;
+  const dateLabel =
+    eventKind === "deadline" && eventDate
+      ? `마감일 ${eventDate}`
+      : eventDate
+        ? `통보일 ${eventDate}`
+        : sorted[0].filingDate;
+  const ddayLabel =
+    daysRemaining == null
+      ? null
+      : daysRemaining >= 0
+        ? `D-${daysRemaining}`
+        : `D+${Math.abs(daysRemaining)} (경과)`;
 
   return {
     ...record,
@@ -283,12 +299,14 @@ export function applyBidPriceHits(
       bidPrice: {
         ...record.rule5550a.bidPrice,
         status: false,
-        detail:
-          dates.length === 1
-            ? `SEC ${first.sourceLabel} — $1.00/$0.10 관련 공시 감지`
-            : `SEC 공시 ${dates.length}건에서 $1.00/$0.10 관련 내용 감지`,
-        detectedDates: dates,
-        detectedNote: note,
+        detail: ddayLabel
+          ? `1달러 미달 통보 있음 · ${ddayLabel}`
+          : "1달러 미달 통보 있음",
+        detectedDates: [dateLabel],
+        detectedNote: canonical?.sourceLabel ?? sorted[0].sourceLabel,
+        eventKind,
+        daysRemaining,
+        filingUrl: canonical?.documentUrl ?? sorted[0].documentUrl,
       },
     },
   };
@@ -308,6 +326,11 @@ export function applyBidPriceDeficiency(
       sourceLabel: `${form} Item 3.01`,
       documentUrl: "",
       viewerUrl: "",
+      noticeDate: filingDate,
+      deadlineDate: null,
+      storedDate: filingDate,
+      storedKind: "notice",
+      excerpt: null,
     },
   ]);
 }
