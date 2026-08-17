@@ -4,6 +4,9 @@ export const SITE_NAME_EN = "Whyup";
 export const SITE_TAGLINE =
   "미국 증권 공시가 왜 올랐는지, 왜 내려갔는지 AI가 의도·재무 영향·결론으로 정리합니다.";
 
+/** 공개 문의 메일 (푸터·문의 페이지) */
+export const CONTACT_EMAIL = "contact@whyup.net";
+
 /** 프로덕션 공개 도메인 (www → apex 리다이렉트는 Vercel에서 처리) */
 export const PRODUCTION_SITE_ORIGIN = "https://whyup.net";
 

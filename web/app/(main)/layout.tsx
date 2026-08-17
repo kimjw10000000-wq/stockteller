@@ -1,4 +1,4 @@
-import { AdBannerSlot } from "@/components/layout/AdBannerSlot";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
 export default function MainSiteLayout({
@@ -7,10 +7,10 @@ export default function MainSiteLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-background">
+    <div className="flex min-h-screen w-full max-w-[100vw] flex-col overflow-x-hidden bg-background">
       <SiteHeader />
-      <AdBannerSlot />
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">{children}</div>
+      <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">{children}</div>
+      <SiteFooter />
     </div>
   );
 }
