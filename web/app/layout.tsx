@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
@@ -41,9 +40,6 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
   },
-  other: {
-    "google-adsense-account": ADSENSE_CLIENT,
-  },
 };
 
 export default function RootLayout({
@@ -54,12 +50,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        <Script
-          id="adsense"
+        <script
           async
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
           crossOrigin="anonymous"
-          strategy="beforeInteractive"
         />
       </head>
       <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
