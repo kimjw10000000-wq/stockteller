@@ -7,6 +7,9 @@ export const SITE_TAGLINE =
 /** 공개 문의 메일 (푸터·문의 페이지) */
 export const CONTACT_EMAIL = "contact@whyup.net";
 
+/** Google AdSense publisher ID */
+export const ADSENSE_CLIENT = "ca-pub-2303614048743797";
+
 /** 프로덕션 공개 도메인 (www → apex 리다이렉트는 Vercel에서 처리) */
 export const PRODUCTION_SITE_ORIGIN = "https://whyup.net";
 
