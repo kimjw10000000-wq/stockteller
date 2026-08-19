@@ -14,6 +14,7 @@ import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-sig
 import { buildShareDescription } from "@/lib/kakao-share";
 import { buildReportImageAlt, prepareArticleBodyHtml } from "@/lib/seo";
 import { resolveArticleBodyHtml } from "@/lib/article-body";
+import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
@@ -96,6 +97,7 @@ export function NewsDetailView({
         ) : null}
       </header>
 
+      <ProtectedContent>
       <section className="mt-8" aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="text-lg font-medium text-foreground">
           핵심 요약
@@ -131,6 +133,7 @@ export function NewsDetailView({
         )}
         <InvestDisclaimer />
       </section>
+      </ProtectedContent>
     </article>
   );
 }

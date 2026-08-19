@@ -7,6 +7,7 @@ import type {
   IndicatorCompareStatus,
   IndicatorsSnapshot,
 } from "@/lib/indicators/types";
+import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 const FALLBACK_POLL_MS = 200;
 const SCRAPE_LEAD_MS = 12_000;
@@ -332,7 +333,7 @@ export function IndicatorsLivePanel() {
         </p>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <ProtectedContent className="grid gap-4 sm:grid-cols-2">
         {(items.length ? items : [
           {
             indicator: "CPI" as const,
@@ -364,7 +365,7 @@ export function IndicatorsLivePanel() {
             flash={Boolean(flashIds[item.indicator])}
           />
         ))}
-      </div>
+      </ProtectedContent>
 
       <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-[11px] leading-relaxed text-neutral-600">
         <p>

@@ -8,6 +8,7 @@ import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { getCoverImageUrl } from "@/lib/manual-post";
 import { formatNewsDate } from "@/lib/news-sort";
+import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 type NewsCardProps = {
   item: DisclosureWithStock;
@@ -21,8 +22,9 @@ export function NewsCard({ item }: NewsCardProps) {
   const cover = getCoverImageUrl(item);
 
   return (
-    <Link href={`/disclosure/${item.id}`} className="block h-full">
-      <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
+    <ProtectedContent className="h-full" blockContextMenu={false}>
+      <Link href={`/disclosure/${item.id}`} className="block h-full">
+        <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={cover} alt="" className="h-36 w-full object-cover" />
@@ -48,6 +50,7 @@ export function NewsCard({ item }: NewsCardProps) {
             </div>
         </div>
       </Card>
-    </Link>
+      </Link>
+    </ProtectedContent>
   );
 }

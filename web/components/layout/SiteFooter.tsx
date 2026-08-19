@@ -1,41 +1,51 @@
 import Link from "next/link";
 import { CONTACT_EMAIL, SITE_NAME_EN, SITE_NAME_KO } from "@/lib/site";
-import { DISCLAIMER_FOOTER } from "@/lib/legal";
+import { DATA_COPYRIGHT_NOTICE, DISCLAIMER_INVEST } from "@/lib/legal";
 
 const LINKS = [
-  { href: "/about", label: "사이트 소개" },
+  { href: "/terms", label: "이용약관" },
   { href: "/privacy", label: "개인정보처리방침" },
-  { href: "/contact", label: "문의" },
   { href: "/disclaimer", label: "투자 유의사항" },
+  { href: "/about", label: "사이트 소개" },
+  { href: "/contact", label: "문의" },
 ] as const;
 
 export function SiteFooter() {
-  const year = new Date().getFullYear();
+  const year = 2026;
 
   return (
-    <footer className="border-t border-border bg-card">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6">
-        <nav aria-label="약관 및 안내" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+    <footer className="border-t border-white/10 bg-[#030213] text-white">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6">
+        <div className="flex flex-col gap-1">
+          <p className="text-base font-semibold tracking-tight">
+            {SITE_NAME_KO}
+            <span className="ml-2 text-sm font-normal text-white/50">{SITE_NAME_EN}</span>
+          </p>
+          <p className="text-sm text-white/55">© {year} {SITE_NAME_KO}. All rights reserved.</p>
+        </div>
+
+        <nav aria-label="약관 및 안내" className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
           {LINKS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className="text-white/70 underline-offset-4 transition-colors hover:text-white hover:underline"
             >
               {item.label}
             </Link>
           ))}
-        </nav>
-        <p className="text-sm leading-relaxed text-muted-foreground">{DISCLAIMER_FOOTER}</p>
-        <p className="text-xs text-muted-foreground">
-          © {year} {SITE_NAME_KO} ({SITE_NAME_EN}) ·{" "}
           <a
             href={`mailto:${CONTACT_EMAIL}`}
-            className="underline-offset-4 hover:text-foreground hover:underline"
+            className="text-white/70 underline-offset-4 transition-colors hover:text-white hover:underline"
           >
             {CONTACT_EMAIL}
           </a>
-        </p>
+        </nav>
+
+        <div className="space-y-3 border-t border-white/10 pt-6 text-sm leading-relaxed text-white/55">
+          <p>{DATA_COPYRIGHT_NOTICE}</p>
+          <p>{DISCLAIMER_INVEST}</p>
+        </div>
       </div>
     </footer>
   );

@@ -5,3 +5,9 @@ export const DISCLAIMER_BODY =
 
 export const DISCLAIMER_FOOTER =
   "정보는 참고용이며 투자 권유가 아닙니다. 손실에 대한 책임은 투자자 본인에게 있습니다.";
+
+export const DISCLAIMER_INVEST =
+  "본 서비스의 정보는 투자 참고용이며, 투자에 대한 최종 책임은 투자자 본인에게 있습니다.";
+
+export const DATA_COPYRIGHT_NOTICE =
+  "본 사이트에서 제공하는 가공 데이터 및 AI 요약 분석 결과의 무단 전재, 재배포, 크롤링 및 AI 학습 목적의 수집을 엄격히 금지합니다.";

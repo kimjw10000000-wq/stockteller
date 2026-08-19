@@ -14,6 +14,7 @@ import {
 } from "@/lib/nasdaq-5550-mock";
 import type { ShelfCapacitySnapshot, ShelfFilingView } from "@/lib/companies/registered-capacity";
 import { cn } from "@/lib/utils";
+import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 function StatusIcon({ ok }: { ok: boolean }) {
   return ok ? (
@@ -342,7 +343,7 @@ export function Nasdaq5550Checklist({ record, loading }: Props) {
   const bPassCount = bItems.filter((i) => i.status).length;
 
   return (
-    <div className={cn("space-y-6 text-white", loading && "opacity-70")}>
+    <ProtectedContent className={cn("space-y-6 text-white", loading && "opacity-70")}>
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -451,6 +452,6 @@ export function Nasdaq5550Checklist({ record, loading }: Props) {
           <ShelfOfferingCard record={record} />
         </ul>
       </section>
-    </div>
+    </ProtectedContent>
   );
 }

@@ -12,6 +12,7 @@ import {
   parseHaltEtMs,
 } from "@/lib/halts/elapsed";
 import type { TradeHaltItem } from "@/lib/halts/nasdaq-trade-halts";
+import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 type HaltsResponse = {
   items: TradeHaltItem[];
@@ -344,7 +345,7 @@ export function TradeHaltsPanel() {
         <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>
       ) : null}
 
-      <div className="overflow-hidden rounded border border-neutral-300 bg-white">
+      <ProtectedContent className="overflow-hidden rounded border border-neutral-300 bg-white">
         <div className="border-b border-neutral-200 bg-white px-3 py-2">
           <h2 className="text-xs font-bold text-neutral-950">현재 Halt / Resume</h2>
         </div>
@@ -450,7 +451,7 @@ export function TradeHaltsPanel() {
             </table>
           </div>
         )}
-      </div>
+      </ProtectedContent>
 
       <p className="text-[10px] leading-relaxed text-neutral-500">
         출처: NASDAQ Trade Halt RSS(미국 Halt/Resume) + 토스 Open API(VI/유의·종목명·시장).
