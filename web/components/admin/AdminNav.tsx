@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, FilePenLine, LogOut } from "lucide-react";
+import { CalendarClock, FilePenLine, LogOut, Newspaper } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,13 @@ const NAV = [
     description: "스몰캡 유예 추적",
     icon: CalendarClock,
     match: (path: string) => path.startsWith("/admin/compliance"),
+  },
+  {
+    href: "/admin/dilution",
+    label: "희석 뉴스 요약",
+    description: "원문 → 영어 요약",
+    icon: Newspaper,
+    match: (path: string) => path.startsWith("/admin/dilution"),
   },
 ] as const;
 
