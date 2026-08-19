@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Menu, Search, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteNavDrawer } from "@/components/layout/SiteNavDrawer";
+import { HeaderAuth } from "@/components/auth/HeaderAuth";
 import { Input } from "@/components/ui/input";
 import { SITE_NAME_KO } from "@/lib/site";
 
@@ -72,6 +73,8 @@ export function SiteHeader() {
               enterKeyHint="search"
             />
           </form>
+
+          <HeaderAuth />
 
           <button
             type="button"

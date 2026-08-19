@@ -5,16 +5,15 @@ import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware-client
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (!pathname.startsWith("/admin")) {
-    return NextResponse.next();
-  }
-
   const response = NextResponse.next({ request });
   const supabase = createSupabaseMiddlewareClient(request, response);
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (!pathname.startsWith("/admin")) {
+    return response;
+  }
 
   const isLoginPage = pathname === "/admin" || pathname === "/admin/";
 
@@ -44,5 +43,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/admin/:path*"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
