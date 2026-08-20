@@ -1,11 +1,5 @@
-/**
- * Google AI Studio / Gemini API — official client `@google/generative-ai`.
- * API 키·모델명은 `.env` / `.env.local`의 `GEMINI_API_KEY`, `GEMINI_MODEL`에서 읽습니다.
- */
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { GeminiAnalysisResult, Sentiment } from "@/lib/types";
-
-const DEFAULT_MODEL = "gemini-3-flash-preview";
+import { TogetherApiError, isTogetherConfigured, togetherChatJson, togetherModel } from "@/lib/together/client";
 
 const SYSTEM_INSTRUCTION = `You are an equity research assistant analyzing regulatory disclosures.
 
@@ -51,43 +45,28 @@ export type AnalyzeDisclosureResult =
   | { ok: false; error: string; data?: GeminiAnalysisResult };
 
 export async function analyzeDisclosureText(rawContent: string): Promise<AnalyzeDisclosureResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const modelName = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
-
-  if (!apiKey) {
-    return { ok: false, error: "GEMINI_API_KEY is not configured" };
+  if (!isTogetherConfigured()) {
+    return { ok: false, error: "TOGETHER_API_KEY is not configured" };
   }
 
+  const truncated =
+    rawContent.length > 24_000 ? `${rawContent.slice(0, 24_000)}\n\n[truncated]` : rawContent;
+
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.35,
-      },
+    const text = await togetherChatJson({
+      system: SYSTEM_INSTRUCTION,
+      user: truncated,
+      temperature: 0.2,
+      maxTokens: 800,
     });
-
-    const truncated =
-      rawContent.length > 48_000 ? `${rawContent.slice(0, 48_000)}\n\n[truncated]` : rawContent;
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: truncated }] }],
-    });
-
-    const text = result.response.text();
-    if (!text) {
-      return { ok: false, error: "Empty response from Gemini" };
-    }
-
     try {
       const data = parseModelJson(text);
-      return { ok: true, data, model: modelName };
+      return { ok: true, data, model: togetherModel() };
     } catch (e) {
       const message = e instanceof Error ? e.message : "JSON parse failed";
       return {
         ok: false,
-        error: `Failed to parse Gemini JSON: ${message}`,
+        error: `Failed to parse JSON: ${message}`,
         data: {
           title: "JSON 파싱 오류",
           summary_lines: [text.slice(0, 240), "모델 응답을 구조화하지 못했습니다.", "neutral로 처리합니다."],
@@ -97,7 +76,8 @@ export async function analyzeDisclosureText(rawContent: string): Promise<Analyze
       };
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown Gemini error";
+    const message =
+      e instanceof TogetherApiError ? e.message : e instanceof Error ? e.message : "Unknown LLM error";
     console.error("[analyzeDisclosureText]", message);
     return {
       ok: false,
@@ -105,7 +85,7 @@ export async function analyzeDisclosureText(rawContent: string): Promise<Analyze
       data: {
         title: "AI 분석 실패",
         summary_lines: [
-          "Gemini 호출 중 오류가 발생했습니다.",
+          "요약 호출 중 오류가 발생했습니다.",
           "잠시 후 다시 시도하거나 관리자 로그를 확인하세요.",
           "본문은 그대로 보존됩니다.",
         ],

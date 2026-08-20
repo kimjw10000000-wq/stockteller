@@ -39,7 +39,7 @@ export type DisclosureWithStock = DisclosureRow & {
   stocks: Pick<StockRow, "name" | "ticker" | "sector" | "market"> | null;
 };
 
-/** Gemini 분석 결과. `summary_lines`는 순서대로 [공시 의도 → 재무 영향 → 최종 결론] 한 줄씩. */
+/** 공시 분석 결과. `summary_lines`는 순서대로 [공시 의도 → 재무 영향 → 최종 결론] 한 줄씩. */
 export type GeminiAnalysisResult = {
   title: string;
   /** 길이 3: [0]=공시 의도, [1]=재무적 영향, [2]=최종 결론 */

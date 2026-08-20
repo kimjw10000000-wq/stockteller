@@ -1,4 +1,4 @@
-# SEC poller → Gemini → Supabase (`disclosure-crawl`).
+# SEC poller → Together Qwen → Supabase (`disclosure-crawl`).
 #
 # Automatic runs: Vercel Cron hits /api/cron/disclosure-crawl (see web/vercel.json).
 # This workflow is for manual runs / backup if Vercel Cron is unavailable.
@@ -9,8 +9,8 @@
 #   CRAWL_WEBHOOK_URL — default https://whyup.net/api/cron/disclosure-crawl
 #
 # Local fallback secrets (only if remote webhook is not configured):
-#   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
-# Optional: GEMINI_MODEL, SEC_USER_AGENT, CRAWL_MAX_ITEMS
+#   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOGETHER_API_KEY
+# Optional: TOGETHER_MODEL, SEC_USER_AGENT, CRAWL_MAX_ITEMS
 
 name: disclosure-crawl
 
@@ -76,14 +76,14 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+          TOGETHER_MODEL: ${{ secrets.TOGETHER_MODEL }}
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
           CRAWL_MAX_ITEMS: ${{ secrets.CRAWL_MAX_ITEMS }}
         run: |
           set -euo pipefail
           if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-            echo "::error::Set secrets.CRON_SECRET (recommended) or Supabase/Gemini secrets for local fallback."
+            echo "::error::Set secrets.CRON_SECRET (recommended) or Supabase/Together secrets for local fallback."
             exit 1
           fi
           npm run crawl

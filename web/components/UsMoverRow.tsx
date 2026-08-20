@@ -67,7 +67,7 @@ function InsightModal({
 
         <div className="px-4 py-4 text-sm text-slate-700">
           {state.status === "loading" ? (
-            <p className="text-slate-500">SEC 최근 8-K를 불러오고 Gemini로 요약 중입니다…</p>
+            <p className="text-slate-500">SEC 최근 8-K를 불러오고 요약 중입니다…</p>
           ) : state.status === "error" ? (
             <p className="text-amber-800" role="alert">
               {state.message}

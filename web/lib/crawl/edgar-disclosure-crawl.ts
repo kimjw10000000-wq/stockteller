@@ -1,16 +1,14 @@
 /**
- * SEC “current filings” poller → Gemini (JSON) → Supabase `disclosures`.
+ * SEC “current filings” poller → Together Qwen (JSON) → Supabase `disclosures`.
  * Used by `npm run crawl` and `/api/cron/disclosure-crawl`.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { analyzeDisclosureText } from "@/lib/llm/analyze-disclosure";
+import type { GeminiAnalysisResult } from "@/lib/types";
 
 const SEC_ATOM =
   "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-k&count=40&output=atom";
-
-const SYSTEM = `You analyze disclosures. Reason internally: (1) 공시의 의도 (2) 재무적 영향 (3) 최종 결론 — then output ONLY JSON (no markdown):
-{"title":"...","summary_lines":["의도 한 줄","재무 영향 한 줄","최종 결론 한 줄"],"sentiment":"positive|negative|neutral","score":number}
-summary_lines: 3 Korean lines in that order. score: 호재/악재 -100..+100. Unreadable → title "분석 불가", neutral, 0.`;
 
 export type CrawlResult = {
   ok: boolean;
@@ -74,75 +72,6 @@ function signalFromSentiment(sentiment: string): "positive" | "neutral" | "cauti
   if (sentiment === "positive") return "positive";
   if (sentiment === "negative") return "danger";
   return "neutral";
-}
-
-async function analyzeGemini(rawText: string) {
-  const key = process.env.GEMINI_API_KEY?.trim();
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3-flash-preview";
-  if (!key) throw new Error("GEMINI_API_KEY missing");
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent?key=${encodeURIComponent(key)}`;
-
-  const truncated =
-    rawText.length > 48_000 ? `${rawText.slice(0, 48_000)}\n\n[truncated]` : rawText;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts: [{ text: truncated }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.35 },
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Gemini HTTP ${res.status}: ${errText.slice(0, 500)}`);
-  }
-
-  const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text =
-    data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-
-  if (!text) throw new Error("Empty Gemini body");
-
-  const cleaned = String(text)
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  let parsed: {
-    title?: string;
-    summary_lines?: unknown;
-    sentiment?: string;
-    score?: number;
-  };
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`Gemini JSON parse failed: ${msg}`);
-  }
-
-  const sentiment = ["positive", "negative", "neutral"].includes(parsed.sentiment ?? "")
-    ? (parsed.sentiment as "positive" | "negative" | "neutral")
-    : "neutral";
-  const lines = Array.isArray(parsed.summary_lines)
-    ? parsed.summary_lines.map(String).filter(Boolean)
-    : [];
-  while (lines.length < 3) lines.push("—");
-
-  return {
-    title: String(parsed.title ?? "제목 없음"),
-    summary_lines: lines.slice(0, 3),
-    sentiment,
-    score: Number.isFinite(Number(parsed.score)) ? Number(parsed.score) : 0,
-  };
 }
 
 async function fetchSecAtom(ua: string, attempts = 3): Promise<string> {
@@ -221,16 +150,21 @@ export async function runEdgarDisclosureCrawl(
       .filter(Boolean)
       .join("\n");
 
-    let analysis: Awaited<ReturnType<typeof analyzeGemini>>;
+    let analysis: GeminiAnalysisResult;
     try {
-      analysis = await analyzeGemini(raw);
+      const result = await analyzeDisclosureText(raw);
+      if (result.ok) {
+        analysis = result.data;
+      } else {
+        throw new Error(result.error || "LLM analysis failed");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn("Gemini failed for", acc, msg);
+      console.warn("LLM failed for", acc, msg);
       analysis = {
         title: "AI 분석 실패",
         summary_lines: [
-          "Gemini 호출에 실패했습니다.",
+          "요약 호출에 실패했습니다.",
           msg.slice(0, 200),
           "원문 메타데이터만 저장합니다.",
         ],
@@ -250,7 +184,7 @@ export async function runEdgarDisclosureCrawl(
       market_type: "us" as const,
       signal_status: signalFromSentiment(analysis.sentiment),
       membership_type: "free" as const,
-      gemini_metadata: { source: "edgar-disclosure-crawl", accession: acc },
+      gemini_metadata: { source: "edgar-disclosure-crawl", accession: acc, llm: "together" },
     };
 
     const { error: insErr } = await client.from("disclosures").insert(insertRow);

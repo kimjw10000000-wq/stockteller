@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeDisclosureText } from "@/lib/gemini/analyzeDisclosure";
+import { analyzeDisclosureText } from "@/lib/llm/analyze-disclosure";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 60;
@@ -56,8 +56,9 @@ export async function POST(req: Request) {
       sentiment,
       analysis_score: score,
       gemini_metadata: {
-        gemini_ok: result.ok,
-        gemini_error: result.ok ? null : result.error,
+        llm: "together",
+        llm_ok: result.ok,
+        llm_error: result.ok ? null : result.error,
       },
     };
 

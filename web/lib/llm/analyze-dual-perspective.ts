@@ -1,10 +1,5 @@
-/**
- * 동일 공시 본문에 대해 호재(bull)·악재(bear) 관점을 나눠 JSON으로 받습니다.
- */
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Sentiment } from "@/lib/types";
-
-const DEFAULT_MODEL = "gemini-3-flash-preview";
+import { TogetherApiError, isTogetherConfigured, togetherChatJson, togetherModel } from "@/lib/together/client";
 
 export type PerspectiveBlock = {
   title: string;
@@ -71,35 +66,25 @@ export type AnalyzeDualResult =
   | { ok: false; error: string };
 
 export async function analyzeDualPerspective(rawContent: string): Promise<AnalyzeDualResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const modelName = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
-  if (!apiKey) {
-    return { ok: false, error: "GEMINI_API_KEY is not configured" };
+  if (!isTogetherConfigured()) {
+    return { ok: false, error: "TOGETHER_API_KEY is not configured" };
   }
 
   const truncated =
-    rawContent.length > 48_000 ? `${rawContent.slice(0, 48_000)}\n\n[truncated]` : rawContent;
+    rawContent.length > 24_000 ? `${rawContent.slice(0, 24_000)}\n\n[truncated]` : rawContent;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.35,
-      },
+    const text = await togetherChatJson({
+      system: SYSTEM_INSTRUCTION,
+      user: truncated,
+      temperature: 0.2,
+      maxTokens: 1200,
     });
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: truncated }] }],
-    });
-    const text = result.response.text();
-    if (!text) return { ok: false, error: "Empty response from Gemini" };
     const data = parseJson(text);
-    return { ok: true, data, model: modelName };
+    return { ok: true, data, model: togetherModel() };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Gemini error";
+    const message =
+      e instanceof TogetherApiError ? e.message : e instanceof Error ? e.message : "LLM error";
     console.error("[analyzeDualPerspective]", message);
     return { ok: false, error: message };
   }

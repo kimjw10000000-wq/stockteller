@@ -37,6 +37,7 @@ export async function togetherChatJson(params: {
   system: string;
   user: string;
   temperature?: number;
+  maxTokens?: number;
 }): Promise<string> {
   const apiKey = process.env.TOGETHER_API_KEY?.trim();
   if (!apiKey) {
@@ -57,6 +58,8 @@ export async function togetherChatJson(params: {
         { role: "system", content: params.system },
         { role: "user", content: params.user },
       ] satisfies ChatMessage[],
+      chat_template_kwargs: { enable_thinking: false },
+      max_tokens: params.maxTokens ?? 800,
     }),
   });
 

@@ -1,7 +1,7 @@
 /**
  * CLI entry for SEC disclosure crawl.
- * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY,
- * optional GEMINI_MODEL / SEC_USER_AGENT / CRAWL_MAX_ITEMS
+ * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOGETHER_API_KEY,
+ * optional TOGETHER_MODEL / SEC_USER_AGENT / CRAWL_MAX_ITEMS
  */
 import { config } from "dotenv";
 import { resolve } from "node:path";

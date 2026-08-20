@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeDualPerspective } from "@/lib/gemini/analyzeDualPerspective";
+import { analyzeDualPerspective } from "@/lib/llm/analyze-dual-perspective";
 import { fetchLatest8kPlainText } from "@/lib/sec/edgar-latest-8k";
 
 export const maxDuration = 120;
@@ -32,12 +32,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const gem = await analyzeDualPerspective(eight.plainText);
-  if (!gem.ok) {
+  const llm = await analyzeDualPerspective(eight.plainText);
+  if (!llm.ok) {
     return NextResponse.json(
       {
         ok: false,
-        error: gem.error,
+        error: llm.error,
         filing: {
           filingDate: eight.filingDate,
           accessionNumber: eight.accessionNumber,
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       cik: eight.cikPadded,
       secViewerUrl: `https://www.sec.gov/cgi-bin/viewer?action=view&cik=${encodeURIComponent(eight.cikPadded)}&accession_number=${encodeURIComponent(eight.accessionNumber)}&xbrl_type=v`,
     },
-    analysis: gem.data,
-    model: gem.model,
+    analysis: llm.data,
+    model: llm.model,
   });
 }
