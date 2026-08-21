@@ -86,7 +86,10 @@ export function LoginForm({ initialError = "" }: LoginFormProps) {
             />
           </AuthField>
           <p className="text-right text-sm">
-            <Link href="/forgot-password" className="text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline">
+            <Link
+              href="/forgot-password"
+              className="text-zinc-400 underline-offset-4 transition-colors hover:text-zinc-200 hover:underline"
+            >
               비밀번호를 잊으셨나요?
             </Link>
           </p>

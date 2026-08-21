@@ -30,7 +30,8 @@ function maxForPath(pathname: string): number {
     pathname.startsWith("/api/disclosures") ||
     pathname.startsWith("/api/compliance") ||
     pathname.startsWith("/api/admin") ||
-    pathname.startsWith("/api/signup")
+    pathname.startsWith("/api/signup") ||
+    pathname.startsWith("/api/recover")
   ) {
     return STRICT_MAX;
   }

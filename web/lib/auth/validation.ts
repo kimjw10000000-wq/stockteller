@@ -69,6 +69,9 @@ export function authCallbackUrl(next = "/"): string {
 }
 
 export const OTP_TTL_SEC = 180;
+export const OTP_RESEND_SEC = 60;
 export const OTP_LENGTH = 8;
 export const OTP_PLACEHOLDER = "-".repeat(OTP_LENGTH);
+export const RECOVERY_OTP_LENGTH = 6;
+export const RECOVERY_OTP_PLACEHOLDER = "-".repeat(RECOVERY_OTP_LENGTH);
 export const AUTH_HOME = "/feed";
