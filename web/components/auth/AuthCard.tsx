@@ -1,8 +1,9 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { qwertyCharFromKeyboardEvent } from "@/lib/auth/password-keys";
 import { sanitizePasswordInput } from "@/lib/auth/validation";
 
 export function AuthCard({
@@ -82,9 +83,21 @@ export function AuthPasswordInput({
   disabled?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const caretRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (el && caretRef.current != null) {
+      el.setSelectionRange(caretRef.current, caretRef.current);
+      caretRef.current = null;
+    }
+  }, [value]);
+
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         id={id}
         className={cn(authInputClass, "pr-11")}
         type={visible ? "text" : "password"}
@@ -96,9 +109,17 @@ export function AuthPasswordInput({
         inputMode="text"
         value={value}
         onChange={(e) => onChange(sanitizePasswordInput(e.target.value))}
-        onBeforeInput={(e) => {
-          const data = (e.nativeEvent as InputEvent).data;
-          if (data && /[^\x20-\x7E]/.test(data)) e.preventDefault();
+        onKeyDown={(e) => {
+          if (disabled || e.ctrlKey || e.metaKey || e.altKey) return;
+          const ch = qwertyCharFromKeyboardEvent(e.nativeEvent);
+          if (!ch) return;
+          e.preventDefault();
+          const el = inputRef.current;
+          const start = el?.selectionStart ?? value.length;
+          const end = el?.selectionEnd ?? value.length;
+          const next = sanitizePasswordInput(value.slice(0, start) + ch + value.slice(end));
+          caretRef.current = start + ch.length;
+          onChange(next);
         }}
         required={required}
         disabled={disabled}

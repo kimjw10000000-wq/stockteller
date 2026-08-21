@@ -5,9 +5,11 @@ export function validateEmail(email: string): string | null {
   return null;
 }
 
-/** 최소 8자, 영문 + 숫자. ASCII(영문·숫자·기호)만 허용 */
+import { hangulKeysToQwerty } from "@/lib/auth/password-keys";
+
+/** 한글 자판 입력을 영문 키로 바꾼 뒤 ASCII만 남김 */
 export function sanitizePasswordInput(raw: string): string {
-  return raw.replace(/[^\x20-\x7E]/g, "");
+  return hangulKeysToQwerty(raw).replace(/[^\x20-\x7E]/g, "");
 }
 
 export function validatePassword(password: string): string | null {
