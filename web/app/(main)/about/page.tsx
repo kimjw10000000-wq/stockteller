@@ -4,7 +4,7 @@ import { CONTACT_EMAIL, SITE_NAME_EN, SITE_NAME_KO } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "사이트 소개",
-  description: `${SITE_NAME_KO} — 미국 주식 공시·상장유지·거래정지·거시지표를 정리하는 정보 사이트`,
+  description: `${SITE_NAME_KO} — 미국 주식 공시·희석 감시·거래정지·거시지표를 정리하는 정보 사이트`,
   alternates: { canonical: "/about" },
 };
 
@@ -18,10 +18,12 @@ export default function AboutPage() {
       </p>
       <h2>제공하는 도구</h2>
       <ul>
-        <li>공시 피드: 미국 SEC 공시를 요약해 보여 줍니다.</li>
-        <li>상장폐지 D-Day / 종목 분석: 나스닥 상장 유지 기준, $1 입찰가 통보, 선반등록 규모.</li>
-        <li>실시간 서킷 현황: 나스닥 Halt/Resume 및 국내 VI 참고 정보.</li>
-        <li>주요지표: 미국 CPI / PPI 예측치와 공식 발표치.</li>
+        <li>파수꾼: 오퍼링·S-3/F-3 등 지분희석 관련 공시를 감시합니다.</li>
+        <li>분석글: 사람이 작성한 분석글을 모읍니다.</li>
+        <li>News/SEC: Newsfilter 기사와 SEC EDGAR 공시를 요약하고 호재·악재를 구분합니다.</li>
+        <li>실시간 발표: 미국 CPI / PPI 예측치와 공식 발표치, 기업 실적 비교.</li>
+        <li>TradeHalt: 나스닥 Halt/Resume 및 국내 VI 참고 정보.</li>
+        <li>비슷한 급등주 찾기: 급등 패턴이 비슷한 종목을 찾는 기능(준비 중).</li>
       </ul>
       <h2>운영</h2>
       <p>

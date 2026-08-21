@@ -248,7 +248,7 @@ export function TradeHaltsPanel() {
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
-          실시간 서킷 현황
+          TradeHalt
         </h1>
         <div ref={searchWrapRef} className="relative min-w-[180px] flex-1 sm:max-w-[260px]">
           <Search

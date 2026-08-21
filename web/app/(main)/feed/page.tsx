@@ -11,11 +11,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "뉴스",
-  description: `${SITE_NAME_KO}(${SITE_NAME_EN}) — AI가 정리한 뉴스·공시 요약`,
+  title: "분석글",
+  description: `${SITE_NAME_KO}(${SITE_NAME_EN}) — 분석글 모음`,
   alternates: { canonical: "/feed" },
   openGraph: {
-    title: `뉴스 · ${SITE_NAME_KO}`,
+    title: `분석글 · ${SITE_NAME_KO}`,
     description: SITE_TAGLINE,
   },
 };

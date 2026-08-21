@@ -11,7 +11,7 @@ export function FeedPageHeader({ q }: FeedPageHeaderProps) {
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-semibold text-foreground">최신 뉴스</h1>
+        <h1 className="text-xl font-semibold text-foreground">분석글</h1>
         <Suspense fallback={<div className="h-8 w-48 animate-pulse rounded-md bg-muted" />}>
           <NewsSortBar />
         </Suspense>

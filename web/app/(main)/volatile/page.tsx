@@ -18,7 +18,7 @@ export default function VolatilePage() {
           className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          뉴스로
+          분석글로
         </Link>
       </nav>
 
@@ -30,7 +30,7 @@ export default function VolatilePage() {
         있으면 서버에서 <strong>Finnhub 시세(dp)</strong>로 등락·가격을 맞춥니다(무료 플랜은 <strong>거래소 지연</strong>·티크 단위
         실시간은 아님). Yahoo가 막힐 때만 <span className="whitespace-nowrap">ALPHA_VANTAGE_API_KEY</span>로 채우는데, 그때는
         <strong>전일(또는 지연) 스냅샷</strong>일 수 있어 &ldquo;어제 종목&rdquo;처럼 보일 수 있습니다.{" "}
-        <code className="rounded bg-slate-100 px-1">TOGETHER_API_KEY</code>·
+        <code className="rounded bg-slate-100 px-1">GROQ_API_KEY</code>·
         <code className="rounded bg-slate-100 px-1">SEC_USER_AGENT</code>(연락 가능한 UA)도 필요합니다.
       </p>
 

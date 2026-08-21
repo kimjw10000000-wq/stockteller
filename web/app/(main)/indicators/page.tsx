@@ -3,8 +3,8 @@ import { IndicatorsLivePanel } from "@/components/indicators/IndicatorsLivePanel
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "주요지표 바로 보기",
-  description: `${SITE_NAME_KO} — 미국 CPI / PPI 예측·실제 발표 실시간 보기`,
+  title: "실시간 발표",
+  description: `${SITE_NAME_KO} — CPI·PPI 등 경제지표와 기업 실적 발표`,
   alternates: { canonical: "/indicators" },
 };
 

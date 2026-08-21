@@ -6,35 +6,46 @@ export type SiteNavItem = {
   match: (pathname: string) => boolean;
 };
 
-export const SITE_NAV_ITEMS: SiteNavItem[] = [
+/** 검색창 아래 가로 GNB (좌측 → 우측 순서) */
+export const SITE_GNB_ITEMS: SiteNavItem[] = [
   {
-    href: "/",
-    label: "홈",
-    description: "메인 화면 및 분석 보고서 모음",
+    href: "/watchman",
+    label: "파수꾼",
+    description: "지분희석·오퍼링·S-3/F-3 감시",
+    match: (pathname) => pathname.startsWith("/watchman"),
+  },
+  {
+    href: "/feed",
+    label: "분석글",
+    description: "사람이 작성한 분석글 목록",
     match: (pathname) =>
       pathname === "/" ||
       pathname.startsWith("/feed") ||
       pathname.startsWith("/disclosure") ||
-      pathname.startsWith("/news") ||
-      pathname.startsWith("/search") ||
-      pathname.startsWith("/volatile"),
+      pathname.startsWith("/news/"),
   },
   {
-    href: "/compliance",
-    label: "상장폐지 D-Day / 종목 분석",
-    description: "나스닥 5550·S-3/F-3 오퍼링 가능성·상장폐지 유예기간",
-    match: (pathname) => pathname.startsWith("/compliance"),
-  },
-  {
-    href: "/halts",
-    label: "실시간 서킷 현황",
-    description: "나스닥/미국 주식 거래 정지(Halt) 및 해제 현황",
-    match: (pathname) => pathname.startsWith("/halts"),
+    href: "/news-sec",
+    label: "News/SEC",
+    description: "Newsfilter 및 SEC EDGAR 공시 요약",
+    match: (pathname) => pathname.startsWith("/news-sec"),
   },
   {
     href: "/indicators",
-    label: "주요지표 바로 보기",
-    description: "미국 CPI / PPI 예측·실제 발표 실시간",
+    label: "실시간 발표",
+    description: "CPI·PPI 및 기업 실적 발표",
     match: (pathname) => pathname.startsWith("/indicators"),
+  },
+  {
+    href: "/halts",
+    label: "TradeHalt",
+    description: "미국 주식 거래 정지·재개",
+    match: (pathname) => pathname.startsWith("/halts"),
+  },
+  {
+    href: "/similar-movers",
+    label: "비슷한 급등주 찾기",
+    description: "준비 중인 기능",
+    match: (pathname) => pathname.startsWith("/similar-movers"),
   },
 ];

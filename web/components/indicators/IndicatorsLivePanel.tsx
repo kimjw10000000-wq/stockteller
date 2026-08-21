@@ -315,11 +315,12 @@ export function IndicatorsLivePanel() {
           US Macro · BLS
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950 sm:text-3xl">
-          주요지표 바로 보기
+          실시간 발표
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">
           CPI / PPI 예측치와 BLS 실제 발표치를 나란히 표시합니다. 발표 직후는 보도자료
           페이지를, 그 이후에는 BLS 공식 API의 최신 전월대비(계절조정) 수치를 사용합니다.
+          주요·설정 기업 실적(예상치 vs 실제치) 비교도 이 화면에서 이어집니다.
         </p>
         <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-neutral-500">
           <Radio className={`h-3.5 w-3.5 ${connected ? "text-emerald-600" : "text-neutral-400"}`} />

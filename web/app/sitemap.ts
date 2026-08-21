@@ -22,16 +22,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      url: `${base}/watchman`,
+      lastModified: new Date(),
+      changeFrequency: "hourly",
+      priority: 0.8,
+    },
+    {
+      url: `${base}/news-sec`,
+      lastModified: new Date(),
+      changeFrequency: "hourly",
+      priority: 0.8,
+    },
+    {
       url: `${base}/volatile`,
       lastModified: new Date(),
       changeFrequency: "hourly",
       priority: 0.75,
-    },
-    {
-      url: `${base}/compliance`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.7,
     },
     {
       url: `${base}/halts`,
@@ -44,6 +50,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: "hourly",
       priority: 0.75,
+    },
+    {
+      url: `${base}/similar-movers`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.4,
     },
     {
       url: `${base}/about`,
