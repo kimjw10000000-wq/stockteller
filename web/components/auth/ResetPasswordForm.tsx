@@ -2,9 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { mapAuthError, validatePassword } from "@/lib/auth/validation";
+import { Loader2 } from "lucide-react";
+import {
+  AuthCard,
+  AuthError,
+  AuthField,
+  AuthToast,
+  authInputClass,
+  authPrimaryBtnClass,
+} from "@/components/auth/AuthCard";
+import { AUTH_HOME, mapAuthError, validatePassword } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function ResetPasswordForm() {
@@ -14,6 +21,7 @@ export function ResetPasswordForm() {
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -69,51 +77,49 @@ export function ResetPasswordForm() {
       setError(mapAuthError(updateError.message, updateError.code));
       return;
     }
-    router.replace("/");
-    router.refresh();
+    setToast("비밀번호가 변경되었습니다.");
+    window.setTimeout(() => {
+      router.replace(AUTH_HOME);
+      router.refresh();
+    }, 900);
   }
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
-      <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="new-password" className="text-sm font-medium">
-            새 비밀번호
-          </label>
-          <Input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={!ready}
-          />
-          <p className="text-xs text-muted-foreground">8자 이상, 영문과 숫자를 함께 사용하세요.</p>
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="new-password-confirm" className="text-sm font-medium">
-            새 비밀번호 확인
-          </label>
-          <Input
-            id="new-password-confirm"
-            type="password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-            disabled={!ready}
-          />
-        </div>
-        {error ? (
-          <p className="text-sm text-red-500" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <Button type="submit" className="w-full" disabled={loading || !ready}>
-          {loading ? "변경 중…" : "비밀번호 변경"}
-        </Button>
-      </form>
-    </div>
+    <>
+      <AuthToast message={toast} />
+      <AuthCard title="새 비밀번호" subtitle="인증된 계정에 새 비밀번호를 저장합니다.">
+        <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
+          <AuthField id="new-password" label="새 비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
+            <input
+              id="new-password"
+              className={authInputClass}
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={!ready}
+            />
+          </AuthField>
+          <AuthField id="new-password-confirm" label="새 비밀번호 확인">
+            <input
+              id="new-password-confirm"
+              className={authInputClass}
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              disabled={!ready}
+            />
+          </AuthField>
+          <AuthError message={error} />
+          <button type="submit" className={authPrimaryBtnClass} disabled={loading || !ready}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {loading ? "변경 중…" : "비밀번호 변경"}
+          </button>
+        </form>
+      </AuthCard>
+    </>
   );
 }

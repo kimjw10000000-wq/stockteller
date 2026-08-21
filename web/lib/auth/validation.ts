@@ -33,13 +33,28 @@ export function mapAuthError(message: string, code?: string): string {
     return "이메일 또는 비밀번호가 올바르지 않습니다.";
   }
   if (blob.includes("email not confirmed")) {
-    return "이메일 인증이 아직 완료되지 않았습니다. 메일함의 링크를 확인해 주세요.";
+    return "이메일 인증이 아직 완료되지 않았습니다.";
+  }
+  if (blob.includes("otp_expired") || (blob.includes("expired") && blob.includes("otp"))) {
+    return "인증번호가 만료되었습니다. 다시 받아 주세요.";
+  }
+  if (
+    blob.includes("otp") &&
+    (blob.includes("invalid") || blob.includes("token") || blob.includes("confirm"))
+  ) {
+    return "인증번호가 올바르지 않습니다.";
+  }
+  if (blob.includes("over_email_send_rate") || blob.includes("rate limit")) {
+    return "인증 메일을 너무 자주 보냈습니다. 잠시 후 다시 시도해 주세요.";
   }
   return message || "요청을 처리하지 못했습니다.";
 }
 
-export function oauthRedirectTo(next = "/"): string {
+export function authCallbackUrl(next = "/"): string {
   const origin = window.location.origin;
   const safe = next.startsWith("/") && !next.startsWith("//") ? next : "/";
   return `${origin}/auth/callback?next=${encodeURIComponent(safe)}`;
 }
+
+export const OTP_TTL_SEC = 180;
+export const AUTH_HOME = "/feed";

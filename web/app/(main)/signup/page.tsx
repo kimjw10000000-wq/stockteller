@@ -7,8 +7,7 @@ export const metadata: Metadata = {
 
 export default function SignupPage() {
   return (
-    <main className="mx-auto max-w-md py-4">
-      <h1 className="mb-6 text-center text-2xl font-semibold text-foreground">회원가입</h1>
+    <main className="flex justify-center py-4">
       <SignupForm />
     </main>
   );

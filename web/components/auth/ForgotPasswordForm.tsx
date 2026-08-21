@@ -2,9 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { oauthRedirectTo, validateEmail } from "@/lib/auth/validation";
+import { Loader2 } from "lucide-react";
+import {
+  AuthCard,
+  AuthError,
+  AuthField,
+  authInputClass,
+  authPrimaryBtnClass,
+} from "@/components/auth/AuthCard";
+import { authCallbackUrl, validateEmail } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function ForgotPasswordForm() {
@@ -25,7 +31,7 @@ export function ForgotPasswordForm() {
     setInfo("");
     const supabase = createSupabaseBrowserClient();
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: oauthRedirectTo("/reset-password"),
+      redirectTo: authCallbackUrl("/reset-password"),
     });
     setLoading(false);
     if (resetError) {
@@ -36,40 +42,35 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <AuthCard title="비밀번호 찾기" subtitle="가입한 이메일로 재설정 링크를 보냅니다.">
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="forgot-email" className="text-sm font-medium">
-            이메일
-          </label>
-          <Input
+        <AuthField id="forgot-email" label="이메일">
+          <input
             id="forgot-email"
+            className={authInputClass}
             type="email"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-        </div>
-        {error ? (
-          <p className="text-sm text-red-500" role="alert">
-            {error}
-          </p>
-        ) : null}
+        </AuthField>
+        <AuthError message={error} />
         {info ? (
-          <p className="text-sm text-foreground" role="status">
+          <p className="text-sm text-zinc-200" role="status">
             {info}
           </p>
         ) : null}
-        <Button type="submit" className="w-full" disabled={loading}>
+        <button type="submit" className={authPrimaryBtnClass} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {loading ? "보내는 중…" : "재설정 링크 받기"}
-        </Button>
+        </button>
       </form>
-      <p className="text-center text-sm">
-        <Link href="/login" className="text-muted-foreground underline-offset-4 hover:underline">
+      <p className="mt-5 text-center text-sm">
+        <Link href="/login" className="text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline">
           로그인으로 돌아가기
         </Link>
       </p>
-    </div>
+    </AuthCard>
   );
 }
