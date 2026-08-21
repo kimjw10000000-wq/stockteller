@@ -3,6 +3,7 @@
 import { Eye, EyeOff } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { sanitizePasswordInput } from "@/lib/auth/validation";
 
 export function AuthCard({
   title,
@@ -88,8 +89,17 @@ export function AuthPasswordInput({
         className={cn(authInputClass, "pr-11")}
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
+        lang="en"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        inputMode="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(sanitizePasswordInput(e.target.value))}
+        onBeforeInput={(e) => {
+          const data = (e.nativeEvent as InputEvent).data;
+          if (data && /[^\x20-\x7E]/.test(data)) e.preventDefault();
+        }}
         required={required}
         disabled={disabled}
       />

@@ -5,8 +5,15 @@ export function validateEmail(email: string): string | null {
   return null;
 }
 
-/** 최소 8자, 영문 + 숫자 */
+/** 최소 8자, 영문 + 숫자. ASCII(영문·숫자·기호)만 허용 */
+export function sanitizePasswordInput(raw: string): string {
+  return raw.replace(/[^\x20-\x7E]/g, "");
+}
+
 export function validatePassword(password: string): string | null {
+  if (/[^\x20-\x7E]/.test(password)) {
+    return "비밀번호는 영문, 숫자, 기호만 사용할 수 있습니다.";
+  }
   if (password.length < 8) return "비밀번호는 8자 이상이어야 합니다.";
   if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
     return "비밀번호는 영문과 숫자를 함께 써야 합니다.";
