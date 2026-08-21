@@ -1,5 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DUPLICATE_SIGNUP_EMAIL } from "@/lib/auth/validation";
 
 export async function isEmailRegistered(email: string): Promise<boolean> {
   const admin = createAdminClient();
