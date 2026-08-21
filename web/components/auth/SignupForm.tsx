@@ -59,18 +59,24 @@ export function SignupForm() {
     }
     setLoading(true);
     setError("");
-    const supabase = createSupabaseBrowserClient();
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
-    setLoading(false);
-    if (otpError) {
-      setError(mapAuthError(otpError.message, otpError.code));
-      return;
+    try {
+      const res = await fetch("/api/signup/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setError(json?.error || "인증 메일을 보내지 못했습니다.");
+        return;
+      }
+      setOtp("");
+      setStep(2);
+    } catch {
+      setError("인증 메일을 보내지 못했습니다. 네트워크를 확인해 주세요.");
+    } finally {
+      setLoading(false);
     }
-    setOtp("");
-    setStep(2);
   }
 
   async function verifyOtp() {
@@ -86,14 +92,19 @@ export function SignupForm() {
     setLoading(true);
     setError("");
     const supabase = createSupabaseBrowserClient();
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email: email.trim(),
+    const emailValue = email.trim();
+    const magic = await supabase.auth.verifyOtp({
+      email: emailValue,
       token,
-      type: "email",
+      type: "magiclink",
     });
+    const verified =
+      magic.error
+        ? await supabase.auth.verifyOtp({ email: emailValue, token, type: "email" })
+        : magic;
     setLoading(false);
-    if (verifyError) {
-      setError(mapAuthError(verifyError.message, verifyError.code));
+    if (verified.error) {
+      setError(mapAuthError(verified.error.message, verified.error.code));
       return;
     }
     setStep(3);
@@ -190,6 +201,9 @@ export function SignupForm() {
             </AuthField>
             <p className={cn("text-center text-sm", remain === 0 ? "text-rose-400" : "text-zinc-400")}>
               {remain === 0 ? "시간 만료" : `남은 시간 ${formatRemain(remain)}`}
+            </p>
+            <p className="text-center text-xs text-zinc-500">
+              6자리 숫자가 없으면 스팸함을 확인해 주세요. 링크만 온 메일은 인증번호가 아닙니다.
             </p>
             <AuthError message={error} />
             <button type="submit" className={authPrimaryBtnClass} disabled={loading || remain === 0}>

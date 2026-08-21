@@ -47,6 +47,18 @@ export function mapAuthError(message: string, code?: string): string {
   if (blob.includes("over_email_send_rate") || blob.includes("rate limit")) {
     return "인증 메일을 너무 자주 보냈습니다. 잠시 후 다시 시도해 주세요.";
   }
+  if (blob.includes("not authorized") || blob.includes("email_address_not_authorized")) {
+    return "이 주소로는 인증 메일을 보낼 수 없습니다. Supabase에 Custom SMTP를 연결해야 합니다.";
+  }
+  if (
+    blob.includes("error sending") ||
+    blob.includes("magic link email") ||
+    blob.includes("confirmation mail") ||
+    blob.includes("unexpected_failure") ||
+    message === "{}"
+  ) {
+    return "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
   return message || "요청을 처리하지 못했습니다.";
 }
 
