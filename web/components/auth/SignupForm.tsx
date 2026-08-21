@@ -8,6 +8,7 @@ import {
   AuthCard,
   AuthError,
   AuthField,
+  AuthPasswordInput,
   AuthToast,
   authInputClass,
   authPrimaryBtnClass,
@@ -239,24 +240,20 @@ export function SignupForm() {
             }}
           >
             <AuthField id="signup-password" label="비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
-              <input
+              <AuthPasswordInput
                 id="signup-password"
-                className={authInputClass}
-                type="password"
                 autoComplete="new-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 required
               />
             </AuthField>
             <AuthField id="signup-confirm" label="비밀번호 확인">
-              <input
+              <AuthPasswordInput
                 id="signup-confirm"
-                className={authInputClass}
-                type="password"
                 autoComplete="new-password"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={setConfirm}
                 required
               />
             </AuthField>

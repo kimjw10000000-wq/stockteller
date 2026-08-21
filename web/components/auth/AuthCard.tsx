@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { Eye, EyeOff } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export function AuthCard({
@@ -61,6 +64,46 @@ export const authInputClass =
 
 export const authPrimaryBtnClass =
   "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-zinc-100 text-sm font-semibold text-zinc-950 transition-colors hover:bg-white disabled:pointer-events-none disabled:opacity-50";
+
+export function AuthPasswordInput({
+  id,
+  autoComplete,
+  value,
+  onChange,
+  required,
+  disabled,
+}: {
+  id: string;
+  autoComplete?: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        className={cn(authInputClass, "pr-11")}
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        disabled={disabled}
+      />
+      <button
+        type="button"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-zinc-400 transition-colors hover:text-white"
+        onClick={() => setVisible((open) => !open)}
+        aria-label={visible ? "비밀번호 숨기기" : "비밀번호 보기"}
+      >
+        {visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
 
 export function AuthError({ message }: { message: string }) {
   if (!message) return null;

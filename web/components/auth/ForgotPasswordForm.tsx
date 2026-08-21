@@ -8,6 +8,7 @@ import {
   AuthCard,
   AuthError,
   AuthField,
+  AuthPasswordInput,
   AuthToast,
   authInputClass,
   authPrimaryBtnClass,
@@ -100,7 +101,7 @@ export function ForgotPasswordForm() {
       setError("인증번호가 만료되었습니다. 다시 받아 주세요.");
       return;
     }
-    const token = otp.replace(/\D/g, "");
+    const token = otp.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     if (token.length !== RECOVERY_OTP_LENGTH) {
       setError(`${RECOVERY_OTP_LENGTH}자리 인증번호를 입력해 주세요.`);
       return;
@@ -210,12 +211,16 @@ export function ForgotPasswordForm() {
             <AuthField id="recover-otp" label="인증번호">
               <input
                 id="recover-otp"
-                className={cn(authInputClass, "text-center text-2xl tracking-[0.4em]")}
-                inputMode="numeric"
+                className={cn(authInputClass, "text-center text-2xl tracking-[0.35em]")}
+                inputMode="text"
                 autoComplete="one-time-code"
+                autoCapitalize="characters"
+                spellCheck={false}
                 maxLength={RECOVERY_OTP_LENGTH}
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, RECOVERY_OTP_LENGTH))}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, RECOVERY_OTP_LENGTH))
+                }
                 placeholder={RECOVERY_OTP_PLACEHOLDER}
                 required
               />
@@ -259,24 +264,20 @@ export function ForgotPasswordForm() {
             }}
           >
             <AuthField id="recover-password" label="새 비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
-              <input
+              <AuthPasswordInput
                 id="recover-password"
-                className={authInputClass}
-                type="password"
                 autoComplete="new-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 required
               />
             </AuthField>
             <AuthField id="recover-confirm" label="새 비밀번호 확인">
-              <input
+              <AuthPasswordInput
                 id="recover-confirm"
-                className={authInputClass}
-                type="password"
                 autoComplete="new-password"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={setConfirm}
                 required
               />
             </AuthField>

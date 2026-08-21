@@ -7,8 +7,8 @@ import {
   AuthCard,
   AuthError,
   AuthField,
+  AuthPasswordInput,
   AuthToast,
-  authInputClass,
   authPrimaryBtnClass,
 } from "@/components/auth/AuthCard";
 import { AUTH_HOME, mapAuthError, validatePassword } from "@/lib/auth/validation";
@@ -90,25 +90,21 @@ export function ResetPasswordForm() {
       <AuthCard title="새 비밀번호" subtitle="인증된 계정에 새 비밀번호를 저장합니다.">
         <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
           <AuthField id="new-password" label="새 비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
-            <input
+            <AuthPasswordInput
               id="new-password"
-              className={authInputClass}
-              type="password"
               autoComplete="new-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               required
               disabled={!ready}
             />
           </AuthField>
           <AuthField id="new-password-confirm" label="새 비밀번호 확인">
-            <input
+            <AuthPasswordInput
               id="new-password-confirm"
-              className={authInputClass}
-              type="password"
               autoComplete="new-password"
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={setConfirm}
               required
               disabled={!ready}
             />

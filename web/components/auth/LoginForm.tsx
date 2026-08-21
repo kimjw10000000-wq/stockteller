@@ -8,6 +8,7 @@ import {
   AuthCard,
   AuthError,
   AuthField,
+  AuthPasswordInput,
   AuthToast,
   authInputClass,
   authPrimaryBtnClass,
@@ -75,13 +76,11 @@ export function LoginForm({ initialError = "" }: LoginFormProps) {
             />
           </AuthField>
           <AuthField id="login-password" label="비밀번호">
-            <input
+            <AuthPasswordInput
               id="login-password"
-              className={authInputClass}
-              type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               required
             />
           </AuthField>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendSignupOtp } from "@/lib/auth/send-signup-otp";
-import { validateEmail } from "@/lib/auth/validation";
+import { DUPLICATE_SIGNUP_EMAIL, validateEmail } from "@/lib/auth/validation";
 
 export async function POST(request: Request) {
   let email = "";
@@ -21,7 +21,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "인증 메일을 보내지 못했습니다.";
-    const status = message.includes("RESEND_API_KEY") ? 503 : 500;
+    const status = message.includes("RESEND_API_KEY")
+      ? 503
+      : message === DUPLICATE_SIGNUP_EMAIL
+        ? 409
+        : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

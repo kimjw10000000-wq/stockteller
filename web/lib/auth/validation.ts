@@ -14,19 +14,23 @@ export function validatePassword(password: string): string | null {
   return null;
 }
 
+export const DUPLICATE_SIGNUP_EMAIL =
+  "이미 회원가입된 이메일입니다. 로그인을 진행해 주세요.";
+
 export function isDuplicateEmailError(message: string, code?: string): boolean {
   const blob = `${code ?? ""} ${message}`.toLowerCase();
   return (
     blob.includes("user_already_exists") ||
     blob.includes("already registered") ||
     blob.includes("already been registered") ||
-    blob.includes("email address is already")
+    blob.includes("email address is already") ||
+    message === DUPLICATE_SIGNUP_EMAIL
   );
 }
 
 export function mapAuthError(message: string, code?: string): string {
   if (isDuplicateEmailError(message, code)) {
-    return "이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해 주세요.";
+    return DUPLICATE_SIGNUP_EMAIL;
   }
   const blob = `${code ?? ""} ${message}`.toLowerCase();
   if (blob.includes("invalid login") || blob.includes("invalid credentials")) {
@@ -72,6 +76,6 @@ export const OTP_TTL_SEC = 180;
 export const OTP_RESEND_SEC = 60;
 export const OTP_LENGTH = 8;
 export const OTP_PLACEHOLDER = "-".repeat(OTP_LENGTH);
-export const RECOVERY_OTP_LENGTH = 6;
+export const RECOVERY_OTP_LENGTH = 8;
 export const RECOVERY_OTP_PLACEHOLDER = "-".repeat(RECOVERY_OTP_LENGTH);
 export const AUTH_HOME = "/feed";
