@@ -14,6 +14,8 @@ import {
 } from "@/components/auth/AuthCard";
 import {
   AUTH_HOME,
+  OTP_LENGTH,
+  OTP_PLACEHOLDER,
   OTP_TTL_SEC,
   mapAuthError,
   validateEmail,
@@ -84,9 +86,9 @@ export function SignupForm() {
       setError("인증번호가 만료되었습니다. 다시 받아 주세요.");
       return;
     }
-    const token = otp.replace(/\D/g, "");
-    if (token.length !== 6) {
-      setError("6자리 인증번호를 입력해 주세요.");
+    const token = otp.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    if (token.length !== OTP_LENGTH) {
+      setError(`${OTP_LENGTH}자리 인증번호를 입력해 주세요.`);
       return;
     }
     setLoading(true);
@@ -145,7 +147,7 @@ export function SignupForm() {
           step === 1
             ? "이메일이 아이디입니다. 인증번호를 보내 드립니다."
             : step === 2
-              ? `${email} 으로 보낸 6자리 코드를 입력하세요.`
+              ? `${email} 으로 보낸 ${OTP_LENGTH}자리 코드를 입력하세요.`
               : "비밀번호를 설정하면 가입이 끝납니다."
         }
         step={step}
@@ -189,13 +191,17 @@ export function SignupForm() {
             <AuthField id="signup-otp" label="인증번호">
               <input
                 id="signup-otp"
-                className={cn(authInputClass, "text-center text-2xl tracking-[0.4em]")}
-                inputMode="numeric"
+                className={cn(authInputClass, "text-center text-2xl tracking-[0.35em]")}
+                inputMode="text"
                 autoComplete="one-time-code"
-                maxLength={6}
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={OTP_LENGTH}
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000"
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, OTP_LENGTH))
+                }
+                placeholder={OTP_PLACEHOLDER}
                 required
               />
             </AuthField>
@@ -203,7 +209,7 @@ export function SignupForm() {
               {remain === 0 ? "시간 만료" : `남은 시간 ${formatRemain(remain)}`}
             </p>
             <p className="text-center text-xs text-zinc-500">
-              6자리 숫자가 없으면 스팸함을 확인해 주세요. 링크만 온 메일은 인증번호가 아닙니다.
+              {OTP_LENGTH}자리 코드가 없으면 스팸함을 확인해 주세요.
             </p>
             <AuthError message={error} />
             <button type="submit" className={authPrimaryBtnClass} disabled={loading || remain === 0}>
