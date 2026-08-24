@@ -13,6 +13,7 @@ import {
 } from "@/lib/halts/elapsed";
 import type { TradeHaltItem } from "@/lib/halts/nasdaq-trade-halts";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 type HaltsResponse = {
   items: TradeHaltItem[];
@@ -125,6 +126,7 @@ function ElapsedCell({
 }
 
 export function TradeHaltsPanel() {
+  const { t } = useI18n();
   const [items, setItems] = useState<TradeHaltItem[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -244,7 +246,7 @@ export function TradeHaltsPanel() {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-neutral-500">Market · Halts</p>
+      <p className="text-xs font-medium text-neutral-500">{t("halts.kicker")}</p>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
@@ -270,9 +272,9 @@ export function TradeHaltsPanel() {
               }
               if (e.key === "Escape") setDropdownOpen(false);
             }}
-            placeholder="티커 · 회사명"
+            placeholder={t("halts.searchPlaceholder")}
             className="h-9 rounded-lg border-border bg-input-background pl-8 text-sm"
-            aria-label="현재 Halt 목록 검색"
+            aria-label={t("halts.searchAria")}
             autoComplete="off"
           />
           {dropdownOpen && query.trim() ? (

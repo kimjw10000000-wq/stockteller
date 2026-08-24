@@ -12,10 +12,12 @@ import {
   authPrimaryBtnClass,
 } from "@/components/auth/AuthCard";
 import { AUTH_HOME, mapAuthError, validatePassword } from "@/lib/auth/validation";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function ResetPasswordForm() {
   const router = useRouter();
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -87,9 +89,9 @@ export function ResetPasswordForm() {
   return (
     <>
       <AuthToast message={toast} />
-      <AuthCard title="새 비밀번호" subtitle="인증된 계정에 새 비밀번호를 저장합니다.">
+      <AuthCard title={t("auth.newPasswordTitle")} subtitle={t("auth.newPasswordSubtitle")}>
         <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-          <AuthField id="new-password" label="새 비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
+          <AuthField id="new-password" label={t("auth.newPassword")} hint={t("auth.passwordHint")}>
             <AuthPasswordInput
               id="new-password"
               autoComplete="new-password"
@@ -99,7 +101,7 @@ export function ResetPasswordForm() {
               disabled={!ready}
             />
           </AuthField>
-          <AuthField id="new-password-confirm" label="새 비밀번호 확인">
+          <AuthField id="new-password-confirm" label={t("auth.newPasswordConfirm")}>
             <AuthPasswordInput
               id="new-password-confirm"
               autoComplete="new-password"

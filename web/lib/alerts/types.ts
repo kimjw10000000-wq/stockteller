@@ -1,5 +1,10 @@
 export type AlertStatus = "watching" | "inactive" | "sent_today";
 
+export type TickerHit = {
+  ticker: string;
+  name: string;
+};
+
 export type DilutionAlertDto = {
   id: string;
   ticker: string | null;

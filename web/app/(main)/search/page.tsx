@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SearchPageHeader } from "@/components/news/SearchPageHeader";
 import { SearchResultsView } from "@/components/news/SearchResultsView";
 import { searchDisclosures } from "@/lib/disclosures";
 import { SITE_NAME_KO } from "@/lib/site";
@@ -38,16 +39,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <main className="space-y-6">
       <header>
-        {q ? (
-          <h1 className="text-xl font-semibold text-foreground">
-            「{q}」에 대한 검색 결과
-            <span className="ml-2 text-base font-normal text-muted-foreground">
-              (총 {total}건)
-            </span>
-          </h1>
-        ) : (
-          <h1 className="text-xl font-semibold text-foreground">검색</h1>
-        )}
+        <SearchPageHeader q={q} total={total} />
       </header>
       <SearchResultsView q={q} items={items} total={total} />
     </main>

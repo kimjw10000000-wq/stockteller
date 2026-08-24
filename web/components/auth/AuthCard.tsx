@@ -2,9 +2,11 @@
 
 import { Eye, EyeOff } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 import { qwertyCharFromKeyboardEvent } from "@/lib/auth/password-keys";
 import { sanitizePasswordInput } from "@/lib/auth/validation";
+import { hasMessage } from "@/lib/i18n/translate";
 
 export function AuthCard({
   title,
@@ -17,10 +19,11 @@ export function AuthCard({
   step?: 1 | 2 | 3;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <div className="w-full max-w-md rounded-2xl border border-zinc-700/70 bg-zinc-950 p-6 text-zinc-100 shadow-2xl shadow-black/50 sm:p-8">
       {step ? (
-        <div className="mb-5 flex items-center justify-center gap-2" aria-label={`${step} / 3단계`}>
+        <div className="mb-5 flex items-center justify-center gap-2" aria-label={t("auth.stepAria", { step })}>
           {([1, 2, 3] as const).map((n) => (
             <span
               key={n}
@@ -83,6 +86,7 @@ export function AuthPasswordInput({
   disabled?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const caretRef = useRef<number | null>(null);
 
@@ -128,7 +132,7 @@ export function AuthPasswordInput({
         type="button"
         className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-zinc-400 transition-colors hover:text-white"
         onClick={() => setVisible((open) => !open)}
-        aria-label={visible ? "비밀번호 숨기기" : "비밀번호 보기"}
+        aria-label={visible ? t("auth.hidePassword") : t("auth.showPassword")}
       >
         {visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
       </button>
@@ -137,22 +141,24 @@ export function AuthPasswordInput({
 }
 
 export function AuthError({ message }: { message: string }) {
+  const { t } = useI18n();
   if (!message) return null;
   return (
     <p className="text-sm text-rose-400" role="alert">
-      {message}
+      {hasMessage(message) ? t(message) : message}
     </p>
   );
 }
 
 export function AuthToast({ message }: { message: string | null }) {
+  const { t } = useI18n();
   if (!message) return null;
   return (
     <div
       className="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 rounded-lg border border-zinc-600 bg-zinc-800 px-4 py-2.5 text-sm font-medium text-zinc-50 shadow-lg"
       role="status"
     >
-      {message}
+      {hasMessage(message) ? t(message) : message}
     </div>
   );
 }

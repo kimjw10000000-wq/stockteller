@@ -1,6 +1,8 @@
 "use client";
 
+import { memo } from "react";
 import { FileWarning } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { NewsCard } from "@/components/news/NewsCard";
 import { useFeedRealtime } from "@/hooks/use-feed-realtime";
 import { useInfiniteDisclosures } from "@/hooks/use-infinite-disclosures";
@@ -15,13 +17,14 @@ type NewsFeedListProps = {
   q: string;
 };
 
-export function NewsFeedList({
+function NewsFeedListInner({
   initialItems,
   initialCursor,
   sort,
   market,
   q,
 }: NewsFeedListProps) {
+  const { t } = useI18n();
   useFeedRealtime();
   const { items, loading, done, sentinelRef } = useInfiniteDisclosures(
     initialItems,
@@ -37,7 +40,7 @@ export function NewsFeedList({
       >
         <FileWarning className="mb-3 h-10 w-10 text-muted-foreground" aria-hidden />
         <p className="text-sm font-medium text-foreground">
-          {q ? `「${q}」에 맞는 뉴스가 없습니다.` : "아직 표시할 뉴스가 없습니다."}
+          {q ? t("feed.emptyQuery", { q }) : t("feed.empty")}
         </p>
       </div>
     );
@@ -54,11 +57,13 @@ export function NewsFeedList({
       </div>
       <div ref={sentinelRef} className="h-4 w-full" aria-hidden />
       {loading ? (
-        <p className="mt-4 text-center text-sm text-muted-foreground">더 불러오는 중…</p>
+        <p className="mt-4 text-center text-sm text-muted-foreground">{t("feed.loadingMore")}</p>
       ) : null}
       {done && items.length > 0 ? (
-        <p className="mt-4 text-center text-xs text-muted-foreground">모든 뉴스를 불러왔습니다.</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">{t("feed.loadedAll")}</p>
       ) : null}
     </>
   );
 }
+
+export const NewsFeedList = memo(NewsFeedListInner);

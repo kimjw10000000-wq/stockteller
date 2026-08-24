@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Share2, X } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { Button } from "@/components/ui/button";
 import {
   buildKakaoSharePayload,
@@ -40,6 +41,7 @@ export function NewsShareModal({
   description,
   imageUrl,
 }: NewsShareModalProps) {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
@@ -133,7 +135,7 @@ export function NewsShareModal({
             <button
               type="button"
               className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-              aria-label="공유 창 닫기"
+              aria-label={t("news.shareClose")}
               onClick={() => setIsOpen(false)}
             />
 
@@ -141,13 +143,13 @@ export function NewsShareModal({
             <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
               <div className="mb-5 flex items-center justify-between">
                 <h2 id="share-modal-title" className="text-lg font-semibold text-foreground">
-                  공유
+                  {t("news.share")}
                 </h2>
                 <button
                   type="button"
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted active:bg-muted"
                   onClick={() => setIsOpen(false)}
-                  aria-label="닫기"
+                  aria-label={t("news.close")}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -155,7 +157,7 @@ export function NewsShareModal({
 
               <div className="mb-6 flex items-start justify-center gap-6">
                 <ShareCircleButton
-                  label="카카오톡"
+                  label={t("news.kakao")}
                   disabled={!sdkReady}
                   onClick={handleKakaoShare}
                   className="bg-[#FEE500] text-[#191919] hover:bg-[#FEE500]/90"
@@ -163,7 +165,7 @@ export function NewsShareModal({
                   <KakaoIcon />
                 </ShareCircleButton>
                 <ShareCircleButton
-                  label="페이스북"
+                  label={t("news.facebook")}
                   onClick={handleFacebookShare}
                   className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90"
                 >
@@ -182,7 +184,7 @@ export function NewsShareModal({
                 <input
                   readOnly
                   value={shareUrl}
-                  aria-label="뉴스 공유 링크"
+                  aria-label={t("news.shareLinkAria")}
                   className="min-w-0 flex-1 truncate bg-transparent px-2 text-sm text-muted-foreground outline-none"
                 />
                 <Button
@@ -191,7 +193,7 @@ export function NewsShareModal({
                   variant="secondary"
                   onClick={() => void handleCopyLink()}
                 >
-                  복사
+                  {t("news.copy")}
                 </Button>
               </div>
             </div>
@@ -207,7 +209,7 @@ export function NewsShareModal({
             role="status"
             className="fixed bottom-6 left-1/2 z-[110] -translate-x-1/2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background shadow-lg"
           >
-            링크가 복사되었습니다!
+            {t("news.copied")}
           </div>,
           document.body
         )
@@ -232,7 +234,7 @@ export function NewsShareModal({
         aria-expanded={isOpen}
       >
         <Share2 className="h-4 w-4" aria-hidden />
-        공유
+        {t("news.share")}
       </Button>
 
       {modal}

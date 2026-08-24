@@ -1,6 +1,9 @@
-import { DISCLAIMER_BODY, DISCLAIMER_TITLE } from "@/lib/legal";
+"use client";
+
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 export function InvestDisclaimer() {
+  const { t } = useI18n();
   return (
     <aside
       className="mt-8 rounded-lg border border-border/80 bg-muted/30 px-4 py-4 sm:px-5"
@@ -10,9 +13,11 @@ export function InvestDisclaimer() {
         id="invest-disclaimer-heading"
         className="text-sm font-medium text-muted-foreground"
       >
-        {DISCLAIMER_TITLE}
+        {t("news.disclaimerTitle")}
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground/90">{DISCLAIMER_BODY}</p>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground/90">
+        {t("news.disclaimerBody")}
+      </p>
     </aside>
   );
 }

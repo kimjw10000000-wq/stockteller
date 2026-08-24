@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import {
-  SIGNAL_LABELS,
   SIGNAL_NEEDLE_ROTATE,
-  SIGNAL_SHORT_LABELS,
   type SignalStatus,
 } from "@/lib/signal-status";
 
@@ -40,8 +39,15 @@ const ZONE_DEFS: { start: number; end: number; color: string; key: SignalStatus 
 const TICK_ANGLES = [157.5, 112.5, 67.5, 22.5];
 
 export function SignalGauge({ status }: SignalGaugeProps) {
+  const { t } = useI18n();
   const needleDeg = SIGNAL_NEEDLE_ROTATE[status];
-  const label = SIGNAL_LABELS[status];
+  const label = t(`signal.${status}`);
+  const short: Record<SignalStatus, string> = {
+    positive: t("signal.positiveShort"),
+    neutral: t("signal.neutralShort"),
+    caution: t("signal.cautionShort"),
+    danger: t("signal.dangerShort"),
+  };
 
   const zones = useMemo(
     () => ZONE_DEFS.map((z) => ({ d: arcPath(z.start, z.end), ...z })),
@@ -54,7 +60,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
         {/* 실시간 스트리밍형 LIVE 배지 — 계기판 상단 우측 */}
         <div
           className="absolute right-0 top-0 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2 py-1 shadow-sm ring-1 ring-black/5"
-          aria-label="실시간"
+          aria-label={t("signal.live")}
         >
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
@@ -69,7 +75,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
           viewBox="0 0 280 165"
           className="h-auto w-full drop-shadow-sm"
           role="img"
-          aria-label={`실시간 시그널: ${label}`}
+          aria-label={t("signal.aria", { label })}
         >
           <defs>
             <filter id="gauge-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -134,7 +140,7 @@ export function SignalGauge({ status }: SignalGaugeProps) {
           {zones.map((z) => {
             const mid = (z.start + z.end) / 2;
             const pt = polar(mid);
-            const text = SIGNAL_SHORT_LABELS[z.key];
+            const text = short[z.key];
             return (
               <g key={z.key}>
                 <rect
@@ -207,14 +213,14 @@ export function SignalGauge({ status }: SignalGaugeProps) {
       </div>
 
       <p className="mt-1 text-center text-sm font-semibold tracking-tight text-foreground">
-        실시간 시그널
+        {t("signal.title")}
       </p>
       <p className="text-center text-sm font-medium text-foreground">{label}</p>
       <p className="mt-2 max-w-md text-center text-sm leading-relaxed text-muted-foreground">
-        본 계기판은 현재 주가, 차트, 뉴스 등을 종합적으로 판단하여 실시간으로 표시됩니다.
+        {t("signal.gaugeHelp")}
       </p>
       <p className="mt-2 max-w-md text-center text-xs leading-relaxed text-muted-foreground">
-        * 본 알고리즘 시그널은 데이터 수집 및 연산 환경에 따라 수 분의 지연이 발생할 수 있습니다.
+        {t("signal.gaugeDelay")}
       </p>
     </div>
   );

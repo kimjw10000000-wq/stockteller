@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import { I18nProvider } from "@/components/i18n/I18nProvider";
+import { getRequestLocale } from "@/lib/i18n/server";
 import { ADSENSE_CLIENT, getSiteUrl } from "@/lib/site";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -47,8 +49,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = getRequestLocale();
   return (
-    <html lang="ko">
+    <html lang={locale}>
       <head>
         <script
           async
@@ -57,7 +60,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
-        {children}
+        <I18nProvider initialLocale={locale}>{children}</I18nProvider>
         <Analytics />
       </body>
     </html>

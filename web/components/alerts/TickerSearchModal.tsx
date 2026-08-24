@@ -2,11 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { getCachedTickerHits, setCachedTickerHits } from "@/lib/alerts/ticker-search-cache";
+import type { TickerHit } from "@/lib/alerts/types";
 
-export type TickerHit = {
-  ticker: string;
-  name: string;
-};
+export type { TickerHit };
 
 type TickerSearchModalProps = {
   open: boolean;
@@ -21,17 +21,19 @@ export function TickerSearchModal({
   onSelect,
   initialQuery = "",
 }: TickerSearchModalProps) {
+  const { t } = useI18n();
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState(initialQuery);
-  const [hits, setHits] = useState<TickerHit[]>([]);
+  const [hits, setHits] = useState<TickerHit[]>(() => getCachedTickerHits(initialQuery) ?? []);
   const [loading, setLoading] = useState(false);
   const timer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setQuery(initialQuery);
-    setHits([]);
+    const cached = getCachedTickerHits(initialQuery);
+    if (cached) setHits(cached);
     window.setTimeout(() => inputRef.current?.focus(), 0);
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -54,16 +56,23 @@ export function TickerSearchModal({
       setLoading(false);
       return;
     }
+    const cached = getCachedTickerHits(q);
+    if (cached) {
+      setHits(cached);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     timer.current = window.setTimeout(() => {
       void (async () => {
         try {
           const res = await fetch(
-            `/api/compliance/companies?q=${encodeURIComponent(q)}&limit=8`,
-            { cache: "no-store" }
+            `/api/compliance/companies?q=${encodeURIComponent(q)}&limit=8`
           );
           const j = (await res.json()) as { items?: TickerHit[] };
-          setHits(j.items ?? []);
+          const next = j.items ?? [];
+          setCachedTickerHits(q, next);
+          setHits(next);
         } catch {
           setHits([]);
         } finally {
@@ -83,7 +92,7 @@ export function TickerSearchModal({
       <button
         type="button"
         className="absolute inset-0 bg-sky-950/30"
-        aria-label="닫기"
+        aria-label={t("alerts.close")}
         onClick={onClose}
       />
       <div
@@ -91,16 +100,17 @@ export function TickerSearchModal({
         aria-modal="true"
         aria-labelledby={titleId}
         className="relative z-10 flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border-2 border-sky-400 bg-white p-5 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
           <h2 id={titleId} className="text-base font-semibold text-slate-900">
-            종목 검색
+            {t("alerts.searchTitle")}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-sky-50 hover:text-slate-700"
-            aria-label="닫기"
+            aria-label={t("alerts.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -121,8 +131,8 @@ export function TickerSearchModal({
             type="search"
             value={query}
             autoComplete="off"
-            placeholder="티커 또는 회사명"
-            aria-label="티커 또는 회사명 검색"
+            placeholder={t("alerts.searchPlaceholder")}
+            aria-label={t("alerts.searchAria")}
             onChange={(e) => setQuery(e.target.value)}
             className="h-11 w-full rounded-xl border-2 border-sky-400 bg-sky-50 pl-10 pr-10 text-base text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-sky-600 focus-visible:ring-2 focus-visible:ring-sky-300"
           />
@@ -132,7 +142,8 @@ export function TickerSearchModal({
             <li key={hit.ticker}>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   onSelect(hit);
                   onClose();
                 }}
@@ -144,7 +155,7 @@ export function TickerSearchModal({
             </li>
           ))}
           {!loading && query.trim() && hits.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-slate-400">검색 결과가 없습니다.</li>
+            <li className="px-3 py-6 text-center text-sm text-slate-400">{t("alerts.noResults")}</li>
           ) : null}
         </ul>
       </div>

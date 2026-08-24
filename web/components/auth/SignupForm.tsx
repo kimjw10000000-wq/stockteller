@@ -13,10 +13,12 @@ import {
   authInputClass,
   authPrimaryBtnClass,
 } from "@/components/auth/AuthCard";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import {
   AUTH_HOME,
   OTP_LENGTH,
   OTP_PLACEHOLDER,
+  OTP_RESEND_SEC,
   OTP_TTL_SEC,
   mapAuthError,
   validateEmail,
@@ -35,6 +37,7 @@ function formatRemain(sec: number) {
 
 export function SignupForm() {
   const router = useRouter();
+  const { t } = useI18n();
   const [step, setStep] = useState<Step>(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -44,6 +47,7 @@ export function SignupForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
     if (step !== 2) return;
@@ -54,10 +58,22 @@ export function SignupForm() {
     return () => window.clearInterval(id);
   }, [step, email]);
 
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [cooldown]);
+
   async function sendOtp() {
     const emailErr = validateEmail(email);
     if (emailErr) {
       setError(emailErr);
+      return;
+    }
+    if (cooldown > 0) {
+      setError(`인증번호는 ${cooldown}초 후에 다시 받을 수 있습니다.`);
       return;
     }
     setLoading(true);
@@ -68,12 +84,19 @@ export function SignupForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        retryAfterSec?: number;
+      } | null;
       if (!res.ok) {
+        if (res.status === 429 && json?.retryAfterSec) {
+          setCooldown(json.retryAfterSec);
+        }
         setError(json?.error || "인증 메일을 보내지 못했습니다.");
         return;
       }
       setOtp("");
+      setCooldown(OTP_RESEND_SEC);
       setStep(2);
     } catch {
       setError("인증 메일을 보내지 못했습니다. 네트워크를 확인해 주세요.");
@@ -143,7 +166,7 @@ export function SignupForm() {
     <>
       <AuthToast message={toast} />
       <AuthCard
-        title="회원가입"
+        title={t("auth.signupTitle")}
         subtitle={
           step === 1
             ? "이메일이 아이디입니다. 인증번호를 보내 드립니다."
@@ -161,7 +184,7 @@ export function SignupForm() {
               void sendOtp();
             }}
           >
-            <AuthField id="signup-email" label="이메일">
+            <AuthField id="signup-email" label={t("auth.email")}>
               <input
                 id="signup-email"
                 className={authInputClass}
@@ -189,7 +212,7 @@ export function SignupForm() {
               void verifyOtp();
             }}
           >
-            <AuthField id="signup-otp" label="인증번호">
+            <AuthField id="signup-otp" label={t("auth.otp")}>
               <input
                 id="signup-otp"
                 className={cn(authInputClass, "text-center text-2xl tracking-[0.35em]")}
@@ -239,7 +262,7 @@ export function SignupForm() {
               void setPasswordAndFinish();
             }}
           >
-            <AuthField id="signup-password" label="비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
+            <AuthField id="signup-password" label={t("auth.password")} hint={t("auth.passwordHint")}>
               <AuthPasswordInput
                 id="signup-password"
                 autoComplete="new-password"
@@ -248,7 +271,7 @@ export function SignupForm() {
                 required
               />
             </AuthField>
-            <AuthField id="signup-confirm" label="비밀번호 확인">
+            <AuthField id="signup-confirm" label={t("auth.passwordConfirm")}>
               <AuthPasswordInput
                 id="signup-confirm"
                 autoComplete="new-password"

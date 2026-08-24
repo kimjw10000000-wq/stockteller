@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LogIn, LogOut } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type HeaderUser = {
@@ -12,6 +13,7 @@ type HeaderUser = {
 
 export function HeaderAuth() {
   const router = useRouter();
+  const { t } = useI18n();
   const [user, setUser] = useState<HeaderUser | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -29,12 +31,12 @@ export function HeaderAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function onLogout() {
+  const onLogout = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
     setUser(null);
     router.refresh();
-  }
+  }, [router]);
 
   if (!ready) {
     return <div className="h-9 w-[4.5rem] shrink-0" aria-hidden />;
@@ -52,7 +54,7 @@ export function HeaderAuth() {
           className="inline-flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <LogOut className="h-4 w-4" aria-hidden />
-          <span className="hidden sm:inline">로그아웃</span>
+          <span className="hidden sm:inline">{t("header.logout")}</span>
         </button>
       </div>
     );
@@ -61,10 +63,11 @@ export function HeaderAuth() {
   return (
     <Link
       href="/login"
+      prefetch
       className="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent sm:px-3"
     >
       <LogIn className="h-4 w-4" aria-hidden />
-      로그인
+      {t("header.login")}
     </Link>
   );
 }

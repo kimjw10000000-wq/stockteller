@@ -1,7 +1,7 @@
 export type SiteNavItem = {
   href: string;
-  label: string;
-  description: string;
+  labelKey: string;
+  descKey: string;
   /** pathname이 이 패턴이면 활성 */
   match: (pathname: string) => boolean;
 };
@@ -10,14 +10,14 @@ export type SiteNavItem = {
 export const SITE_GNB_ITEMS: SiteNavItem[] = [
   {
     href: "/watchman",
-    label: "경보",
-    description: "지분희석·오퍼링 실시간 알림",
+    labelKey: "nav.alerts",
+    descKey: "nav.alertsDesc",
     match: (pathname) => pathname.startsWith("/watchman"),
   },
   {
     href: "/feed",
-    label: "분석글",
-    description: "사람이 작성한 분석글 목록",
+    labelKey: "nav.articles",
+    descKey: "nav.articlesDesc",
     match: (pathname) =>
       pathname === "/" ||
       pathname.startsWith("/feed") ||
@@ -26,26 +26,29 @@ export const SITE_GNB_ITEMS: SiteNavItem[] = [
   },
   {
     href: "/news-sec",
-    label: "News/SEC",
-    description: "Newsfilter 및 SEC EDGAR 공시 요약",
+    labelKey: "nav.newsSec",
+    descKey: "nav.newsSecDesc",
     match: (pathname) => pathname.startsWith("/news-sec"),
   },
   {
     href: "/indicators",
-    label: "실시간 발표",
-    description: "CPI·PPI 및 기업 실적 발표",
+    labelKey: "nav.indicators",
+    descKey: "nav.indicatorsDesc",
     match: (pathname) => pathname.startsWith("/indicators"),
   },
   {
     href: "/halts",
-    label: "TradeHalt",
-    description: "미국 주식 거래 정지·재개",
+    labelKey: "nav.halts",
+    descKey: "nav.haltsDesc",
     match: (pathname) => pathname.startsWith("/halts"),
   },
   {
     href: "/similar-movers",
-    label: "비슷한 급등주 찾기",
-    description: "준비 중인 기능",
+    labelKey: "nav.similar",
+    descKey: "nav.similarDesc",
     match: (pathname) => pathname.startsWith("/similar-movers"),
   },
 ];
+
+/** 모바일 드로어 등에서 GNB와 동일 항목 사용 */
+export const SITE_NAV_ITEMS = SITE_GNB_ITEMS;

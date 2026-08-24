@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import type { VolatileRow } from "@/lib/volatile-row";
 
 type InsightOk = {
@@ -32,9 +33,10 @@ function InsightModal({
   side: "bull" | "bear";
   state: InsightState;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
 
-  const titleLabel = side === "bull" ? "호재 관점" : "악재 관점";
+  const titleLabel = side === "bull" ? t("mover.bullView") : t("mover.bearView");
 
   return (
     <div
@@ -61,23 +63,23 @@ function InsightModal({
             onClick={onClose}
             className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-white/80 hover:text-slate-800"
           >
-            닫기
+            {t("mover.close")}
           </button>
         </div>
 
         <div className="px-4 py-4 text-sm text-slate-700">
           {state.status === "loading" ? (
-            <p className="text-slate-500">SEC 최근 8-K를 불러오고 요약 중입니다…</p>
+            <p className="text-slate-500">{t("mover.loading")}</p>
           ) : state.status === "error" ? (
             <p className="text-amber-800" role="alert">
               {state.message}
             </p>
           ) : state.status === "idle" ? (
-            <p className="text-slate-500">잠시만 기다려 주세요.</p>
+            <p className="text-slate-500">{t("mover.wait")}</p>
           ) : (
             <>
               <p className="text-xs text-slate-400">
-                최근 8-K 제출일 {state.filingDate} · AI 요약 (투자 참고용, 법적 자문 아님)
+                {t("mover.secSource", { date: state.filingDate })}
                 {state.secViewerUrl ? (
                   <>
                     {" · "}
@@ -87,7 +89,7 @@ function InsightModal({
                       rel="noopener noreferrer"
                       className="font-medium text-[#3182f6] underline hover:text-[#1b64da]"
                     >
-                      SEC 원문 보기
+                      {t("mover.secLink")}
                     </a>
                   </>
                 ) : null}
@@ -110,7 +112,8 @@ function InsightModal({
   );
 }
 
-export function UsMoverRow({ r }: { r: VolatileRow }) {
+export const UsMoverRow = memo(function UsMoverRow({ r }: { r: VolatileRow }) {
+  const { t } = useI18n();
   const pct = r.change_pct != null ? Number(r.change_pct) : null;
   const pctLabel = pct == null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
   const pctClass =
@@ -153,7 +156,10 @@ export function UsMoverRow({ r }: { r: VolatileRow }) {
       if (!res.ok || !j.ok || !j.analysis) {
         setInsight({
           status: "error",
-          message: j.error ?? `요청 실패 (${res.status})`,
+          message:
+            res.status === 401
+              ? t("mover.adminOnly")
+              : (j.error ?? t("mover.requestFailed", { status: res.status })),
         });
         return;
       }
@@ -178,12 +184,12 @@ export function UsMoverRow({ r }: { r: VolatileRow }) {
     } catch (e) {
       setInsight({
         status: "error",
-        message: e instanceof Error ? e.message : "네트워크 오류",
+        message: e instanceof Error ? e.message : t("mover.network"),
       });
     } finally {
       loadingFlight.current = false;
     }
-  }, [r.ticker]);
+  }, [r.ticker, t]);
 
   const openSide = useCallback(
     (side: "bull" | "bear") => {
@@ -216,7 +222,7 @@ export function UsMoverRow({ r }: { r: VolatileRow }) {
               : "border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
           }`}
         >
-          호재
+          {t("mover.bull")}
         </button>
         <button
           type="button"
@@ -227,10 +233,10 @@ export function UsMoverRow({ r }: { r: VolatileRow }) {
               : "border border-slate-300 bg-slate-50 text-slate-800 hover:bg-slate-100"
           }`}
         >
-          악재
+          {t("mover.bear")}
         </button>
         {insight.status === "loading" ? (
-          <span className="text-xs text-slate-400">분석 중…</span>
+          <span className="text-xs text-slate-400">{t("mover.analyzing")}</span>
         ) : insight.status === "error" && !modal ? (
           <span className="max-w-[12rem] truncate text-xs text-amber-700" title={insight.message}>
             {insight.message}
@@ -239,8 +245,8 @@ export function UsMoverRow({ r }: { r: VolatileRow }) {
       </div>
 
       <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
-        {r.last_price != null ? <span>가격 {Number(r.last_price).toLocaleString()}</span> : null}
-        {r.volume != null ? <span>거래량 {Number(r.volume).toLocaleString()}</span> : null}
+        {r.last_price != null ? <span>{t("mover.price")} {Number(r.last_price).toLocaleString()}</span> : null}
+        {r.volume != null ? <span>{t("mover.volume")} {Number(r.volume).toLocaleString()}</span> : null}
         <span className="ml-auto text-slate-400">{r.source}</span>
       </div>
 
@@ -252,4 +258,4 @@ export function UsMoverRow({ r }: { r: VolatileRow }) {
       />
     </li>
   );
-}
+});

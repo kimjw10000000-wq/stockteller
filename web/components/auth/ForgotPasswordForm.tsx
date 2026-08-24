@@ -13,6 +13,7 @@ import {
   authInputClass,
   authPrimaryBtnClass,
 } from "@/components/auth/AuthCard";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import {
   OTP_RESEND_SEC,
   OTP_TTL_SEC,
@@ -35,6 +36,7 @@ function formatRemain(sec: number) {
 
 export function ForgotPasswordForm() {
   const router = useRouter();
+  const { t } = useI18n();
   const [step, setStep] = useState<Step>(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -81,8 +83,14 @@ export function ForgotPasswordForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        retryAfterSec?: number;
+      } | null;
       if (!res.ok) {
+        if (res.status === 429 && json?.retryAfterSec) {
+          setCooldown(json.retryAfterSec);
+        }
         setError(json?.error || "인증 메일을 보내지 못했습니다.");
         return;
       }
@@ -154,7 +162,7 @@ export function ForgotPasswordForm() {
     <>
       <AuthToast message={toast} />
       <AuthCard
-        title="비밀번호 찾기"
+        title={t("auth.forgotTitle")}
         subtitle={
           step === 1
             ? "가입한 이메일로 인증번호를 보냅니다."
@@ -172,7 +180,7 @@ export function ForgotPasswordForm() {
               void sendOtp(2);
             }}
           >
-            <AuthField id="recover-email" label="이메일">
+            <AuthField id="recover-email" label={t("auth.email")}>
               <input
                 id="recover-email"
                 className={authInputClass}
@@ -208,7 +216,7 @@ export function ForgotPasswordForm() {
               void verifyOtp();
             }}
           >
-            <AuthField id="recover-otp" label="인증번호">
+            <AuthField id="recover-otp" label={t("auth.otp")}>
               <input
                 id="recover-otp"
                 className={cn(authInputClass, "text-center text-2xl tracking-[0.35em]")}
@@ -263,7 +271,7 @@ export function ForgotPasswordForm() {
               void updatePassword();
             }}
           >
-            <AuthField id="recover-password" label="새 비밀번호" hint="8자 이상, 영문과 숫자를 함께 사용하세요.">
+            <AuthField id="recover-password" label={t("auth.newPassword")} hint={t("auth.passwordHint")}>
               <AuthPasswordInput
                 id="recover-password"
                 autoComplete="new-password"
@@ -272,7 +280,7 @@ export function ForgotPasswordForm() {
                 required
               />
             </AuthField>
-            <AuthField id="recover-confirm" label="새 비밀번호 확인">
+            <AuthField id="recover-confirm" label={t("auth.newPasswordConfirm")}>
               <AuthPasswordInput
                 id="recover-confirm"
                 autoComplete="new-password"

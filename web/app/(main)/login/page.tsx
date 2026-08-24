@@ -11,7 +11,7 @@ export default function LoginPage({
   searchParams: { error?: string; next?: string };
 }) {
   const initialError =
-    searchParams.error === "auth" ? "로그인에 실패했습니다. 다시 시도해 주세요." : "";
+    searchParams.error === "auth" ? "auth.loginFailed" : "";
 
   return (
     <main className="flex justify-center py-4">

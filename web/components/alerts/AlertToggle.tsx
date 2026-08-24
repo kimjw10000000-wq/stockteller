@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 type AlertToggleProps = {
@@ -10,14 +11,18 @@ type AlertToggleProps = {
 };
 
 export function AlertToggle({ checked, disabled, onChange, label }: AlertToggleProps) {
+  const { t } = useI18n();
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-label={label ?? (checked ? "알람 켜기" : "알람 끄기")}
+      aria-label={label ?? (checked ? t("alerts.toggleOff") : t("alerts.toggleOnGeneric"))}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(!checked);
+      }}
       className={cn(
         "relative h-8 w-[52px] shrink-0 rounded-full transition-colors duration-200",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white",

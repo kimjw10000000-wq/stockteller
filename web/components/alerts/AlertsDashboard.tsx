@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { ALERT_SLOT_COUNT, FREE_ALERT_SLOT_LIMIT } from "@/lib/alerts/plan";
 import { getAlertStatus } from "@/lib/alerts/status";
 import type { AlertsPayload, DilutionAlertDto } from "@/lib/alerts/types";
@@ -35,6 +36,7 @@ function withLiveStatus(alert: DilutionAlertDto, isPro: boolean): DilutionAlertD
 type SearchTarget = { mode: "patch"; id: string } | { mode: "create" };
 
 export function AlertsDashboard() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [authed, setAuthed] = useState(false);
   const [isPro, setIsPro] = useState(false);
@@ -48,7 +50,7 @@ export function AlertsDashboard() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch("/api/alerts", { cache: "no-store" });
+      const res = await fetch("/api/alerts");
       if (res.status === 401) {
         setAuthed(false);
         setIsPro(false);
@@ -60,11 +62,11 @@ export function AlertsDashboard() {
       if (res.status === 503 || j.error === "alerts_table_missing") {
         setMissingTable(true);
         setAuthed(true);
-        setError("알람 저장소가 아직 준비되지 않았습니다. 관리자가 마이그레이션을 실행해야 합니다.");
+        setError("alerts.tableMissing");
         return;
       }
       if (!res.ok) {
-        setError("알람을 불러오지 못했습니다.");
+        setError("alerts.loadFailed");
         return;
       }
       setAuthed(true);
@@ -73,7 +75,7 @@ export function AlertsDashboard() {
       const next = j.alerts.slice(0, ALERT_SLOT_COUNT);
       setAlerts(next.length > 0 ? next : j.isPro ? [] : [GUEST_SLOT]);
     } catch {
-      setError("알람을 불러오지 못했습니다.");
+      setError("alerts.loadFailed");
     } finally {
       setLoading(false);
     }
@@ -84,116 +86,141 @@ export function AlertsDashboard() {
   }, [load]);
 
   useEffect(() => {
-    const t = window.setInterval(() => {
+    const tmr = window.setInterval(() => {
       setAlerts((prev) => prev.map((a) => withLiveStatus(a, isPro)));
     }, 30_000);
-    return () => window.clearInterval(t);
+    return () => window.clearInterval(tmr);
   }, [isPro]);
 
-  async function patchAlert(id: string, body: Record<string, unknown>) {
-    if (!authed || id === GUEST_SLOT.id) {
-      if (id === GUEST_SLOT.id && body.ticker) {
-        const ticker = String(body.ticker);
-        const companyName = typeof body.companyName === "string" ? body.companyName : null;
-        setAlerts([
-          withLiveStatus(
-            {
-              ...GUEST_SLOT,
-              ticker,
-              companyName,
-              enabled: false,
-            },
-            false
-          ),
-        ]);
+  const patchAlert = useCallback(
+    async (id: string, body: Record<string, unknown>) => {
+      if (!authed || id === GUEST_SLOT.id) {
+        if (id === GUEST_SLOT.id && body.ticker) {
+          const ticker = String(body.ticker);
+          const companyName = typeof body.companyName === "string" ? body.companyName : null;
+          setAlerts([
+            withLiveStatus(
+              {
+                ...GUEST_SLOT,
+                ticker,
+                companyName,
+                enabled: false,
+              },
+              false
+            ),
+          ]);
+        }
+        if (id === GUEST_SLOT.id && typeof body.enabled === "boolean") {
+          setAlerts((prev) =>
+            prev.map((a) => {
+              if (a.id !== id) return a;
+              if (body.enabled && !a.ticker) return a;
+              return withLiveStatus({ ...a, enabled: body.enabled as boolean }, false);
+            })
+          );
+        }
+        return;
       }
-      if (id === GUEST_SLOT.id && typeof body.enabled === "boolean") {
-        setAlerts((prev) =>
-          prev.map((a) => {
-            if (a.id !== id) return a;
-            if (body.enabled && !a.ticker) return a;
-            return withLiveStatus({ ...a, enabled: body.enabled as boolean }, false);
-          })
-        );
-      }
-      return;
-    }
 
-    setBusyId(id);
-    setError(null);
-    try {
-      const res = await fetch(`/api/alerts/${id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j = (await res.json()) as { ok?: boolean; alert?: DilutionAlertDto; error?: string };
-      if (res.status === 400 && j.error === "ticker_required") {
-        setError("종목을 먼저 선택한 뒤 알람을 켜 주세요.");
-        return;
+      setBusyId(id);
+      setError(null);
+      try {
+        const res = await fetch(`/api/alerts/${id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const j = (await res.json()) as { ok?: boolean; alert?: DilutionAlertDto; error?: string };
+        if (res.status === 400 && j.error === "ticker_required") {
+          setError("alerts.tickerRequired");
+          return;
+        }
+        if (res.status === 409) {
+          setError("alerts.duplicateTicker");
+          return;
+        }
+        if (!res.ok || !j.alert) {
+          setError("alerts.saveFailed");
+          return;
+        }
+        setAlerts((prev) => prev.map((a) => (a.id === id ? j.alert! : a)));
+      } catch {
+        setError("alerts.saveFailed");
+      } finally {
+        setBusyId(null);
       }
-      if (res.status === 409) {
-        setError("이미 같은 티커 알람이 있습니다.");
-        return;
-      }
-      if (!res.ok || !j.alert) {
-        setError("저장하지 못했습니다.");
-        return;
-      }
-      setAlerts((prev) => prev.map((a) => (a.id === id ? j.alert! : a)));
-    } catch {
-      setError("저장하지 못했습니다.");
-    } finally {
-      setBusyId(null);
-    }
-  }
+    },
+    [authed]
+  );
 
-  async function createAlert(hit: TickerHit) {
-    if (!isPro || !authed) {
-      setUpgradeOpen(true);
-      return;
-    }
-    setBusyId("new");
-    setError(null);
-    try {
-      const res = await fetch("/api/alerts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ticker: hit.ticker, companyName: hit.name }),
-      });
-      const j = (await res.json()) as {
-        ok?: boolean;
-        alert?: DilutionAlertDto;
-        error?: string;
-      };
-      if (res.status === 403 || j.error === "upgrade_required") {
+  const createAlert = useCallback(
+    async (hit: TickerHit) => {
+      if (!isPro || !authed) {
         setUpgradeOpen(true);
         return;
       }
-      if (res.status === 409) {
-        setError("이미 같은 티커 알람이 있습니다.");
-        return;
+      setBusyId("new");
+      setError(null);
+      try {
+        const res = await fetch("/api/alerts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ticker: hit.ticker, companyName: hit.name }),
+        });
+        const j = (await res.json()) as {
+          ok?: boolean;
+          alert?: DilutionAlertDto;
+          error?: string;
+        };
+        if (res.status === 403 || j.error === "upgrade_required") {
+          setUpgradeOpen(true);
+          return;
+        }
+        if (res.status === 409) {
+          setError("alerts.duplicateTicker");
+          return;
+        }
+        if (!res.ok || !j.alert) {
+          setError("alerts.addFailed");
+          return;
+        }
+        setAlerts((prev) => [...prev, j.alert!].slice(0, ALERT_SLOT_COUNT));
+      } catch {
+        setError("alerts.addFailed");
+      } finally {
+        setBusyId(null);
       }
-      if (!res.ok || !j.alert) {
-        setError("알람을 추가하지 못했습니다.");
-        return;
-      }
-      setAlerts((prev) => [...prev, j.alert!].slice(0, ALERT_SLOT_COUNT));
-    } catch {
-      setError("알람을 추가하지 못했습니다.");
-    } finally {
-      setBusyId(null);
-    }
-  }
+    },
+    [isPro, authed]
+  );
 
-  function onSelectTicker(hit: TickerHit) {
-    if (!searchTarget) return;
-    if (searchTarget.mode === "create") {
-      void createAlert(hit);
-      return;
-    }
-    void patchAlert(searchTarget.id, { ticker: hit.ticker, companyName: hit.name });
-  }
+  const onSelectTicker = useCallback(
+    (hit: TickerHit) => {
+      if (!searchTarget) return;
+      if (searchTarget.mode === "create") {
+        void createAlert(hit);
+        return;
+      }
+      void patchAlert(searchTarget.id, { ticker: hit.ticker, companyName: hit.name });
+    },
+    [searchTarget, createAlert, patchAlert]
+  );
+
+  const onChangeTicker = useCallback((id: string) => {
+    setSearchTarget({ mode: "patch", id });
+  }, []);
+
+  const onToggle = useCallback(
+    (id: string, enabled: boolean) => {
+      void patchAlert(id, { enabled });
+    },
+    [patchAlert]
+  );
+
+  const onCloseSearch = useCallback(() => setSearchTarget(null), []);
+  const onCloseUpgrade = useCallback(() => setUpgradeOpen(false), []);
+  const onOpenUpgrade = useCallback(() => setUpgradeOpen(true), []);
+  const onCreateSlot = useCallback(() => setSearchTarget({ mode: "create" }), []);
 
   const filled = (isPro ? alerts : alerts.slice(0, FREE_ALERT_SLOT_LIMIT)).map((a) =>
     withLiveStatus(a, isPro)
@@ -211,48 +238,53 @@ export function AlertsDashboard() {
       <header className="mb-6 rounded-2xl border-2 border-sky-500 bg-white/85 px-5 py-5 shadow-sm backdrop-blur-sm">
         <p className="flex items-center gap-2 text-sm font-medium text-sky-700">
           <Bell className="h-4 w-4" aria-hidden />
-          Alert
+          {t("alerts.kicker")}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-          경보
+          {t("alerts.title")}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 sm:text-base">
-          오퍼링·S-3/F-3 등 지분희석 공시가 나오면 알려 줍니다. 미국 동부 매일 04:00 AM에 무료 발송
-          횟수가 리셋됩니다.
+          {t("alerts.lead")}
         </p>
         {!isPro ? (
           <p className="mt-2 text-xs text-sky-800">
-            무료 · 슬롯 {FREE_ALERT_SLOT_LIMIT}/{ALERT_SLOT_COUNT} · 하루 1회
+            {t("alerts.freeMeta", { used: FREE_ALERT_SLOT_LIMIT, total: ALERT_SLOT_COUNT })}
           </p>
         ) : (
           <p className="mt-2 text-xs font-medium text-sky-700">
-            Pro · 슬롯 {filled.length}/{ALERT_SLOT_COUNT}
+            {t("alerts.proMeta", { used: filled.length, total: ALERT_SLOT_COUNT })}
           </p>
         )}
       </header>
 
       {!authed && !loading ? (
         <p className="mb-4 rounded-xl border-2 border-sky-400 bg-white/85 px-3 py-2 text-sm text-slate-600">
-          알람을 저장하려면{" "}
+          {t("alerts.loginPromptBefore")}{" "}
           <Link
             href="/login?next=/watchman"
+            prefetch
             className="font-medium text-sky-700 underline-offset-4 hover:underline"
           >
-            로그인
+            {t("alerts.loginPromptLink")}
           </Link>
-          하세요.
+          {t("alerts.loginPromptAfter")}
         </p>
       ) : null}
 
       {error ? (
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+          {t(error)}
         </p>
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-sky-600">
-          <Loader2 className="h-6 w-6 animate-spin" />
+        <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4" aria-hidden>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="min-h-[240px] animate-pulse rounded-2xl border-2 border-sky-300/70 bg-white/50"
+            />
+          ))}
         </div>
       ) : (
         <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -261,34 +293,29 @@ export function AlertsDashboard() {
               <AlertCard
                 alert={alert}
                 busy={busyId === alert.id || missingTable}
-                onChangeTicker={() => setSearchTarget({ mode: "patch", id: alert.id })}
-                onToggle={(enabled) => {
-                  void patchAlert(alert.id, { enabled });
-                }}
+                onChangeTicker={() => onChangeTicker(alert.id)}
+                onToggle={(enabled) => onToggle(alert.id, enabled)}
               />
             </div>
           ))}
           {Array.from({ length: emptyCount }).map((_, i) => (
             <div key={`empty-${i}`} className="h-full min-h-[240px]">
-              <EmptySlotCard
-                busy={busyId === "new"}
-                onClick={() => setSearchTarget({ mode: "create" })}
-              />
+              <EmptySlotCard busy={busyId === "new"} onClick={onCreateSlot} />
             </div>
           ))}
           {Array.from({ length: lockedCount }).map((_, i) => (
             <div key={`locked-${i}`} className="h-full min-h-[240px]">
-              <LockedSlotCard onClick={() => setUpgradeOpen(true)} />
+              <LockedSlotCard onClick={onOpenUpgrade} />
             </div>
           ))}
         </div>
       )}
 
-      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
+      <UpgradeModal open={upgradeOpen} onClose={onCloseUpgrade} />
       <TickerSearchModal
         open={searchTarget != null}
         initialQuery={searchInitial}
-        onClose={() => setSearchTarget(null)}
+        onClose={onCloseSearch}
         onSelect={onSelectTicker}
       />
     </div>

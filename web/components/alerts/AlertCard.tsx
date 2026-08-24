@@ -1,7 +1,8 @@
 "use client";
 
+import { memo } from "react";
 import { Lock, Plus } from "lucide-react";
-import { ALERT_STATUS_LABEL } from "@/lib/alerts/status";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import type { DilutionAlertDto } from "@/lib/alerts/types";
 import { cn } from "@/lib/utils";
 import { AlertToggle } from "./AlertToggle";
@@ -23,7 +24,14 @@ function statusClass(status: DilutionAlertDto["status"]): string {
   return "border-slate-200 bg-slate-50 text-slate-500";
 }
 
-export function AlertCard({ alert, busy, onChangeTicker, onToggle }: AlertCardProps) {
+function statusKey(status: DilutionAlertDto["status"]): string {
+  if (status === "watching") return "alerts.statusWatching";
+  if (status === "sent_today") return "alerts.statusSent";
+  return "alerts.statusInactive";
+}
+
+function AlertCardInner({ alert, busy, onChangeTicker, onToggle }: AlertCardProps) {
+  const { t } = useI18n();
   return (
     <article
       className={cn(
@@ -34,19 +42,22 @@ export function AlertCard({ alert, busy, onChangeTicker, onToggle }: AlertCardPr
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-mono text-2xl font-semibold tracking-wide text-slate-900">
-            {alert.ticker || "종목 선택"}
+            {alert.ticker || t("alerts.pickTicker")}
           </p>
           <p className="mt-1 truncate text-sm text-slate-500">
-            {alert.companyName || "티커를 검색해 등록하세요"}
+            {alert.companyName || t("alerts.pickTickerHint")}
           </p>
         </div>
         <button
           type="button"
           disabled={busy}
-          onClick={onChangeTicker}
+          onClick={(e) => {
+            e.stopPropagation();
+            onChangeTicker();
+          }}
           className="shrink-0 text-sm font-medium text-sky-600 hover:text-sky-800 disabled:opacity-40"
         >
-          변경
+          {t("alerts.change")}
         </button>
       </div>
 
@@ -57,14 +68,18 @@ export function AlertCard({ alert, busy, onChangeTicker, onToggle }: AlertCardPr
             statusClass(alert.status)
           )}
         >
-          {ALERT_STATUS_LABEL[alert.status]}
+          {t(statusKey(alert.status))}
         </span>
         <div className="ml-auto">
           <AlertToggle
             checked={alert.enabled}
             disabled={busy}
             onChange={onToggle}
-            label={`${alert.ticker ?? "알람"} 활성화`}
+            label={
+              alert.ticker
+                ? t("alerts.toggleOn", { ticker: alert.ticker })
+                : t("alerts.toggleOnGeneric")
+            }
           />
         </div>
       </div>
@@ -72,11 +87,14 @@ export function AlertCard({ alert, busy, onChangeTicker, onToggle }: AlertCardPr
   );
 }
 
+export const AlertCard = memo(AlertCardInner);
+
 type LockedSlotCardProps = {
   onClick: () => void;
 };
 
-export function LockedSlotCard({ onClick }: LockedSlotCardProps) {
+export const LockedSlotCard = memo(function LockedSlotCard({ onClick }: LockedSlotCardProps) {
+  const { t } = useI18n();
   return (
     <button
       type="button"
@@ -88,18 +106,19 @@ export function LockedSlotCard({ onClick }: LockedSlotCardProps) {
         Pro
       </span>
       <Plus className="h-10 w-10 text-sky-500" strokeWidth={1.75} aria-hidden />
-      <p className="mt-3 text-sm font-medium text-slate-600">Pro 전용 슬롯</p>
-      <p className="mt-1 text-xs text-slate-400">알람 추가</p>
+      <p className="mt-3 text-sm font-medium text-slate-600">{t("alerts.lockedTitle")}</p>
+      <p className="mt-1 text-xs text-slate-400">{t("alerts.addAlert")}</p>
     </button>
   );
-}
+});
 
 type EmptySlotCardProps = {
   busy?: boolean;
   onClick: () => void;
 };
 
-export function EmptySlotCard({ busy, onClick }: EmptySlotCardProps) {
+export const EmptySlotCard = memo(function EmptySlotCard({ busy, onClick }: EmptySlotCardProps) {
+  const { t } = useI18n();
   return (
     <button
       type="button"
@@ -108,7 +127,7 @@ export function EmptySlotCard({ busy, onClick }: EmptySlotCardProps) {
       className="flex h-full min-h-[240px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-500 bg-white/70 p-5 text-center shadow-sm transition-colors hover:border-sky-600 hover:bg-white disabled:opacity-50"
     >
       <Plus className="h-10 w-10 text-sky-500" strokeWidth={1.75} aria-hidden />
-      <p className="mt-3 text-sm font-medium text-slate-600">알람 추가</p>
+      <p className="mt-3 text-sm font-medium text-slate-600">{t("alerts.addAlert")}</p>
     </button>
   );
-}
+});

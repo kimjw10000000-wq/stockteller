@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, Clock, TrendingDown, TrendingUp } from "lucide-react";
+import { LocalizedDate } from "@/components/i18n/LocalizedDate";
+import { T } from "@/components/i18n/T";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DisclosureWithStock } from "@/lib/types";
 import { disclosureStockLabel, disclosureTrend } from "@/lib/news-display";
 import { isManualEditorPost, getCoverImageUrl } from "@/lib/manual-post";
-import { formatNewsDate } from "@/lib/news-sort";
 import { InvestDisclaimer } from "@/components/news/InvestDisclaimer";
 import { NewsShareModal } from "@/components/news/NewsShareModal";
 import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
@@ -15,6 +16,7 @@ import { buildShareDescription } from "@/lib/kakao-share";
 import { buildReportImageAlt, prepareArticleBodyHtml } from "@/lib/seo";
 import { resolveArticleBodyHtml } from "@/lib/article-body";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
+import { tServer } from "@/lib/i18n/server";
 
 type NewsDetailViewProps = {
   item: DisclosureWithStock;
@@ -30,7 +32,7 @@ export function NewsDetailView({
   const manual = isManualEditorPost(item);
   const { stock, name } = disclosureStockLabel(item);
   const trend = disclosureTrend(item.sentiment);
-  const title = item.title ?? "제목 없음";
+  const title = item.title ?? tServer("news.untitled");
   const imageAlt = buildReportImageAlt(title);
   const summaryLines = item.summary?.split("\n").filter((l) => l.trim()) ?? [];
   const cover = getCoverImageUrl(item);
@@ -45,9 +47,9 @@ export function NewsDetailView({
     <article className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
       <header className="border-b border-border pb-6">
         <Button variant="ghost" asChild className="-ml-2 mb-4 gap-2">
-          <Link href="/feed">
+          <Link href="/feed" prefetch>
             <ArrowLeft className="h-4 w-4" aria-hidden />
-            분석글 목록으로
+            <T k="news.backToList" />
           </Link>
         </Button>
 
@@ -66,7 +68,7 @@ export function NewsDetailView({
             className="inline-flex items-center gap-2 text-sm text-muted-foreground"
           >
             <Clock className="h-4 w-4" aria-hidden />
-            {formatNewsDate(item.created_at)}
+            <LocalizedDate iso={item.created_at} />
           </time>
         </div>
 
@@ -93,14 +95,16 @@ export function NewsDetailView({
           />
         ) : null}
         {item.analysis_score != null ? (
-          <p className="mt-3 text-sm text-muted-foreground">AI 점수 {item.analysis_score}</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            <T k="news.aiScore" values={{ score: item.analysis_score }} />
+          </p>
         ) : null}
       </header>
 
       <ProtectedContent>
       <section className="mt-8" aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="text-lg font-medium text-foreground">
-          핵심 요약
+          <T k="news.summary" />
         </h2>
         <div className="mt-3 space-y-2 text-foreground/90">
           {summaryLines.length ? (
@@ -110,14 +114,16 @@ export function NewsDetailView({
               </p>
             ))
           ) : (
-            <p className="leading-relaxed text-muted-foreground">요약이 아직 없습니다.</p>
+            <p className="leading-relaxed text-muted-foreground">
+              <T k="news.noSummary" />
+            </p>
           )}
         </div>
       </section>
 
       <section className="mt-10" aria-labelledby="raw-heading">
         <h2 id="raw-heading" className="text-lg font-medium text-foreground">
-          {manual ? "본문" : "공시 원문 (발췌)"}
+          {manual ? <T k="news.body" /> : <T k="news.filingExcerpt" />}
         </h2>
         {manual && bodyHtml ? (
           <article
@@ -125,7 +131,9 @@ export function NewsDetailView({
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         ) : manual ? (
-          <p className="mt-3 text-sm text-muted-foreground">본문이 없습니다.</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            <T k="news.noBody" />
+          </p>
         ) : (
           <pre className="mt-3 max-h-[480px] overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
             {item.raw_content}

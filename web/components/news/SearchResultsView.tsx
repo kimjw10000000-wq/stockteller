@@ -1,4 +1,7 @@
+"use client";
+
 import { FileSearch, SearchX } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { NewsCard } from "@/components/news/NewsCard";
 import type { DisclosureWithStock } from "@/lib/types";
 
@@ -9,6 +12,8 @@ type SearchResultsViewProps = {
 };
 
 export function SearchResultsView({ q, items, total }: SearchResultsViewProps) {
+  const { t } = useI18n();
+
   if (!q) {
     return (
       <div
@@ -16,10 +21,8 @@ export function SearchResultsView({ q, items, total }: SearchResultsViewProps) {
         role="status"
       >
         <FileSearch className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
-        <p className="text-sm font-medium text-foreground">검색어를 입력해 주세요.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          상단 검색창에서 티커·종목명·종목코드를 검색할 수 있습니다.
-        </p>
+        <p className="text-sm font-medium text-foreground">{t("search.promptTitle")}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("search.promptHint")}</p>
       </div>
     );
   }
@@ -31,12 +34,8 @@ export function SearchResultsView({ q, items, total }: SearchResultsViewProps) {
         role="status"
       >
         <SearchX className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
-        <p className="text-sm font-medium text-foreground">
-          「{q}」에 대한 검색 결과가 없습니다.
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          다른 티커나 종목명으로 다시 검색해 보세요.
-        </p>
+        <p className="text-sm font-medium text-foreground">{t("search.emptyTitle", { q })}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("search.emptyHint")}</p>
       </div>
     );
   }
@@ -50,7 +49,7 @@ export function SearchResultsView({ q, items, total }: SearchResultsViewProps) {
       ))}
       {total >= 200 ? (
         <p className="col-span-full mt-2 text-center text-xs text-muted-foreground">
-          검색 결과는 최대 200건까지 표시됩니다.
+          {t("search.capped")}
         </p>
       ) : null}
     </div>

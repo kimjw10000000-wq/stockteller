@@ -14,6 +14,7 @@ import {
   authPrimaryBtnClass,
 } from "@/components/auth/AuthCard";
 import { AUTH_HOME, mapAuthError, safeInternalPath, validateEmail } from "@/lib/auth/validation";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type LoginFormProps = {
@@ -23,6 +24,7 @@ type LoginFormProps = {
 
 export function LoginForm({ initialError = "", next }: LoginFormProps) {
   const router = useRouter();
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(initialError);
@@ -37,7 +39,7 @@ export function LoginForm({ initialError = "", next }: LoginFormProps) {
       return;
     }
     if (!password) {
-      setError("비밀번호를 입력해 주세요.");
+      setError("auth.passwordRequired");
       return;
     }
     setLoading(true);
@@ -52,7 +54,7 @@ export function LoginForm({ initialError = "", next }: LoginFormProps) {
       setError(mapAuthError(signInError.message, signInError.code));
       return;
     }
-    setToast("로그인되었습니다.");
+    setToast("auth.loginSuccess");
     const dest = safeInternalPath(next, AUTH_HOME);
     window.setTimeout(() => {
       router.replace(dest);
@@ -63,9 +65,9 @@ export function LoginForm({ initialError = "", next }: LoginFormProps) {
   return (
     <>
       <AuthToast message={toast} />
-      <AuthCard title="로그인" subtitle="이메일과 비밀번호로 로그인합니다.">
+      <AuthCard title={t("auth.loginTitle")} subtitle={t("auth.loginSubtitle")}>
         <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-          <AuthField id="login-email" label="이메일">
+          <AuthField id="login-email" label={t("auth.email")}>
             <input
               id="login-email"
               className={authInputClass}
@@ -77,7 +79,7 @@ export function LoginForm({ initialError = "", next }: LoginFormProps) {
               required
             />
           </AuthField>
-          <AuthField id="login-password" label="비밀번호">
+          <AuthField id="login-password" label={t("auth.password")}>
             <AuthPasswordInput
               id="login-password"
               autoComplete="current-password"
@@ -91,19 +93,19 @@ export function LoginForm({ initialError = "", next }: LoginFormProps) {
               href="/forgot-password"
               className="text-zinc-400 underline-offset-4 transition-colors hover:text-zinc-200 hover:underline"
             >
-              비밀번호를 잊으셨나요?
+              {t("auth.forgot")}
             </Link>
           </p>
           <AuthError message={error} />
           <button type="submit" className={authPrimaryBtnClass} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {loading ? "로그인 중…" : "로그인"}
+            {loading ? t("auth.loggingIn") : t("header.login")}
           </button>
         </form>
         <p className="mt-5 text-center text-sm text-zinc-400">
-          계정이 없나요?{" "}
-          <Link href="/signup" className="font-medium text-zinc-100 underline-offset-4 hover:underline">
-            회원가입
+          {t("auth.noAccount")}{" "}
+          <Link href="/signup" prefetch className="font-medium text-zinc-100 underline-offset-4 hover:underline">
+            {t("auth.signup")}
           </Link>
         </p>
       </AuthCard>

@@ -8,6 +8,7 @@ import {
   isSearchOrPreviewBot,
 } from "@/lib/security/crawlers";
 import { clientIp, consumeApiRateLimit, isRateLimitExemptPath } from "@/lib/security/rate-limit";
+import { applyLocaleToRequest, stampLocale } from "@/lib/i18n/request-locale";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware-client";
 
 function forbidden(): NextResponse {
@@ -43,7 +44,12 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next({ request });
+  const { locale, requestHeaders, hadCookie } = applyLocaleToRequest(request);
+  const response = stampLocale(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    locale,
+    hadCookie
+  );
   const supabase = createSupabaseMiddlewareClient(request, response);
   const {
     data: { user },
@@ -57,7 +63,11 @@ export async function middleware(request: NextRequest) {
 
   if (isLoginPage) {
     if (user && isAdminEmail(user.email)) {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      return stampLocale(
+        NextResponse.redirect(new URL("/admin/dashboard", request.url)),
+        locale,
+        hadCookie
+      );
     }
     return response;
   }
@@ -74,7 +84,7 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/admin";
     loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return stampLocale(NextResponse.redirect(loginUrl), locale, hadCookie);
   }
 
   return response;
