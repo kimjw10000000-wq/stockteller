@@ -88,3 +88,13 @@ export const OTP_PLACEHOLDER = "-".repeat(OTP_LENGTH);
 export const RECOVERY_OTP_LENGTH = 8;
 export const RECOVERY_OTP_PLACEHOLDER = "-".repeat(RECOVERY_OTP_LENGTH);
 export const AUTH_HOME = "/feed";
+
+/** Open-redirect 방지. 사이트 내부 경로만 허용. */
+export function safeInternalPath(raw: string | undefined | null, fallback = AUTH_HOME): string {
+  if (!raw) return fallback;
+  const next = raw.trim();
+  if (!next.startsWith("/") || next.startsWith("//") || next.includes("://") || next.includes("\\")) {
+    return fallback;
+  }
+  return next;
+}

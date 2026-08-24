@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:alert-window": "tsx lib/alerts/eastern-premarket.selftest.ts",
     "crawl": "tsx scripts/crawl-edgar.ts",
     "engine": "tsx scripts/run-market-engine.ts",
     "sync:us-listed": "tsx scripts/sync-us-listed-companies.ts",

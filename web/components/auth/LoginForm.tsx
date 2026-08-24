@@ -13,14 +13,15 @@ import {
   authInputClass,
   authPrimaryBtnClass,
 } from "@/components/auth/AuthCard";
-import { AUTH_HOME, mapAuthError, validateEmail } from "@/lib/auth/validation";
+import { AUTH_HOME, mapAuthError, safeInternalPath, validateEmail } from "@/lib/auth/validation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type LoginFormProps = {
   initialError?: string;
+  next?: string;
 };
 
-export function LoginForm({ initialError = "" }: LoginFormProps) {
+export function LoginForm({ initialError = "", next }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,8 +53,9 @@ export function LoginForm({ initialError = "" }: LoginFormProps) {
       return;
     }
     setToast("로그인되었습니다.");
+    const dest = safeInternalPath(next, AUTH_HOME);
     window.setTimeout(() => {
-      router.replace(AUTH_HOME);
+      router.replace(dest);
       router.refresh();
     }, 700);
   }

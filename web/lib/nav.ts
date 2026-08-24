@@ -10,8 +10,8 @@ export type SiteNavItem = {
 export const SITE_GNB_ITEMS: SiteNavItem[] = [
   {
     href: "/watchman",
-    label: "파수꾼",
-    description: "지분희석·오퍼링·S-3/F-3 감시",
+    label: "경보",
+    description: "지분희석·오퍼링 실시간 알림",
     match: (pathname) => pathname.startsWith("/watchman"),
   },
   {

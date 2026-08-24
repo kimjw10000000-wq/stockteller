@@ -18,7 +18,7 @@ export default function AboutPage() {
       </p>
       <h2>제공하는 도구</h2>
       <ul>
-        <li>파수꾼: 오퍼링·S-3/F-3 등 지분희석 관련 공시를 감시합니다.</li>
+        <li>경보: 오퍼링·S-3/F-3 등 지분희석 관련 공시를 감시하고 알림으로 알려 줍니다.</li>
         <li>분석글: 사람이 작성한 분석글을 모읍니다.</li>
         <li>News/SEC: Newsfilter 기사와 SEC EDGAR 공시를 요약하고 호재·악재를 구분합니다.</li>
         <li>실시간 발표: 미국 CPI / PPI 예측치와 공식 발표치, 기업 실적 비교.</li>
