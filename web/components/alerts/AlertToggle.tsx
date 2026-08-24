@@ -20,9 +20,9 @@ export function AlertToggle({ checked, disabled, onChange, label }: AlertToggleP
       onClick={() => onChange(!checked)}
       className={cn(
         "relative h-8 w-[52px] shrink-0 rounded-full transition-colors duration-200",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
         "disabled:cursor-not-allowed disabled:opacity-40",
-        checked ? "bg-emerald-500" : "bg-neutral-300"
+        checked ? "bg-sky-400" : "bg-slate-200"
       )}
     >
       <span

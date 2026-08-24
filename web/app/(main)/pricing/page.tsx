@@ -4,7 +4,7 @@ import { SITE_NAME_KO } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "요금제",
-  description: `${SITE_NAME_KO} Pro — 지분희석 경보 무제한`,
+  description: `${SITE_NAME_KO} Pro — 지분희석 경보 슬롯 4개`,
   alternates: { canonical: "/pricing" },
 };
 
@@ -28,12 +28,12 @@ export default function PricingPage() {
             <li>미국 동부 04:00 AM 기준 하루 1회 발송</li>
           </ul>
         </section>
-        <section className="rounded-xl border border-emerald-500/40 bg-card p-6">
-          <p className="text-xs font-medium uppercase tracking-wider text-emerald-600">권장</p>
+        <section className="rounded-xl border border-sky-400/50 bg-card p-6">
+          <p className="text-xs font-medium uppercase tracking-wider text-sky-600">권장</p>
           <h2 className="mt-1 text-lg font-semibold">Pro</h2>
-          <p className="mt-1 text-sm text-muted-foreground">무제한 경보</p>
+          <p className="mt-1 text-sm text-muted-foreground">슬롯 4개</p>
           <ul className="mt-4 space-y-2 text-sm text-foreground">
-            <li>알람 슬롯 무제한 추가·삭제</li>
+            <li>알람 슬롯 4개</li>
             <li>발송 횟수 제한 없음</li>
           </ul>
           <p className="mt-6 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">

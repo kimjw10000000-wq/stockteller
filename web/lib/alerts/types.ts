@@ -13,7 +13,7 @@ export type DilutionAlertDto = {
 export type AlertsPayload = {
   plan: "free" | "pro";
   isPro: boolean;
-  slotLimit: number | null;
+  slotLimit: number;
   alerts: DilutionAlertDto[];
   nextResetAt: string;
   canSendToday: boolean;

@@ -10,8 +10,10 @@ export const metadata: Metadata = {
 
 export default function WatchmanPage() {
   return (
-    <main>
-      <AlertsDashboard />
-    </main>
+    <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 -mt-8 -mb-8 min-h-[calc(100dvh-11rem)] bg-gradient-to-b from-sky-50 via-cyan-50 to-sky-100 px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl">
+        <AlertsDashboard />
+      </div>
+    </div>
   );
 }

@@ -5,7 +5,7 @@ import {
   getLatestPremarketResetUtc,
   getNextPremarketResetUtc,
 } from "@/lib/alerts/eastern-premarket";
-import { FREE_ALERT_SLOT_LIMIT } from "@/lib/alerts/plan";
+import { ALERT_SLOT_COUNT, FREE_ALERT_SLOT_LIMIT, UPGRADE_ALERT_MESSAGE } from "@/lib/alerts/plan";
 import {
   ensureFreeAlertSlot,
   getUserBillingPlan,
@@ -20,7 +20,7 @@ import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const UPGRADE_MESSAGE = "무제한 종목 알람을 등록하려면 Pro 플랜으로 업그레이드하세요";
+const UPGRADE_MESSAGE = UPGRADE_ALERT_MESSAGE;
 
 export async function GET(request: NextRequest) {
   const { supabase, applyCookies } = createSupabaseRouteHandlerClient(request);
@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
     if (!isPro) {
       rows = await ensureFreeAlertSlot(supabase, user.id, rows);
       rows = rows.slice(0, FREE_ALERT_SLOT_LIMIT);
+    } else {
+      rows = rows.slice(0, ALERT_SLOT_COUNT);
     }
 
     const alerts = rows.map((row) => mapAlertRow(row, isPro, now));
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
         ok: true,
         plan,
         isPro,
-        slotLimit: isPro ? null : FREE_ALERT_SLOT_LIMIT,
+        slotLimit: isPro ? ALERT_SLOT_COUNT : FREE_ALERT_SLOT_LIMIT,
         alerts,
         nextResetAt: getNextPremarketResetUtc(now).toISOString(),
         windowStartAt: getLatestPremarketResetUtc(now).toISOString(),
@@ -93,6 +95,16 @@ export async function POST(request: NextRequest) {
       return applyCookies(
         NextResponse.json(
           { ok: false, error: "upgrade_required", message: UPGRADE_MESSAGE },
+          { status: 403 }
+        )
+      );
+    }
+
+    const existing = await listAlertRows(supabase, user.id);
+    if (existing.length >= ALERT_SLOT_COUNT) {
+      return applyCookies(
+        NextResponse.json(
+          { ok: false, error: "slot_limit", message: `슬롯은 최대 ${ALERT_SLOT_COUNT}개입니다.` },
           { status: 403 }
         )
       );
