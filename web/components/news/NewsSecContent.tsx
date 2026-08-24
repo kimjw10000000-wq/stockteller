@@ -2,8 +2,10 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { WireNewsCard } from "@/components/news/WireNewsCard";
+import type { WireNewsRow } from "@/lib/gnw/types";
 
-export function NewsSecContent() {
+export function NewsSecContent({ items }: { items: WireNewsRow[] }) {
   const { t } = useI18n();
   return (
     <main className="space-y-6">
@@ -15,20 +17,20 @@ export function NewsSecContent() {
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      {items.length === 0 ? (
         <Card className="border-border">
           <CardContent>
-            <h2 className="text-base font-semibold text-foreground">Newsfilter</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("newsSec.newsfilterBody")}</p>
+            <h2 className="text-base font-semibold text-foreground">{t("newsSec.emptyTitle")}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("newsSec.emptyBody")}</p>
           </CardContent>
         </Card>
-        <Card className="border-border">
-          <CardContent>
-            <h2 className="text-base font-semibold text-foreground">SEC EDGAR</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("newsSec.edgarBody")}</p>
-          </CardContent>
-        </Card>
-      </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {items.map((item) => (
+            <WireNewsCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }

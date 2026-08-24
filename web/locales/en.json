@@ -10,7 +10,7 @@
     "articles": "Articles",
     "articlesDesc": "Human-written analysis articles",
     "newsSec": "News/SEC",
-    "newsSecDesc": "Newsfilter and SEC EDGAR summaries",
+    "newsSecDesc": "AI summaries of listed U.S. press releases",
     "indicators": "Live releases",
     "indicatorsDesc": "CPI, PPI, and earnings releases",
     "halts": "TradeHalt",
@@ -161,11 +161,14 @@
     "capped": "Search results are limited to 200 items."
   },
   "newsSec": {
-    "kicker": "Newsfilter · EDGAR",
+    "kicker": "GlobeNewswire · Groq",
     "title": "News/SEC",
-    "lead": "AI summarizes Newsfilter stories and SEC EDGAR filings, and separates bullish vs. bearish tone.",
-    "newsfilterBody": "Stories are collected and summarized by ticker. The list will appear here when ready.",
-    "edgarBody": "8-K and other filing summaries appear here with bullish/bearish signals when ready."
+    "lead": "Groq GPT summarizes GlobeNewswire releases that match listed U.S. tickers or CIKs in our database. Each card links to the original.",
+    "emptyTitle": "No press releases to show yet",
+    "emptyBody": "Summaries appear here after the crawler runs. Confirm the wire_news table exists in Supabase and GROQ_API_KEY is set.",
+    "original": "Original",
+    "nano": "Nano",
+    "micro": "Micro"
   },
   "similar": {
     "kicker": "Similar movers",
