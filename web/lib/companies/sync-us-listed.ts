@@ -98,7 +98,17 @@ async function insertCompanies(admin: SupabaseClient, rows: CompanyInsert[]): Pr
       onConflict: "ticker",
     });
     if (error && /share_class/i.test(error.message)) {
-      const stripped = chunk.map(({ share_class: _sc, ...rest }) => rest);
+      const stripped = chunk.map(
+        ({ ticker, name, cik, exchange, is_active, previous_tickers, updated_at }) => ({
+          ticker,
+          name,
+          cik,
+          exchange,
+          is_active,
+          previous_tickers,
+          updated_at,
+        })
+      );
       const retry = await admin.from("us_listed_companies").upsert(stripped, {
         onConflict: "ticker",
       });
