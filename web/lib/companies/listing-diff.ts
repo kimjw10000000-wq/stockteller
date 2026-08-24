@@ -141,7 +141,7 @@ export function planUsListedDiff(sec: SecListingRow[], db: DbListingRow[]): List
         extraHistory.push(sib.ticker);
       }
     }
-    let previous = history;
+    let previous = existing.previous_tickers;
     for (const t of extraHistory) previous = appendPrevious(previous, t);
 
     const needsUpdate =
