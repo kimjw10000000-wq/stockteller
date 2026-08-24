@@ -205,28 +205,30 @@ export function AlertsDashboard() {
   return (
     <div className="mx-auto w-full max-w-md">
       <header className="mb-6">
-        <p className="flex items-center gap-2 text-sm font-medium text-emerald-400">
-          <Bell className="h-4 w-4" aria-hidden />
+        <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Bell className="h-4 w-4 text-green-500" aria-hidden />
           Alert
         </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50">경보</h1>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          경보
+        </h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
           오퍼링·S-3/F-3 등 지분희석 공시가 나오면 알려 줍니다. 미국 동부 매일 04:00 AM에 무료 발송
           횟수가 리셋됩니다.
         </p>
         {!isPro ? (
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-muted-foreground">
             무료 · 슬롯 {FREE_ALERT_SLOT_LIMIT}개 · 하루 1회
           </p>
         ) : (
-          <p className="mt-2 text-xs text-emerald-400/80">Pro · 슬롯 무제한</p>
+          <p className="mt-2 text-xs font-medium text-green-600">Pro · 슬롯 무제한</p>
         )}
       </header>
 
       {!authed && !loading ? (
-        <p className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-400">
+        <p className="mb-4 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           알람을 저장하려면{" "}
-          <Link href="/login?next=/watchman" className="font-medium text-emerald-400 hover:underline">
+          <Link href="/login?next=/watchman" className="font-medium text-foreground underline-offset-4 hover:underline">
             로그인
           </Link>
           하세요.
@@ -234,13 +236,13 @@ export function AlertsDashboard() {
       ) : null}
 
       {error ? (
-        <p className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </p>
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-zinc-500">
+        <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : (
@@ -262,7 +264,7 @@ export function AlertsDashboard() {
           ))}
 
           {isPro && visible.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500">
+            <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
               아직 알람이 없습니다.
             </p>
           ) : null}
@@ -271,7 +273,7 @@ export function AlertsDashboard() {
             type="button"
             onClick={() => void addAlert()}
             disabled={busyId === "new"}
-            className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-600 bg-zinc-900/40 text-sm font-medium text-zinc-200 hover:border-emerald-500/50 hover:bg-zinc-900 hover:text-emerald-300 disabled:opacity-50"
+            className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card text-sm font-medium text-foreground hover:border-primary/50 hover:shadow-md disabled:opacity-50"
           >
             {busyId === "new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             새로운 알람 추가

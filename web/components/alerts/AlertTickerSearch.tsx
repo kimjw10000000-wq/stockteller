@@ -92,8 +92,8 @@ export function AlertTickerSearch({
     return (
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-xl font-semibold tracking-wide text-zinc-50">{ticker}</p>
-          <p className="mt-0.5 truncate text-sm text-zinc-400">{companyName || "회사명"}</p>
+          <p className="font-mono text-xl font-semibold tracking-wide text-foreground">{ticker}</p>
+          <p className="mt-0.5 truncate text-sm text-muted-foreground">{companyName || "회사명"}</p>
         </div>
         <button
           type="button"
@@ -103,7 +103,7 @@ export function AlertTickerSearch({
             setQuery(ticker);
             window.setTimeout(() => inputRef.current?.focus(), 0);
           }}
-          className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40"
+          className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
         >
           변경
         </button>
@@ -114,12 +114,12 @@ export function AlertTickerSearch({
   return (
     <div ref={wrapRef} className="relative">
       <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
       {loading ? (
         <Loader2
-          className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-500"
+          className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
           aria-hidden
         />
       ) : null}
@@ -139,23 +139,23 @@ export function AlertTickerSearch({
           if (hits.length > 0) setOpen(true);
         }}
         className={cn(
-          "h-11 w-full rounded-xl border border-zinc-700 bg-zinc-950/80 pl-10 pr-10 text-base text-zinc-100",
-          "placeholder:text-zinc-500 outline-none",
-          "focus-visible:border-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500/20",
+          "h-11 w-full rounded-lg border border-border bg-input-background pl-10 pr-10 text-base text-foreground",
+          "placeholder:text-muted-foreground outline-none",
+          "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
           "disabled:opacity-50"
         )}
       />
       {open && hits.length > 0 ? (
-        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
+        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-card py-1 shadow-md">
           {hits.map((hit) => (
             <li key={hit.ticker}>
               <button
                 type="button"
                 onClick={() => pick(hit)}
-                className="flex w-full items-baseline gap-2 px-3 py-2 text-left hover:bg-zinc-800"
+                className="flex w-full items-baseline gap-2 px-3 py-2 text-left hover:bg-accent"
               >
-                <span className="font-mono text-sm font-semibold text-emerald-400">{hit.ticker}</span>
-                <span className="truncate text-sm text-zinc-300">{hit.name}</span>
+                <span className="font-mono text-sm font-semibold text-foreground">{hit.ticker}</span>
+                <span className="truncate text-sm text-muted-foreground">{hit.name}</span>
               </button>
             </li>
           ))}

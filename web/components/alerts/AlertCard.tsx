@@ -18,12 +18,12 @@ type AlertCardProps = {
 
 function statusClass(status: DilutionAlertDto["status"]): string {
   if (status === "watching") {
-    return "border-emerald-500/30 bg-emerald-500/15 text-emerald-300";
+    return "border-green-200 bg-green-50 text-green-700";
   }
   if (status === "sent_today") {
-    return "border-amber-500/30 bg-amber-500/15 text-amber-300";
+    return "border-amber-200 bg-amber-50 text-amber-800";
   }
-  return "border-zinc-600 bg-zinc-800 text-zinc-400";
+  return "border-border bg-muted text-muted-foreground";
 }
 
 export function AlertCard({
@@ -37,8 +37,8 @@ export function AlertCard({
   return (
     <article
       className={cn(
-        "rounded-2xl border border-zinc-800 bg-zinc-900/90 p-4 shadow-sm",
-        alert.enabled && alert.status === "watching" && "border-emerald-500/20"
+        "rounded-xl border border-border bg-card p-4 shadow-sm",
+        alert.enabled && alert.status === "watching" && "border-green-500/40"
       )}
     >
       <AlertTickerSearch
@@ -63,7 +63,7 @@ export function AlertCard({
               type="button"
               onClick={onDelete}
               disabled={busy}
-              className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-800 hover:text-red-400 disabled:opacity-40"
+              className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-red-500 disabled:opacity-40"
               aria-label="알람 삭제"
             >
               <Trash2 className="h-4 w-4" />
