@@ -8,7 +8,7 @@
     },
     {
       "path": "/api/cron/us-listed-sync",
-      "schedule": "42 1 * * *"
+      "schedule": "15 1 * * *"
     }
   ],
   "redirects": [

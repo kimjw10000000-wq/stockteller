@@ -1,42 +1,42 @@
 import { secHeaders } from "@/lib/sec/edgar-client";
+import {
+  isSearchListedExchange,
+  type ListedExchange,
+  type SecListingRow,
+} from "./listing-diff";
 
 const SEC_URL = "https://www.sec.gov/files/company_tickers_exchange.json";
 
-/** Keep major US listing venues for the D-Day search universe. */
-const ALLOWED_EXCHANGE = /^(NASDAQ|NYSE)(\s|$|American|Arca|MKT)/i;
-
-export type SecExchangeTicker = {
-  ticker: string;
-  name: string;
-  cik: string;
-  exchange: string;
-};
+export type SecExchangeTicker = SecListingRow;
 
 type SecPayload = {
   fields?: string[];
   data?: unknown[][];
 };
 
-function normalizeExchange(raw: string): string {
+export function normalizeExchange(raw: string): ListedExchange {
   const e = raw.trim();
   if (/^nasdaq/i.test(e)) return "NASDAQ";
   if (/^nyse\s*american/i.test(e) || /^amex/i.test(e) || /^nyse\s*mkt/i.test(e)) {
     return "AMEX";
   }
-  if (/^nyse\s*arca/i.test(e)) return "NYSE";
   if (/^nyse/i.test(e)) return "NYSE";
-  return e.toUpperCase();
+  if (/^otc/i.test(e) || /^pink/i.test(e) || /^expert/i.test(e)) return "OTC";
+  return "OTHER";
 }
 
 export function isUsPrimaryExchange(exchange: string): boolean {
-  return ALLOWED_EXCHANGE.test(exchange.trim());
+  return isSearchListedExchange(normalizeExchange(exchange));
 }
 
 /**
  * SEC EDGAR company_tickers_exchange.json
  * @see https://www.sec.gov/os/webmaster-faq#code-support (User-Agent required)
  */
-export async function fetchSecExchangeTickers(): Promise<SecExchangeTicker[]> {
+export async function fetchSecExchangeTickers(opts?: {
+  listedOnly?: boolean;
+}): Promise<SecExchangeTicker[]> {
+  const listedOnly = opts?.listedOnly !== false;
   const res = await fetch(SEC_URL, {
     headers: secHeaders(),
     cache: "no-store",
@@ -68,19 +68,15 @@ export async function fetchSecExchangeTickers(): Promise<SecExchangeTicker[]> {
     const exchangeRaw = String(row[exchangeIdx] ?? "").trim();
     const cikNum = row[cikIdx];
     if (!ticker || !name || !exchangeRaw) continue;
-    if (!isUsPrimaryExchange(exchangeRaw)) continue;
+    const exchange = normalizeExchange(exchangeRaw);
+    if (listedOnly && !isSearchListedExchange(exchange)) continue;
     if (seen.has(ticker)) continue;
     seen.add(ticker);
 
     const cik = String(cikNum ?? "").replace(/\D/g, "").padStart(10, "0");
     if (cik === "0000000000") continue;
 
-    out.push({
-      ticker,
-      name,
-      cik,
-      exchange: normalizeExchange(exchangeRaw),
-    });
+    out.push({ ticker, name, cik, exchange });
   }
 
   return out;

@@ -25,6 +25,7 @@ export async function refreshPrimaryNewswires(
   const { data, error } = await admin
     .from("us_listed_companies")
     .select("ticker,cik")
+    .eq("is_active", true)
     .order("newswire_updated_at", { ascending: true, nullsFirst: true })
     .limit(limit);
 

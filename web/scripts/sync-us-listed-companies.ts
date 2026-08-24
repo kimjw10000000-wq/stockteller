@@ -1,8 +1,11 @@
 /**
- * Local / CI batch:
- *   npx tsx scripts/sync-us-listed-companies.ts
- *   npx tsx scripts/sync-us-listed-companies.ts --market-cap-batch=2000
- *   npx tsx scripts/sync-us-listed-companies.ts --skip-market-cap --newswire-batch=20
+ * SEC listed-master sync (insert / ticker rename / OTC+inactive / exchange).
+ *
+ *   npm run sync:us-listed
+ *   npm run sync:us-listed -- --skip-market-cap --skip-newswire
+ *
+ * Requires migration 20260824_us_listed_active_ticker_history.sql
+ * Daily: Vercel Cron GET /api/cron/us-listed-sync (01:15 UTC / 10:15 KST)
  */
 import { config } from "dotenv";
 import { resolve } from "path";

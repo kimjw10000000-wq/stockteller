@@ -22,12 +22,14 @@ export async function searchUsListedCompanies(
     admin
       .from("us_listed_companies")
       .select(select)
+      .eq("is_active", true)
       .ilike("ticker", pattern)
       .order("ticker", { ascending: true })
       .limit(safeLimit),
     admin
       .from("us_listed_companies")
       .select(select)
+      .eq("is_active", true)
       .ilike("name", pattern)
       .order("ticker", { ascending: true })
       .limit(safeLimit),
@@ -64,7 +66,7 @@ export async function getUsListedCompany(
   const { data, error } = await admin
     .from("us_listed_companies")
     .select(
-      "ticker,name,market_cap,cik,exchange,primary_newswire,updated_at,market_cap_updated_at,newswire_updated_at,issuer_type,is_unlimited_shelf,total_registered_offering_capacity,registered_capacity_updated_at"
+      "ticker,name,market_cap,cik,exchange,primary_newswire,updated_at,market_cap_updated_at,newswire_updated_at,issuer_type,is_unlimited_shelf,total_registered_offering_capacity,registered_capacity_updated_at,share_class"
     )
     .eq("ticker", t)
     .maybeSingle();

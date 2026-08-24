@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
+/** Daily listing master: 01:15 UTC = 10:15 KST (vercel.json). Auth: CRON_SECRET or Vercel Cron. */
+
 function authorize(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const auth = req.headers.get("authorization")?.trim() ?? "";

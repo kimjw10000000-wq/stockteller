@@ -12,6 +12,12 @@ export type UsListedCompany = {
   is_unlimited_shelf?: boolean;
   total_registered_offering_capacity?: number | null;
   registered_capacity_updated_at?: string | null;
+  shares_outstanding?: number | null;
+  shares_outstanding_as_of?: string | null;
+  shares_outstanding_class?: string | null;
+  share_class?: "CLASS_A" | "CLASS_B" | "CLASS_C" | "ADR" | "COMMON";
+  is_active?: boolean;
+  previous_tickers?: string[];
 };
 
 export type UsListedCompanyRow = {
@@ -28,4 +34,10 @@ export type UsListedCompanyRow = {
   is_unlimited_shelf: boolean;
   total_registered_offering_capacity: number | null;
   registered_capacity_updated_at: string | null;
+  shares_outstanding: number | null;
+  shares_outstanding_as_of: string | null;
+  shares_outstanding_class: string | null;
+  share_class?: "CLASS_A" | "CLASS_B" | "CLASS_C" | "ADR" | "COMMON" | null;
+  is_active?: boolean;
+  previous_tickers?: string[];
 };
