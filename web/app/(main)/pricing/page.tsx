@@ -28,8 +28,8 @@ export default function PricingPage() {
             <li>미국 동부 04:00 AM 기준 하루 1회 발송</li>
           </ul>
         </section>
-        <section className="rounded-xl border border-sky-400/50 bg-card p-6">
-          <p className="text-xs font-medium uppercase tracking-wider text-sky-600">권장</p>
+        <section className="rounded-xl border-2 border-sky-500 bg-card p-6">
+          <p className="text-xs font-medium uppercase tracking-wider text-sky-700">권장</p>
           <h2 className="mt-1 text-lg font-semibold">Pro</h2>
           <p className="mt-1 text-sm text-muted-foreground">슬롯 4개</p>
           <ul className="mt-4 space-y-2 text-sm text-foreground">

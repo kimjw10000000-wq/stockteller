@@ -90,7 +90,7 @@ export function TickerSearchModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-sky-200 bg-white p-5 shadow-lg"
+        className="relative z-10 flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border-2 border-sky-400 bg-white p-5 shadow-lg"
       >
         <div className="mb-3 flex items-start justify-between gap-3">
           <h2 id={titleId} className="text-base font-semibold text-slate-900">
@@ -107,12 +107,12 @@ export function TickerSearchModal({
         </div>
         <div className="relative">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500"
             aria-hidden
           />
           {loading ? (
             <Loader2
-              className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-sky-400"
+              className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-sky-500"
               aria-hidden
             />
           ) : null}
@@ -124,7 +124,7 @@ export function TickerSearchModal({
             placeholder="티커 또는 회사명"
             aria-label="티커 또는 회사명 검색"
             onChange={(e) => setQuery(e.target.value)}
-            className="h-11 w-full rounded-xl border border-sky-200 bg-sky-50/70 pl-10 pr-10 text-base text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-200"
+            className="h-11 w-full rounded-xl border-2 border-sky-400 bg-sky-50 pl-10 pr-10 text-base text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-sky-600 focus-visible:ring-2 focus-visible:ring-sky-300"
           />
         </div>
         <ul className="mt-3 min-h-[8rem] overflow-auto">

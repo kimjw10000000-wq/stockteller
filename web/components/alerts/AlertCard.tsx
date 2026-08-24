@@ -15,7 +15,7 @@ type AlertCardProps = {
 
 function statusClass(status: DilutionAlertDto["status"]): string {
   if (status === "watching") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
+    return "border-sky-300 bg-sky-100 text-sky-800";
   }
   if (status === "sent_today") {
     return "border-amber-200 bg-amber-50 text-amber-800";
@@ -27,8 +27,8 @@ export function AlertCard({ alert, busy, onChangeTicker, onToggle }: AlertCardPr
   return (
     <article
       className={cn(
-        "flex h-full min-h-[240px] flex-col rounded-2xl border-2 border-sky-400/70 bg-white/90 p-5 shadow-sm backdrop-blur-sm",
-        alert.enabled && alert.status === "watching" && "border-sky-400 shadow-sky-100"
+        "flex h-full min-h-[240px] flex-col rounded-2xl border-2 border-sky-500 bg-white/90 p-5 shadow-sm backdrop-blur-sm",
+        alert.enabled && alert.status === "watching" && "border-sky-600 shadow-sky-200"
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -44,7 +44,7 @@ export function AlertCard({ alert, busy, onChangeTicker, onToggle }: AlertCardPr
           type="button"
           disabled={busy}
           onClick={onChangeTicker}
-          className="shrink-0 text-sm font-medium text-sky-600 hover:text-sky-700 disabled:opacity-40"
+          className="shrink-0 text-sm font-medium text-sky-600 hover:text-sky-800 disabled:opacity-40"
         >
           변경
         </button>
@@ -81,13 +81,13 @@ export function LockedSlotCard({ onClick }: LockedSlotCardProps) {
     <button
       type="button"
       onClick={onClick}
-      className="relative flex h-full min-h-[240px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-300/40 bg-white/50 p-5 text-center shadow-sm transition-colors hover:border-sky-400 hover:bg-white/80"
+      className="relative flex h-full min-h-[240px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-500/70 bg-white/55 p-5 text-center shadow-sm transition-colors hover:border-sky-600 hover:bg-white/85"
     >
-      <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-600">
+      <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-sky-400 bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700">
         <Lock className="h-3 w-3" aria-hidden />
         Pro
       </span>
-      <Plus className="h-10 w-10 text-sky-400" strokeWidth={1.75} aria-hidden />
+      <Plus className="h-10 w-10 text-sky-500" strokeWidth={1.75} aria-hidden />
       <p className="mt-3 text-sm font-medium text-slate-600">Pro 전용 슬롯</p>
       <p className="mt-1 text-xs text-slate-400">알람 추가</p>
     </button>
@@ -105,9 +105,9 @@ export function EmptySlotCard({ busy, onClick }: EmptySlotCardProps) {
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="flex h-full min-h-[240px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-300/70 bg-white/70 p-5 text-center shadow-sm transition-colors hover:border-sky-400 hover:bg-white disabled:opacity-50"
+      className="flex h-full min-h-[240px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-500 bg-white/70 p-5 text-center shadow-sm transition-colors hover:border-sky-600 hover:bg-white disabled:opacity-50"
     >
-      <Plus className="h-10 w-10 text-sky-400" strokeWidth={1.75} aria-hidden />
+      <Plus className="h-10 w-10 text-sky-500" strokeWidth={1.75} aria-hidden />
       <p className="mt-3 text-sm font-medium text-slate-600">알람 추가</p>
     </button>
   );

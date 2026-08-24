@@ -208,8 +208,8 @@ export function AlertsDashboard() {
 
   return (
     <div className="w-full">
-      <header className="mb-6 rounded-2xl border border-sky-200/70 bg-white/75 px-5 py-5 shadow-sm backdrop-blur-sm">
-        <p className="flex items-center gap-2 text-sm font-medium text-sky-600">
+      <header className="mb-6 rounded-2xl border-2 border-sky-500 bg-white/85 px-5 py-5 shadow-sm backdrop-blur-sm">
+        <p className="flex items-center gap-2 text-sm font-medium text-sky-700">
           <Bell className="h-4 w-4" aria-hidden />
           Alert
         </p>
@@ -221,22 +221,22 @@ export function AlertsDashboard() {
           횟수가 리셋됩니다.
         </p>
         {!isPro ? (
-          <p className="mt-2 text-xs text-sky-700/80">
+          <p className="mt-2 text-xs text-sky-800">
             무료 · 슬롯 {FREE_ALERT_SLOT_LIMIT}/{ALERT_SLOT_COUNT} · 하루 1회
           </p>
         ) : (
-          <p className="mt-2 text-xs font-medium text-sky-600">
+          <p className="mt-2 text-xs font-medium text-sky-700">
             Pro · 슬롯 {filled.length}/{ALERT_SLOT_COUNT}
           </p>
         )}
       </header>
 
       {!authed && !loading ? (
-        <p className="mb-4 rounded-xl border border-sky-200 bg-white/80 px-3 py-2 text-sm text-slate-500">
+        <p className="mb-4 rounded-xl border-2 border-sky-400 bg-white/85 px-3 py-2 text-sm text-slate-600">
           알람을 저장하려면{" "}
           <Link
             href="/login?next=/watchman"
-            className="font-medium text-sky-600 underline-offset-4 hover:underline"
+            className="font-medium text-sky-700 underline-offset-4 hover:underline"
           >
             로그인
           </Link>
@@ -251,7 +251,7 @@ export function AlertsDashboard() {
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-sky-400">
+        <div className="flex items-center justify-center py-24 text-sky-600">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : (

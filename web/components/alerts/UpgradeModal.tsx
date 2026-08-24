@@ -43,7 +43,7 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 w-full max-w-md rounded-2xl border border-sky-200 bg-white p-6 shadow-lg"
+        className="relative z-10 w-full max-w-md rounded-2xl border-2 border-sky-400 bg-white p-6 shadow-lg"
       >
         <button
           ref={closeRef}
@@ -54,7 +54,7 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
         >
           <X className="h-4 w-4" />
         </button>
-        <p className="text-xs font-medium uppercase tracking-wider text-sky-500">Pro</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-sky-600">Pro</p>
         <h2 id={titleId} className="mt-2 text-lg font-semibold text-slate-900">
           {UPGRADE_ALERT_MESSAGE}
         </h2>
@@ -65,14 +65,14 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
         <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
           <Link
             href="/pricing"
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-sky-500 px-4 text-sm font-semibold text-white hover:bg-sky-600"
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700"
           >
             업그레이드
           </Link>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-sky-50"
+            className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-sky-400 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-sky-50"
           >
             나중에
           </button>
