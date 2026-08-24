@@ -7,9 +7,8 @@
 
 name: gnw-rss
 
+# schedule paused so overnight failed-run emails stop. Re-enable */15 when CRON_SECRET is set.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 concurrency:
