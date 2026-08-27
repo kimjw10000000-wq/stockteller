@@ -57,20 +57,24 @@ function escapeIlike(raw: string): string {
   return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
-async function existingIds(client: SupabaseClient, ids: string[]): Promise<Set<string>> {
-  const seen = new Set<string>();
+async function existingTeaserLengths(
+  client: SupabaseClient,
+  ids: string[]
+): Promise<Map<string, number>> {
+  const seen = new Map<string, number>();
   if (ids.length === 0) return seen;
   const chunkSize = 80;
   for (let i = 0; i < ids.length; i += chunkSize) {
     const chunk = ids.slice(i, i + chunkSize);
     const { data, error } = await client
       .from("wire_news")
-      .select("external_id")
+      .select("external_id,teaser")
       .eq("source", SOURCE)
       .in("external_id", chunk);
     if (error) throw new Error(`wire_news lookup: ${error.message}`);
     for (const row of data ?? []) {
-      if (row.external_id) seen.add(String(row.external_id));
+      if (!row.external_id) continue;
+      seen.set(String(row.external_id), String(row.teaser ?? "").length);
     }
   }
   return seen;
@@ -166,17 +170,22 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
   const items = [...(await fetchGnwRssFeeds())].sort(
     (a, b) => publishedMs(b.publishedAt) - publishedMs(a.publishedAt)
   );
-  const already = await existingIds(
+  const already = await existingTeaserLengths(
     client,
     items.map((i) => i.id)
   );
 
   const pending: Array<{ item: GnwRssItem; tickers: string[]; ciks: string[] }> = [];
+  const refresh: GnwRssItem[] = [];
   const allTickers = new Set<string>();
   const allCiks = new Set<string>();
   const allNames = new Set<string>();
   for (const item of items) {
-    if (already.has(item.id)) continue;
+    const prevLen = already.get(item.id);
+    if (prevLen != null) {
+      if (item.teaser.length > prevLen) refresh.push(item);
+      continue;
+    }
     const blob = [item.title, item.teaser, ...item.stockTags];
     const tickers = parseGnwStockTags([...item.stockTags, item.title, item.teaser]);
     const ciks = [
@@ -258,7 +267,22 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
     console.log("inserted", match.ticker, item.title);
   }
 
-  const message = `done, inserted ${inserted} (scanned ${items.length}, skipped ${skipped}, insertFailures ${insertFailures})`;
+  let updated = 0;
+  for (const item of refresh) {
+    const teaser = item.teaser || "";
+    const { error } = await client
+      .from("wire_news")
+      .update({ teaser: teaser || null, summary: teaser || null })
+      .eq("source", SOURCE)
+      .eq("external_id", item.id);
+    if (error) {
+      console.warn("wire_news teaser update failed", item.id, error.message);
+      continue;
+    }
+    updated += 1;
+  }
+
+  const message = `done, inserted ${inserted}, updated ${updated} (scanned ${items.length}, skipped ${skipped}, insertFailures ${insertFailures})`;
   console.log(message);
 
   if (insertFailures > 0 && inserted === 0) {

@@ -38,6 +38,31 @@ function stripHtml(s: string): string {
     .trim();
 }
 
+/** RSS HTML → plain text, keeping paragraph breaks for the article page. */
+function htmlToPlain(s: string): string {
+  return decodeEntities(s)
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/tr>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function rssBody(chunk: string): string {
+  const encoded = htmlToPlain(firstTag(chunk, "content:encoded"));
+  const desc = htmlToPlain(firstTag(chunk, "description"));
+  const text = encoded.length > desc.length ? encoded : desc;
+  return text.slice(0, 50_000);
+}
+
 function tagAll(xml: string, name: string): string[] {
   const re = new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, "gi");
   const out: string[] = [];
@@ -60,7 +85,7 @@ function parseItem(chunk: string): GnwRssItem | null {
 
   const categories = tagAll(chunk, "category");
   const stockTickers = tagAll(chunk, "StockTickers");
-  const teaser = stripHtml(firstTag(chunk, "description")).slice(0, 2_000);
+  const teaser = rssBody(chunk);
   const ciks = [...tagAll(chunk, "cik"), ...tagAll(chunk, "CIK")]
     .map((v) => v.replace(/\D/g, "").padStart(10, "0"))
     .filter((v) => v.length === 10 && v !== "0000000000");

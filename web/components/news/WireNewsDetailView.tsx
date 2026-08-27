@@ -76,17 +76,19 @@ export function WireNewsDetailView({ item }: { item: WireNewsRow }) {
 
       <ProtectedContent>
         <section className="mt-8" aria-labelledby="wire-body-heading">
-          <h2 id="wire-body-heading" className="sr-only">
+          <h2 id="wire-body-heading" className="text-lg font-medium text-foreground">
             <T k="newsSec.body" />
           </h2>
           {paragraphs.length ? (
-            <div className="space-y-4 text-base leading-relaxed text-foreground/90">
+            <div className="mt-4 space-y-5 text-base leading-[1.8] text-foreground">
               {paragraphs.map((p, i) => (
-                <p key={i}>{p}</p>
+                <p key={i} className="whitespace-pre-wrap">
+                  {p}
+                </p>
               ))}
             </div>
           ) : (
-            <p className="leading-relaxed text-muted-foreground">
+            <p className="mt-4 leading-relaxed text-muted-foreground">
               <T k="newsSec.noBody" />
             </p>
           )}
