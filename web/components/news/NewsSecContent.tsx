@@ -5,20 +5,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { WireNewsCard } from "@/components/news/WireNewsCard";
+import { useTickerQuotes } from "@/hooks/use-ticker-quotes";
 import type { WireNewsRow } from "@/lib/gnw/types";
 import { WIRE_NEWS_MAX_PAGES } from "@/lib/gnw/query";
+import { uniqueWireNewsTickers, wireNewsTicker } from "@/lib/quotes/format";
+import type { TickerQuoteMap } from "@/lib/quotes/types";
 
 export function NewsSecContent({
   items,
   page,
   totalPages,
+  quotes: initialQuotes,
 }: {
   items: WireNewsRow[];
   page: number;
   totalPages: number;
+  quotes?: TickerQuoteMap;
 }) {
   const { t } = useI18n();
   const pages = Math.min(WIRE_NEWS_MAX_PAGES, Math.max(1, totalPages));
+  const quotes = useTickerQuotes(uniqueWireNewsTickers(items), {
+    initial: initialQuotes,
+    pollMs: 15_000,
+  });
 
   return (
     <main className="space-y-6">
@@ -41,7 +50,11 @@ export function NewsSecContent({
         <>
           <div className="grid gap-4 md:grid-cols-2">
             {items.map((item) => (
-              <WireNewsCard key={item.id} item={item} />
+              <WireNewsCard
+                key={item.id}
+                item={item}
+                quote={quotes[wireNewsTicker(item)]}
+              />
             ))}
           </div>
           <nav

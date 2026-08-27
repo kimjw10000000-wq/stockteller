@@ -93,20 +93,47 @@ function krSession(v: unknown): {
 export function parsePrice(row: unknown): TossPriceNormalized | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
-  const symbol = str(r.symbol) ?? str(r.stockCode) ?? str(r.code);
+  const nested =
+    r.price && typeof r.price === "object" && !Array.isArray(r.price)
+      ? (r.price as Record<string, unknown>)
+      : {};
+  const symbol = str(r.symbol) ?? str(r.stockCode) ?? str(r.code) ?? str(nested.symbol);
   if (!symbol) return null;
   const lastPrice =
-    num(r.lastPrice) ?? num(r.price) ?? num(r.close) ?? num(r.last) ?? num(r.tradePrice);
+    num(r.lastPrice) ??
+    num(nested.lastPrice) ??
+    (typeof r.price === "number" ? r.price : num(r.close)) ??
+    num(r.last) ??
+    num(r.tradePrice) ??
+    num(nested.close);
+  const changePct =
+    num(r.changeRate) ??
+    num(nested.changeRate) ??
+    num(r.changePct) ??
+    num(nested.changePct) ??
+    num(r.changePercent) ??
+    num(nested.changePercent) ??
+    num(r.fluctuationRate) ??
+    num(nested.fluctuationRate);
   return {
     symbol,
-    timestamp: str(r.timestamp),
+    timestamp: str(r.timestamp) ?? str(nested.timestamp),
     lastPrice,
-    currency: str(r.currency) ?? str(r.currencyCode),
+    currency: str(r.currency) ?? str(r.currencyCode) ?? str(nested.currency),
     price: lastPrice,
-    change: num(r.change) ?? num(r.changePrice) ?? num(r.diff),
-    changePct:
-      num(r.changeRate) ?? num(r.changePct) ?? num(r.changePercent) ?? num(r.fluctuationRate),
-    volume: num(r.volume) ?? num(r.accVolume) ?? num(r.tradeVolume),
+    change:
+      num(r.change) ??
+      num(r.changePrice) ??
+      num(r.diff) ??
+      num(nested.change) ??
+      num(nested.changePrice),
+    changePct,
+    volume:
+      num(r.volume) ??
+      num(r.accVolume) ??
+      num(r.tradeVolume) ??
+      num(nested.volume) ??
+      num(nested.accVolume),
     raw: row,
   };
 }

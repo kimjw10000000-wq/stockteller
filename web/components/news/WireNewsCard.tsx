@@ -7,13 +7,21 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
+import { QuoteChangePct } from "@/components/news/QuoteChangePct";
 import type { WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
+import type { TickerQuote } from "@/lib/quotes/types";
 import type { Sentiment } from "@/lib/types";
 
 const SENTIMENTS: Sentiment[] = ["positive", "negative", "neutral"];
 
-export function WireNewsCard({ item }: { item: WireNewsRow }) {
+export function WireNewsCard({
+  item,
+  quote,
+}: {
+  item: WireNewsRow;
+  quote?: TickerQuote | null;
+}) {
   const { t } = useI18n();
   const ticker = item.primary_ticker || item.tickers?.[0] || "—";
   const sentiment = SENTIMENTS.includes(item.sentiment as Sentiment)
@@ -41,6 +49,7 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
               <Badge variant="secondary" className="font-mono">
                 {ticker}
               </Badge>
+              <QuoteChangePct changePct={quote?.changePct} />
               {capLabel ? (
                 <Badge variant="outline">{capLabel}</Badge>
               ) : null}
