@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { NewsSecContent } from "@/components/news/NewsSecContent";
-import { loadWireNewsPage, parseWireNewsPage } from "@/lib/gnw/query";
+import { parseWireNewsFilter, parseWireNewsPage } from "@/lib/gnw/nav";
+import { loadWireNewsMoversPage, loadWireNewsPage } from "@/lib/gnw/query";
 import { uniqueWireNewsTickers } from "@/lib/quotes/format";
 import { loadTickerQuotes } from "@/lib/quotes/ticker-quotes";
 import { SITE_NAME_KO } from "@/lib/site";
@@ -14,10 +15,15 @@ export const metadata: Metadata = {
   alternates: { canonical: "/news-sec" },
 };
 
-type PageProps = { searchParams: { page?: string } };
+type PageProps = { searchParams: { page?: string; filter?: string } };
 
 export default async function NewsSecPage({ searchParams }: PageProps) {
-  const result = await loadWireNewsPage(parseWireNewsPage(searchParams.page));
+  const filter = parseWireNewsFilter(searchParams.filter);
+  const page = parseWireNewsPage(searchParams.page);
+  const result =
+    filter === "latest"
+      ? await loadWireNewsPage(page)
+      : await loadWireNewsMoversPage(page, filter);
   const quotes = await loadTickerQuotes(uniqueWireNewsTickers(result.items));
   return (
     <NewsSecContent
@@ -25,6 +31,7 @@ export default async function NewsSecPage({ searchParams }: PageProps) {
       page={result.page}
       totalPages={result.totalPages}
       quotes={quotes}
+      filter={filter}
     />
   );
 }

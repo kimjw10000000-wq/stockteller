@@ -7,7 +7,7 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { WireNewsCard } from "@/components/news/WireNewsCard";
 import { useTickerQuotes } from "@/hooks/use-ticker-quotes";
 import type { WireNewsRow } from "@/lib/gnw/types";
-import { WIRE_NEWS_MAX_PAGES } from "@/lib/gnw/query";
+import { newsSecHref, WIRE_NEWS_MAX_PAGES, type WireNewsFilter } from "@/lib/gnw/nav";
 import { uniqueWireNewsTickers, wireNewsTicker } from "@/lib/quotes/format";
 import type { TickerQuoteMap } from "@/lib/quotes/types";
 
@@ -16,11 +16,13 @@ export function NewsSecContent({
   page,
   totalPages,
   quotes: initialQuotes,
+  filter = "latest",
 }: {
   items: WireNewsRow[];
   page: number;
   totalPages: number;
   quotes?: TickerQuoteMap;
+  filter?: WireNewsFilter;
 }) {
   const { t } = useI18n();
   const pages = Math.min(WIRE_NEWS_MAX_PAGES, Math.max(1, totalPages));
@@ -28,6 +30,7 @@ export function NewsSecContent({
     initial: initialQuotes,
     pollMs: 1_000,
   });
+  const filters: WireNewsFilter[] = ["latest", "gainers", "losers"];
 
   return (
     <main className="space-y-6">
@@ -37,13 +40,30 @@ export function NewsSecContent({
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
           {t("newsSec.lead")}
         </p>
+        <nav aria-label={t("newsSec.filters")} className="mt-4 flex flex-wrap gap-2">
+          {filters.map((id) => (
+            <Button
+              key={id}
+              type="button"
+              size="sm"
+              variant={filter === id ? "default" : "outline"}
+              asChild
+            >
+              <Link href={newsSecHref(id)} prefetch>
+                {t(`newsSec.filter.${id}`)}
+              </Link>
+            </Button>
+          ))}
+        </nav>
       </header>
 
       {items.length === 0 ? (
         <Card className="border-border">
           <CardContent>
             <h2 className="text-base font-semibold text-foreground">{t("newsSec.emptyTitle")}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("newsSec.emptyBody")}</p>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {filter === "latest" ? t("newsSec.emptyBody") : t("newsSec.emptyMovers")}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -72,7 +92,7 @@ export function NewsSecContent({
               }
               return (
                 <Button key={n} type="button" size="sm" variant={n === page ? "default" : "outline"} asChild>
-                  <Link href={n === 1 ? "/news-sec" : `/news-sec?page=${n}`} prefetch>
+                  <Link href={newsSecHref(filter, n)} prefetch>
                     {n}
                   </Link>
                 </Button>

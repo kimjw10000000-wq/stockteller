@@ -166,6 +166,13 @@
     "lead": "Latest GlobeNewswire items that match U.S. listed and OTC issuers. Each card opens the article on this site.",
     "emptyTitle": "No press releases to show yet",
     "emptyBody": "Items appear here after the poller runs. 16 per page, up to 10 pages.",
+    "emptyMovers": "No releases from the last 3 days, or change data is not ready yet.",
+    "filters": "News filters",
+    "filter": {
+      "latest": "Latest",
+      "gainers": "Top gainers",
+      "losers": "Top losers"
+    },
     "original": "Original",
     "nano": "Nano",
     "micro": "Micro",
