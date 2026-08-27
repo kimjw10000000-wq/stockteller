@@ -19,10 +19,12 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
     ? (item.sentiment as Sentiment)
     : null;
   const trend = sentiment ? disclosureTrend(sentiment) : null;
-  const preview =
+  const rawPreview =
     (item.teaser && item.teaser.trim()) ||
     item.summary?.split("\n").filter(Boolean)[0] ||
     "";
+  const preview =
+    rawPreview.length > 220 ? `${rawPreview.slice(0, 220).replace(/\s+\S*$/, "").trim()}…` : rawPreview;
   const when = item.published_at || item.created_at;
   const capLabel =
     item.cap_bucket === "nano"
@@ -54,7 +56,7 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
                 <TrendingDown className="h-4 w-4 shrink-0 text-red-500" aria-label={t("news.trendDown")} />
               ) : null}
             </div>
-            <h3 className="mb-2 font-medium leading-snug text-foreground">{item.title}</h3>
+            <h3 className="mb-2 line-clamp-3 font-medium leading-snug text-foreground">{item.title}</h3>
             {preview ? (
               <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
             ) : null}

@@ -52,6 +52,16 @@ function firstTag(xml: string, name: string): string {
   return tagAll(xml, name)[0] ?? "";
 }
 
+function excerpt(s: string, max = 220): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const slice = t.slice(0, max);
+  const sentence = slice.match(/^[\s\S]*?[.!?](\s|$)/);
+  if (sentence && sentence[0].trim().length >= 80) return sentence[0].trim();
+  const sp = slice.lastIndexOf(" ");
+  return `${(sp > 80 ? slice.slice(0, sp) : slice).trim()}…`;
+}
+
 function parseItem(chunk: string): GnwRssItem | null {
   const guid = firstTag(chunk, "guid") || firstTag(chunk, "link");
   const url = firstTag(chunk, "link") || guid;
@@ -60,7 +70,7 @@ function parseItem(chunk: string): GnwRssItem | null {
 
   const categories = tagAll(chunk, "category");
   const stockTickers = tagAll(chunk, "StockTickers");
-  const teaser = stripHtml(firstTag(chunk, "description")).slice(0, 2_000);
+  const teaser = excerpt(stripHtml(firstTag(chunk, "description")));
   const ciks = [...tagAll(chunk, "cik"), ...tagAll(chunk, "CIK")]
     .map((v) => v.replace(/\D/g, "").padStart(10, "0"))
     .filter((v) => v.length === 10 && v !== "0000000000");
