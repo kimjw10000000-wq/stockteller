@@ -163,12 +163,19 @@
   "newsSec": {
     "kicker": "GlobeNewswire",
     "title": "News/SEC",
-    "lead": "미국 상장·OTC 종목과 맞는 GlobeNewswire 최신 보도자료입니다. 카드는 원문 링크로 연결됩니다.",
+    "lead": "미국 상장·OTC 종목과 맞는 GlobeNewswire 최신 보도자료입니다. 카드를 누르면 이 사이트의 원문 페이지로 갑니다.",
     "emptyTitle": "아직 표시할 보도자료가 없습니다",
     "emptyBody": "폴러가 돌면 최신 20건이 여기에 쌓입니다. Supabase에 wire_news 테이블이 있는지 확인하세요.",
     "original": "원문",
     "nano": "나노캡",
-    "micro": "마이크로캡"
+    "micro": "마이크로캡",
+    "backToList": "News/SEC 목록으로",
+    "sourceLabel": "GlobeNewswire RSS 원문",
+    "body": "원문",
+    "noBody": "원문이 없습니다.",
+    "openOriginal": "GlobeNewswire에서 보기",
+    "more": "다른 보도자료",
+    "notFoundTitle": "보도자료를 찾을 수 없음"
   },
   "similar": {
     "kicker": "Similar movers",

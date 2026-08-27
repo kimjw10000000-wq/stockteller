@@ -163,12 +163,19 @@
   "newsSec": {
     "kicker": "GlobeNewswire",
     "title": "News/SEC",
-    "lead": "Latest GlobeNewswire items that match U.S. listed and OTC issuers in our database. Each card links to the original.",
+    "lead": "Latest GlobeNewswire items that match U.S. listed and OTC issuers. Each card opens the article on this site.",
     "emptyTitle": "No press releases to show yet",
     "emptyBody": "The latest 20 items appear here after the poller runs. Confirm the wire_news table exists in Supabase.",
     "original": "Original",
     "nano": "Nano",
-    "micro": "Micro"
+    "micro": "Micro",
+    "backToList": "Back to News/SEC",
+    "sourceLabel": "GlobeNewswire RSS original",
+    "body": "Original",
+    "noBody": "No original text is stored.",
+    "openOriginal": "View on GlobeNewswire",
+    "more": "More releases",
+    "notFoundTitle": "Press release not found"
   },
   "similar": {
     "kicker": "Similar movers",

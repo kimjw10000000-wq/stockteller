@@ -1,6 +1,7 @@
 "use client";
 
-import { Clock, ExternalLink, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { LocalizedDate } from "@/components/i18n/LocalizedDate";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,7 @@ const SENTIMENTS: Sentiment[] = ["positive", "negative", "neutral"];
 
 export function WireNewsCard({ item }: { item: WireNewsRow }) {
   const { t } = useI18n();
-  const ticker = item.primary_ticker || item.tickers[0] || "—";
+  const ticker = item.primary_ticker || item.tickers?.[0] || "—";
   const sentiment = SENTIMENTS.includes(item.sentiment as Sentiment)
     ? (item.sentiment as Sentiment)
     : null;
@@ -33,12 +34,7 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
 
   return (
     <ProtectedContent className="h-full" blockContextMenu={false}>
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block h-full"
-      >
+      <Link href={`/news-sec/${item.id}`} prefetch className="block h-full">
         <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
           <div className="p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -58,19 +54,13 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
             {preview ? (
               <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
             ) : null}
-            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-2">
-                <Clock className="h-3 w-3 shrink-0" aria-hidden />
-                {when ? <LocalizedDate iso={when} /> : null}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                {t("newsSec.original")}
-                <ExternalLink className="h-3 w-3" aria-hidden />
-              </span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-3 w-3 shrink-0" aria-hidden />
+              {when ? <LocalizedDate iso={when} /> : null}
             </div>
           </div>
         </Card>
-      </a>
+      </Link>
     </ProtectedContent>
   );
 }

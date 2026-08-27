@@ -1,0 +1,48 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { T } from "@/components/i18n/T";
+import { WireNewsCard } from "@/components/news/WireNewsCard";
+import { WireNewsDetailView } from "@/components/news/WireNewsDetailView";
+import { loadWireNews, loadWireNewsById } from "@/lib/gnw/query";
+import { tServer } from "@/lib/i18n/server";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type PageProps = { params: { id: string } };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const item = await loadWireNewsById(params.id);
+  if (!item) return { title: tServer("newsSec.notFoundTitle") };
+  const description = (item.teaser || item.summary || item.title).slice(0, 160);
+  return {
+    title: item.title,
+    description,
+    alternates: { canonical: `/news-sec/${item.id}` },
+  };
+}
+
+export default async function WireNewsDetailPage({ params }: PageProps) {
+  const item = await loadWireNewsById(params.id);
+  if (!item) notFound();
+
+  const related = (await loadWireNews()).filter((row) => row.id !== item.id).slice(0, 6);
+
+  return (
+    <main className="space-y-12">
+      <WireNewsDetailView item={item} />
+      {related.length > 0 ? (
+        <section className="border-t border-border pt-10">
+          <h2 className="mb-4 text-lg font-medium text-foreground">
+            <T k="newsSec.more" />
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {related.map((row) => (
+              <WireNewsCard key={row.id} item={row} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </main>
+  );
+}
