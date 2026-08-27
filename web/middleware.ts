@@ -50,6 +50,22 @@ export async function middleware(request: NextRequest) {
     locale,
     hadCookie
   );
+
+  const needsSession =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/admin") ||
+    pathname.startsWith("/api/alerts") ||
+    pathname.startsWith("/watchman") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/recover");
+
+  if (!needsSession) {
+    return response;
+  }
+
   const supabase = createSupabaseMiddlewareClient(request, response);
   const {
     data: { user },

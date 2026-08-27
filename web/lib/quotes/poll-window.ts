@@ -13,8 +13,13 @@ export function isUsQuoteRushWindow(now = new Date()): boolean {
   return minutes >= 4 * 60 && minutes < 20 * 60;
 }
 
+export function etDayKey(now = new Date()): string {
+  const p = getZonedParts(now, EASTERN_TIME_ZONE);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
 export function tossQuotePollIntervalMs(now = new Date()): number {
-  const fast = Math.max(5_000, Number(process.env.TOSS_QUOTE_RUSH_MS || 15_000) || 15_000);
-  const slow = Math.max(fast, Number(process.env.TOSS_QUOTE_IDLE_MS || 60_000) || 60_000);
+  const fast = Math.max(1_000, Number(process.env.TOSS_QUOTE_RUSH_MS || 1_000) || 1_000);
+  const slow = Math.max(fast, Number(process.env.TOSS_QUOTE_IDLE_MS || 5_000) || 5_000);
   return isUsQuoteRushWindow(now) ? fast : slow;
 }

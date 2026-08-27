@@ -27,6 +27,7 @@ function sweep(now: number) {
 function maxForPath(pathname: string): number {
   if (
     pathname.startsWith("/api/analyze") ||
+    pathname.startsWith("/api/us-mover-insight") ||
     pathname.startsWith("/api/disclosures") ||
     pathname.startsWith("/api/compliance") ||
     pathname.startsWith("/api/admin") ||
@@ -41,6 +42,8 @@ function maxForPath(pathname: string): number {
 /** 브라우저 실시간 폴링 — 제한하면 지표 화면이 깨집니다. */
 export function isRateLimitExemptPath(pathname: string): boolean {
   if (pathname.startsWith("/api/cron/")) return true;
+  if (pathname.startsWith("/api/news-sec/quotes")) return true;
+  if (pathname.startsWith("/api/halts")) return true;
   if (pathname.startsWith("/api/indicators/state")) return true;
   if (pathname.startsWith("/api/indicators/stream")) return true;
   if (pathname.startsWith("/api/auth")) return true;

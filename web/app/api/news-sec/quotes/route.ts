@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
-import { loadTickerQuotes } from "@/lib/quotes/ticker-quotes";
+import { loadAllTickerQuotes } from "@/lib/quotes/ticker-quotes";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 1;
+export const runtime = "nodejs";
 
-export async function GET(req: Request) {
-  const tickers = (new URL(req.url).searchParams.get("tickers") ?? "")
-    .split(",")
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean)
-    .slice(0, 200);
-  const quotes = await loadTickerQuotes(tickers);
+const CACHE =
+  "public, max-age=1, s-maxage=1, stale-while-revalidate=2";
+
+export async function GET() {
+  const quotes = await loadAllTickerQuotes();
   return NextResponse.json(
     { quotes, count: Object.keys(quotes).length },
-    { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15" } }
+    {
+      headers: {
+        "Cache-Control": CACHE,
+        "CDN-Cache-Control": CACHE,
+        "Vercel-CDN-Cache-Control": CACHE,
+      },
+    }
   );
 }

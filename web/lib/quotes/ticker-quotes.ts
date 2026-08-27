@@ -44,6 +44,28 @@ function rowToQuote(row: {
   };
 }
 
+export async function loadAllTickerQuotes(): Promise<TickerQuoteMap> {
+  const client = publicClient();
+  if (!client) return {};
+
+  const { data, error } = await client
+    .from("ticker_quotes")
+    .select(COLUMNS)
+    .order("fetched_at", { ascending: false })
+    .limit(500);
+  if (error) {
+    console.error("[loadAllTickerQuotes]", error.message);
+    return {};
+  }
+
+  const map: TickerQuoteMap = {};
+  for (const row of data ?? []) {
+    const quote = rowToQuote(row);
+    if (quote) map[quote.ticker] = quote;
+  }
+  return map;
+}
+
 export async function loadTickerQuotes(tickers: string[]): Promise<TickerQuoteMap> {
   const list = normalizeTickers(tickers);
   if (!list.length) return {};

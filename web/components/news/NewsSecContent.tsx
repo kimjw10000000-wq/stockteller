@@ -26,7 +26,7 @@ export function NewsSecContent({
   const pages = Math.min(WIRE_NEWS_MAX_PAGES, Math.max(1, totalPages));
   const quotes = useTickerQuotes(uniqueWireNewsTickers(items), {
     initial: initialQuotes,
-    pollMs: 15_000,
+    pollMs: 1_000,
   });
 
   return (

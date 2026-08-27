@@ -23,9 +23,7 @@ export function useTickerQuotes(
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/news-sec/quotes?tickers=${encodeURIComponent(key)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch("/api/news-sec/quotes", { cache: "default" });
         if (!res.ok) return;
         const data = (await res.json()) as { quotes?: TickerQuoteMap };
         if (!cancelled && data.quotes) setQuotes(data.quotes);
@@ -34,7 +32,7 @@ export function useTickerQuotes(
       }
     };
     void load();
-    const iv = setInterval(() => void load(), options?.pollMs ?? 15_000);
+    const iv = setInterval(() => void load(), options?.pollMs ?? 1_000);
     return () => {
       cancelled = true;
       clearInterval(iv);

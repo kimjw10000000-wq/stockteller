@@ -10,7 +10,7 @@ import type {
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { useI18n } from "@/components/i18n/I18nProvider";
 
-const FALLBACK_POLL_MS = 200;
+const FALLBACK_POLL_MS = 2_000;
 const SCRAPE_LEAD_MS = 12_000;
 
 function statusColor(status: IndicatorCompareStatus): {

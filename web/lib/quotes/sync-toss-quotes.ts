@@ -1,13 +1,26 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchTossCandlesPage, fetchTossPrices } from "@/lib/toss/market-data";
 import { fetchTossRankings } from "@/lib/toss/rankings";
 import { tossSafe } from "@/lib/toss/client";
 import { upsertTickerQuotes } from "./ticker-quotes";
+import { etDayKey } from "./poll-window";
 import type { TickerQuote } from "./types";
 
 const NEWS_TICKER_LIMIT = 160;
-const CANDLE_FILL_LIMIT = 40;
-const CANDLE_GAP_MS = 220;
+const CANDLES_PER_CYCLE = 3;
+const TICKER_LIST_TTL_MS = 30_000;
+const RANKING_TTL_MS = 60_000;
+
+const prevClose = new Map<string, number>();
+const unknownToToss = new Set<string>();
+let sessionDay = "";
+let tickerCache: { at: number; tickers: string[] } | null = null;
+let rankingCache: {
+  at: number;
+  map: Map<string, { lastPrice: number | null; changePct: number | null }>;
+} | null = null;
+let candleCursor = 0;
+let hydrated = false;
 
 function requireEnv(name: string): string {
   const v = process.env[name]?.trim();
@@ -15,26 +28,44 @@ function requireEnv(name: string): string {
   return v;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+function adminClient(): SupabaseClient {
+  return createClient(requireEnv("NEXT_PUBLIC_SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 function roundPct(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function changePctFromCloses(prev: number, last: number): number | null {
-  if (!Number.isFinite(prev) || !Number.isFinite(last) || prev === 0) return null;
-  return roundPct(((last - prev) / prev) * 100);
+function inferPrevClose(last: number, changePct: number): number | null {
+  const denom = 1 + changePct / 100;
+  if (!Number.isFinite(last) || !Number.isFinite(denom) || denom === 0) return null;
+  const prev = last / denom;
+  return Number.isFinite(prev) && prev > 0 ? prev : null;
+}
+
+function rememberPrevClose(ticker: string, last: number | null, changePct: number | null): void {
+  if (prevClose.has(ticker) || last == null || changePct == null) return;
+  const prev = inferPrevClose(last, changePct);
+  if (prev != null) prevClose.set(ticker, prev);
+}
+
+function rollSession(now: Date, lastPrices: Map<string, number>): void {
+  const day = etDayKey(now);
+  if (sessionDay && day !== sessionDay) {
+    for (const [ticker, last] of lastPrices) {
+      if (last > 0) prevClose.set(ticker, last);
+    }
+  }
+  sessionDay = day;
 }
 
 async function loadRecentNewsTickers(): Promise<string[]> {
-  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const key = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data, error } = await client
+  const now = Date.now();
+  if (tickerCache && now - tickerCache.at < TICKER_LIST_TTL_MS) return tickerCache.tickers;
+
+  const { data, error } = await adminClient()
     .from("wire_news")
     .select("primary_ticker,tickers")
     .order("published_at", { ascending: false, nullsFirst: false })
@@ -53,10 +84,35 @@ async function loadRecentNewsTickers(): Promise<string[]> {
       out.push(ticker);
     }
   }
+  tickerCache = { at: now, tickers: out };
   return out;
 }
 
+async function hydratePrevCloseFromDb(): Promise<void> {
+  if (hydrated) return;
+  hydrated = true;
+  const { data, error } = await adminClient()
+    .from("ticker_quotes")
+    .select("ticker,last_price,change_pct");
+  if (error) {
+    console.error("[quotes] hydrate", error.message);
+    return;
+  }
+  for (const row of data ?? []) {
+    const ticker = typeof row.ticker === "string" ? row.ticker.trim().toUpperCase() : "";
+    if (!ticker) continue;
+    const last = row.last_price == null ? null : Number(row.last_price);
+    const pct = row.change_pct == null ? null : Number(row.change_pct);
+    if (last != null && Number.isFinite(last) && last > 0) {
+      rememberPrevClose(ticker, last, pct);
+    }
+  }
+}
+
 async function rankingPctBySymbol(): Promise<Map<string, { lastPrice: number | null; changePct: number | null }>> {
+  const now = Date.now();
+  if (rankingCache && now - rankingCache.at < RANKING_TTL_MS) return rankingCache.map;
+
   const map = new Map<string, { lastPrice: number | null; changePct: number | null }>();
   const [gainers, losers] = await Promise.all([
     tossSafe("rankings-gainers", () =>
@@ -75,10 +131,9 @@ async function rankingPctBySymbol(): Promise<Map<string, { lastPrice: number | n
       map.set(symbol, { lastPrice: row.lastPrice, changePct: pct });
     }
   }
+  rankingCache = { at: now, map };
   return map;
 }
-
-const unknownToToss = new Set<string>();
 
 function markUnknownToToss(
   ticker: string,
@@ -88,17 +143,14 @@ function markUnknownToToss(
   if (result.status === 404 || result.code === "stock-not-found") unknownToToss.add(ticker);
 }
 
-async function fillFromCandles(
-  tickers: string[],
-  byTicker: Map<string, TickerQuote>,
-  force: Set<string>
-): Promise<number> {
+async function fillPrevCloseFromCandles(tickers: string[]): Promise<number> {
+  const need = tickers.filter((t) => !prevClose.has(t) && !unknownToToss.has(t));
+  if (!need.length) return 0;
   let filled = 0;
-  for (const ticker of tickers) {
-    if (filled >= CANDLE_FILL_LIMIT) break;
-    if (unknownToToss.has(ticker) || !byTicker.has(ticker)) continue;
-    const current = byTicker.get(ticker);
-    if (current?.changePct != null && !force.has(ticker)) continue;
+  let scanned = 0;
+  while (filled < CANDLES_PER_CYCLE && scanned < need.length) {
+    const ticker = need[(candleCursor + scanned) % need.length];
+    scanned += 1;
     const page = await tossSafe(`candles:${ticker}`, () =>
       fetchTossCandlesPage(ticker, "1d", { count: 2 })
     );
@@ -106,20 +158,15 @@ async function fillFromCandles(
     if (page.ok) {
       const closes = page.data.candles.map((c) => c.close).filter((n): n is number => n != null);
       if (closes.length >= 2) {
-        const pct = changePctFromCloses(closes[closes.length - 2], closes[closes.length - 1]);
-        const last = closes[closes.length - 1];
-        byTicker.set(ticker, {
-          ticker,
-          lastPrice: current?.lastPrice ?? last ?? null,
-          changePct: pct,
-          currency: current?.currency ?? "USD",
-          fetchedAt: new Date().toISOString(),
-        });
-        filled += 1;
+        const prev = closes[closes.length - 2];
+        if (prev > 0) {
+          prevClose.set(ticker, prev);
+          filled += 1;
+        }
       }
     }
-    await sleep(CANDLE_GAP_MS);
   }
+  candleCursor = need.length ? (candleCursor + scanned) % need.length : 0;
   return filled;
 }
 
@@ -133,11 +180,8 @@ export type SyncTossQuotesResult = {
 };
 
 export async function syncTossQuotesForWireNews(): Promise<SyncTossQuotesResult> {
-  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const key = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const client = adminClient();
+  await hydratePrevCloseFromDb();
 
   const tickers = await loadRecentNewsTickers();
   const empty: SyncTossQuotesResult = {
@@ -150,50 +194,73 @@ export async function syncTossQuotesForWireNews(): Promise<SyncTossQuotesResult>
   };
   if (!tickers.length) return empty;
 
+  const now = new Date();
+  const nowIso = now.toISOString();
   const byTicker = new Map<string, TickerQuote>();
-  const now = new Date().toISOString();
+  const lastPrices = new Map<string, number>();
 
   const pricesRes = await tossSafe("prices", () => fetchTossPrices(tickers));
   if (pricesRes.ok) {
     for (const p of pricesRes.data) {
       const ticker = p.symbol.trim().toUpperCase();
       if (!ticker) continue;
-      const pct = p.changePct == null ? null : roundPct(p.changePct);
-      if (pct != null) empty.fromPrices += 1;
+      if (p.lastPrice != null && p.lastPrice > 0) lastPrices.set(ticker, p.lastPrice);
+      rememberPrevClose(ticker, p.lastPrice, p.changePct == null ? null : roundPct(p.changePct));
+      const prev = prevClose.get(ticker);
+      const pct =
+        p.changePct != null
+          ? roundPct(p.changePct)
+          : prev != null && p.lastPrice != null
+            ? roundPct(((p.lastPrice - prev) / prev) * 100)
+            : null;
+      if (p.changePct != null) empty.fromPrices += 1;
       byTicker.set(ticker, {
         ticker,
         lastPrice: p.lastPrice,
         changePct: pct,
         currency: p.currency ?? "USD",
-        fetchedAt: now,
+        fetchedAt: nowIso,
       });
     }
   }
+
+  rollSession(now, lastPrices);
 
   const missingPct = tickers.filter((t) => byTicker.get(t)?.changePct == null);
   if (missingPct.length) {
     const ranked = await rankingPctBySymbol();
     for (const ticker of missingPct) {
       const hit = ranked.get(ticker);
-      if (!hit || hit.changePct == null) continue;
+      if (!hit) continue;
       const prev = byTicker.get(ticker);
+      const last = prev?.lastPrice ?? hit.lastPrice;
+      rememberPrevClose(ticker, last, hit.changePct);
+      const pc = prevClose.get(ticker);
+      const pct =
+        pc != null && last != null
+          ? roundPct(((last - pc) / pc) * 100)
+          : hit.changePct;
+      if (pct == null) continue;
       byTicker.set(ticker, {
         ticker,
-        lastPrice: prev?.lastPrice ?? hit.lastPrice,
-        changePct: hit.changePct,
+        lastPrice: last,
+        changePct: pct,
         currency: prev?.currency ?? "USD",
-        fetchedAt: now,
+        fetchedAt: nowIso,
       });
       empty.fromRankings += 1;
     }
   }
 
-  const stillMissing = tickers.filter(
-    (t) => byTicker.has(t) && byTicker.get(t)?.changePct == null && !unknownToToss.has(t)
+  empty.fromCandles = await fillPrevCloseFromCandles(
+    tickers.filter((t) => byTicker.has(t))
   );
-  const refresh = tickers.filter((t) => byTicker.has(t) && !unknownToToss.has(t)).slice(0, 16);
-  const candleQueue = [...new Set([...refresh, ...stillMissing])];
-  empty.fromCandles = await fillFromCandles(candleQueue, byTicker, new Set(refresh));
+  for (const ticker of tickers) {
+    const q = byTicker.get(ticker);
+    const pc = prevClose.get(ticker);
+    if (!q || q.changePct != null || q.lastPrice == null || pc == null || pc === 0) continue;
+    q.changePct = roundPct(((q.lastPrice - pc) / pc) * 100);
+  }
 
   const quotes = [...byTicker.values()];
   empty.upserted = await upsertTickerQuotes(client, quotes);

@@ -1,6 +1,6 @@
 /**
  * VPS loop: Toss prices → ticker_quotes for News/SEC cards.
- * US extended hours 04:00–20:00 ET: every 15s. Otherwise every 60s.
+ * US extended hours 04:00–20:00 ET: every 1s. Otherwise every 5s.
  * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOSSINVEST_CLIENT_ID, TOSSINVEST_CLIENT_SECRET
  */
 import { config } from "dotenv";

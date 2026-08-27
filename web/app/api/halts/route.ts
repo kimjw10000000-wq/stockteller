@@ -21,8 +21,9 @@ export async function GET(req: Request) {
       },
       {
         headers: {
-          // CDN/브라우저가 응답을 붙잡지 않게 — 중계 캐시는 서버 메모리가 담당
-          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Cache-Control": "public, max-age=2, s-maxage=2, stale-while-revalidate=5",
+          "CDN-Cache-Control": "public, s-maxage=2, stale-while-revalidate=5",
+          "Vercel-CDN-Cache-Control": "public, s-maxage=2, stale-while-revalidate=5",
         },
       }
     );
