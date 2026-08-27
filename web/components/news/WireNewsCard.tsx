@@ -19,12 +19,10 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
     ? (item.sentiment as Sentiment)
     : null;
   const trend = sentiment ? disclosureTrend(sentiment) : null;
-  const rawPreview =
+  const preview =
     (item.teaser && item.teaser.trim()) ||
     item.summary?.split("\n").filter(Boolean)[0] ||
     "";
-  const preview =
-    rawPreview.length > 220 ? `${rawPreview.slice(0, 220).replace(/\s+\S*$/, "").trim()}…` : rawPreview;
   const when = item.published_at || item.created_at;
   const capLabel =
     item.cap_bucket === "nano"
@@ -58,7 +56,9 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
             </div>
             <h3 className="mb-2 line-clamp-3 font-medium leading-snug text-foreground">{item.title}</h3>
             {preview ? (
-              <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
+              <p className="mb-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                {preview}
+              </p>
             ) : null}
             <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-2">
