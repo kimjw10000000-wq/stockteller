@@ -165,7 +165,7 @@
     "title": "News/SEC",
     "lead": "Latest GlobeNewswire items that match U.S. listed and OTC issuers. Each card opens the article on this site.",
     "emptyTitle": "No press releases to show yet",
-    "emptyBody": "The latest 20 items appear here after the poller runs. Confirm the wire_news table exists in Supabase.",
+    "emptyBody": "Items appear here after the poller runs. 16 per page, up to 10 pages.",
     "original": "Original",
     "nano": "Nano",
     "micro": "Micro",
@@ -175,7 +175,8 @@
     "noBody": "No original text is stored.",
     "openOriginal": "View on GlobeNewswire",
     "more": "More releases",
-    "notFoundTitle": "Press release not found"
+    "notFoundTitle": "Press release not found",
+    "pages": "News pages"
   },
   "similar": {
     "kicker": "Similar movers",

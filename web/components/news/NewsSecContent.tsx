@@ -1,12 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { WireNewsCard } from "@/components/news/WireNewsCard";
 import type { WireNewsRow } from "@/lib/gnw/types";
+import { WIRE_NEWS_MAX_PAGES } from "@/lib/gnw/query";
 
-export function NewsSecContent({ items }: { items: WireNewsRow[] }) {
+export function NewsSecContent({
+  items,
+  page,
+  totalPages,
+}: {
+  items: WireNewsRow[];
+  page: number;
+  totalPages: number;
+}) {
   const { t } = useI18n();
+  const pages = Math.min(WIRE_NEWS_MAX_PAGES, Math.max(1, totalPages));
+
   return (
     <main className="space-y-6">
       <header>
@@ -25,11 +38,35 @@ export function NewsSecContent({ items }: { items: WireNewsRow[] }) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {items.map((item) => (
-            <WireNewsCard key={item.id} item={item} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            {items.map((item) => (
+              <WireNewsCard key={item.id} item={item} />
+            ))}
+          </div>
+          <nav
+            aria-label={t("newsSec.pages")}
+            className="flex flex-wrap items-center justify-center gap-2 pt-2"
+          >
+            {Array.from({ length: WIRE_NEWS_MAX_PAGES }, (_, i) => i + 1).map((n) => {
+              const available = n <= pages;
+              if (!available) {
+                return (
+                  <Button key={n} type="button" size="sm" variant="outline" disabled>
+                    {n}
+                  </Button>
+                );
+              }
+              return (
+                <Button key={n} type="button" size="sm" variant={n === page ? "default" : "outline"} asChild>
+                  <Link href={n === 1 ? "/news-sec" : `/news-sec?page=${n}`} prefetch>
+                    {n}
+                  </Link>
+                </Button>
+              );
+            })}
+          </nav>
+        </>
       )}
     </main>
   );

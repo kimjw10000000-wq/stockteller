@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { NewsSecContent } from "@/components/news/NewsSecContent";
-import { loadWireNews } from "@/lib/gnw/query";
+import { loadWireNewsPage, parseWireNewsPage } from "@/lib/gnw/query";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,15 @@ export const metadata: Metadata = {
   alternates: { canonical: "/news-sec" },
 };
 
-export default async function NewsSecPage() {
-  const items = await loadWireNews();
-  return <NewsSecContent items={items} />;
+type PageProps = { searchParams: { page?: string } };
+
+export default async function NewsSecPage({ searchParams }: PageProps) {
+  const result = await loadWireNewsPage(parseWireNewsPage(searchParams.page));
+  return (
+    <NewsSecContent
+      items={result.items}
+      page={result.page}
+      totalPages={result.totalPages}
+    />
+  );
 }
