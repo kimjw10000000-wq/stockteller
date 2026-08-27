@@ -54,11 +54,9 @@ export function WireNewsCard({ item }: { item: WireNewsRow }) {
                 <TrendingDown className="h-4 w-4 shrink-0 text-red-500" aria-label={t("news.trendDown")} />
               ) : null}
             </div>
-            <h3 className="mb-2 line-clamp-3 font-medium leading-snug text-foreground">{item.title}</h3>
+            <h3 className="mb-2 font-medium leading-snug text-foreground">{item.title}</h3>
             {preview ? (
-              <p className="mb-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                {preview}
-              </p>
+              <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
             ) : null}
             <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-2">

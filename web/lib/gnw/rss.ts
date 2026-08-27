@@ -60,7 +60,7 @@ function parseItem(chunk: string): GnwRssItem | null {
 
   const categories = tagAll(chunk, "category");
   const stockTickers = tagAll(chunk, "StockTickers");
-  const teaser = stripHtml(firstTag(chunk, "description")).slice(0, 50_000);
+  const teaser = stripHtml(firstTag(chunk, "description")).slice(0, 2_000);
   const ciks = [...tagAll(chunk, "cik"), ...tagAll(chunk, "CIK")]
     .map((v) => v.replace(/\D/g, "").padStart(10, "0"))
     .filter((v) => v.length === 10 && v !== "0000000000");
