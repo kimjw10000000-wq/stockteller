@@ -161,11 +161,11 @@
     "capped": "검색 결과는 최대 200건까지 표시됩니다."
   },
   "newsSec": {
-    "kicker": "GlobeNewswire · Groq",
+    "kicker": "GlobeNewswire",
     "title": "News/SEC",
-    "lead": "DB에 있는 미국 상장 티커·CIK와 맞는 GlobeNewswire 보도자료를 Groq GPT가 한국어로 요약합니다. 카드는 원문 링크로 연결됩니다.",
+    "lead": "미국 상장·OTC 종목과 맞는 GlobeNewswire 최신 보도자료입니다. 카드는 원문 링크로 연결됩니다.",
     "emptyTitle": "아직 표시할 보도자료가 없습니다",
-    "emptyBody": "크론이 돌면 상장사 요약이 여기에 쌓입니다. Supabase에 wire_news 테이블이 있고 GROQ_API_KEY가 설정돼 있는지 확인하세요.",
+    "emptyBody": "폴러가 돌면 최신 20건이 여기에 쌓입니다. Supabase에 wire_news 테이블이 있는지 확인하세요.",
     "original": "원문",
     "nano": "나노캡",
     "micro": "마이크로캡"

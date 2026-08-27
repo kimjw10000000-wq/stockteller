@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "News/SEC",
-  description: `${SITE_NAME_KO} — 미국 상장사 GlobeNewswire 보도자료 AI 요약`,
+  description: `${SITE_NAME_KO} — 미국 상장·OTC GlobeNewswire 최신 보도자료`,
   alternates: { canonical: "/news-sec" },
 };
 

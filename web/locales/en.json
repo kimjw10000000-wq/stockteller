@@ -161,11 +161,11 @@
     "capped": "Search results are limited to 200 items."
   },
   "newsSec": {
-    "kicker": "GlobeNewswire · Groq",
+    "kicker": "GlobeNewswire",
     "title": "News/SEC",
-    "lead": "Groq GPT summarizes GlobeNewswire releases that match listed U.S. tickers or CIKs in our database. Each card links to the original.",
+    "lead": "Latest GlobeNewswire items that match U.S. listed and OTC issuers in our database. Each card links to the original.",
     "emptyTitle": "No press releases to show yet",
-    "emptyBody": "Summaries appear here after the crawler runs. Confirm the wire_news table exists in Supabase and GROQ_API_KEY is set.",
+    "emptyBody": "The latest 20 items appear here after the poller runs. Confirm the wire_news table exists in Supabase.",
     "original": "Original",
     "nano": "Nano",
     "micro": "Micro"

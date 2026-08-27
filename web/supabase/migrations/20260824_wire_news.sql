@@ -1,4 +1,4 @@
--- GlobeNewswire RSS headlines + Groq GPT Korean summaries (teaser only, no full-body scrape)
+-- GlobeNewswire RSS headline + teaser, stored on issuer ticker (see 20260827_wire_news_ticker_fk.sql)
 
 create table if not exists public.wire_news (
   id uuid primary key default gen_random_uuid(),

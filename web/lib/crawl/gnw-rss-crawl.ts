@@ -1,24 +1,21 @@
 /**
- * GlobeNewswire public RSS → Groq GPT JSON → Supabase `wire_news`.
- * Used by `npm run crawl:gnw` and `/api/cron/gnw-rss`.
- *
- * Stores headline + teaser + our Korean summary. Does not scrape full article bodies.
+ * GlobeNewswire public RSS → Supabase `wire_news` (headline + teaser, no Groq).
+ * Used by `npm run crawl:gnw`, `npm run poll:gnw`, and `/api/cron/gnw-rss`.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchGnwRssFeeds, type GnwRssItem } from "@/lib/gnw/rss";
 import {
   capBucket,
-  isActiveListed,
+  isActiveIssuer,
+  namesLikelyMatch,
   normalizeCik,
   parseGnwCiks,
   parseGnwStockTags,
 } from "@/lib/gnw/tickers";
-import { analyzeWireTeaser } from "@/lib/llm/analyze-wire";
-import { isGroqConfigured } from "@/lib/groq/client";
-import type { GeminiAnalysisResult } from "@/lib/types";
 
 const SOURCE = "globenewswire";
+const DEFAULT_MAX = 20;
 
 export type GnwCrawlResult = {
   ok: boolean;
@@ -50,13 +47,14 @@ function parsePublishedAt(raw: string | null): string | null {
   return new Date(t).toISOString();
 }
 
-function fallbackAnalysis(error: string): GeminiAnalysisResult {
-  return {
-    title: "AI 분석 실패",
-    summary_lines: ["요약 호출에 실패했습니다.", error.slice(0, 200), "원문 링크로 확인해 주세요."],
-    sentiment: "neutral",
-    score: 0,
-  };
+function publishedMs(raw: string | null): number {
+  if (!raw) return 0;
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function escapeIlike(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 async function existingIds(client: SupabaseClient, ids: string[]): Promise<Set<string>> {
@@ -81,6 +79,7 @@ async function existingIds(client: SupabaseClient, ids: string[]): Promise<Set<s
 function indexListed(rows: ListedRow[]): {
   byTicker: Map<string, ListedRow>;
   byCik: Map<string, ListedRow>;
+  byName: ListedRow[];
 } {
   const byTicker = new Map<string, ListedRow>();
   const byCik = new Map<string, ListedRow>();
@@ -89,14 +88,15 @@ function indexListed(rows: ListedRow[]): {
     const cik = normalizeCik(row.cik ?? "");
     if (cik && !byCik.has(cik)) byCik.set(cik, row);
   }
-  return { byTicker, byCik };
+  return { byTicker, byCik, byName: rows };
 }
 
 async function listedLookup(
   client: SupabaseClient,
   tickers: string[],
-  ciks: string[]
-): Promise<{ byTicker: Map<string, ListedRow>; byCik: Map<string, ListedRow> }> {
+  ciks: string[],
+  names: string[]
+): Promise<{ byTicker: Map<string, ListedRow>; byCik: Map<string, ListedRow>; byName: ListedRow[] }> {
   const rows: ListedRow[] = [];
   if (tickers.length > 0) {
     const { data, error } = await client
@@ -115,22 +115,40 @@ async function listedLookup(
     if (error) throw new Error(`us_listed_companies cik lookup: ${error.message}`);
     rows.push(...((data ?? []) as ListedRow[]));
   }
+  const uniqueNames = [...new Set(names.map((n) => n.trim()).filter((n) => n.length >= 3))].slice(0, 30);
+  for (const name of uniqueNames) {
+    const { data, error } = await client
+      .from("us_listed_companies")
+      .select("ticker,name,cik,market_cap,exchange,is_active")
+      .ilike("name", `%${escapeIlike(name.slice(0, 80))}%`)
+      .limit(8);
+    if (error) throw new Error(`us_listed_companies name lookup: ${error.message}`);
+    rows.push(...((data ?? []) as ListedRow[]));
+  }
   return indexListed(rows);
 }
 
-function pickListed(
+function pickIssuer(
   tickers: string[],
   ciks: string[],
+  companyName: string | null,
   byTicker: Map<string, ListedRow>,
-  byCik: Map<string, ListedRow>
+  byCik: Map<string, ListedRow>,
+  byName: ListedRow[]
 ): { ticker: string; row: ListedRow } | null {
   for (const ticker of tickers) {
     const row = byTicker.get(ticker);
-    if (row && isActiveListed(row)) return { ticker: row.ticker, row };
+    if (row && isActiveIssuer(row)) return { ticker: row.ticker, row };
   }
   for (const cik of ciks) {
     const row = byCik.get(cik);
-    if (row && isActiveListed(row)) return { ticker: row.ticker, row };
+    if (row && isActiveIssuer(row)) return { ticker: row.ticker, row };
+  }
+  if (companyName) {
+    for (const row of byName) {
+      if (!isActiveIssuer(row) || !row.name) continue;
+      if (namesLikelyMatch(companyName, row.name)) return { ticker: row.ticker, row };
+    }
   }
   return null;
 }
@@ -138,9 +156,6 @@ function pickListed(
 export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCrawlResult> {
   const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   const service = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-  if (!isGroqConfigured()) {
-    return { ok: false, inserted: 0, scanned: 0, skipped: 0, message: "GROQ_API_KEY is not configured" };
-  }
 
   const client =
     supabase ??
@@ -148,7 +163,9 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-  const items = await fetchGnwRssFeeds();
+  const items = [...(await fetchGnwRssFeeds())].sort(
+    (a, b) => publishedMs(b.publishedAt) - publishedMs(a.publishedAt)
+  );
   const already = await existingIds(
     client,
     items.map((i) => i.id)
@@ -157,6 +174,7 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
   const pending: Array<{ item: GnwRssItem; tickers: string[]; ciks: string[] }> = [];
   const allTickers = new Set<string>();
   const allCiks = new Set<string>();
+  const allNames = new Set<string>();
   for (const item of items) {
     if (already.has(item.id)) continue;
     const blob = [item.title, item.teaser, ...item.stockTags];
@@ -165,57 +183,56 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
       ...item.ciks.map((c) => normalizeCik(c)).filter((c): c is string => Boolean(c)),
       ...parseGnwCiks(blob),
     ].filter((c, i, arr) => arr.indexOf(c) === i);
-    if (tickers.length === 0 && ciks.length === 0) continue;
+    if (tickers.length === 0 && ciks.length === 0 && !item.companyName) continue;
     pending.push({ item, tickers, ciks });
     for (const t of tickers) allTickers.add(t);
     for (const c of ciks) allCiks.add(c);
+    if (item.companyName) allNames.add(item.companyName);
   }
 
-  const { byTicker, byCik } = await listedLookup(client, [...allTickers], [...allCiks]);
-  const max = Math.max(1, Number(process.env.CRAWL_GNW_MAX_ITEMS || 40) || 40);
+  const { byTicker, byCik, byName } = await listedLookup(
+    client,
+    [...allTickers],
+    [...allCiks],
+    [...allNames]
+  );
+  const max = Math.max(1, Number(process.env.CRAWL_GNW_MAX_ITEMS || DEFAULT_MAX) || DEFAULT_MAX);
   let inserted = 0;
   let skipped = items.length - pending.length;
   let insertFailures = 0;
-  let analyzed = 0;
+  let kept = 0;
 
   for (let i = 0; i < pending.length; i++) {
-    if (analyzed >= max) {
+    if (kept >= max) {
       skipped += pending.length - i;
       break;
     }
     const { item, tickers, ciks } = pending[i];
-    const match = pickListed(tickers, ciks, byTicker, byCik);
+    const match = pickIssuer(tickers, ciks, item.companyName, byTicker, byCik, byName);
     if (!match) {
       skipped += 1;
       continue;
     }
-    analyzed += 1;
+    kept += 1;
 
-    const analysisResult = await analyzeWireTeaser({
-      title: item.title,
-      teaser: item.teaser,
-      ticker: match.ticker,
-    });
-    const analysis = analysisResult.ok ? analysisResult.data : fallbackAnalysis(analysisResult.error);
-    const model = analysisResult.ok ? analysisResult.model : null;
-
+    const teaser = item.teaser || "";
     const { error: insErr } = await client.from("wire_news").insert({
       source: SOURCE,
       external_id: item.id,
       url: item.url,
-      title: analysis.title,
-      teaser: item.teaser || null,
-      summary: analysis.summary_lines.join("\n"),
-      sentiment: analysis.sentiment,
-      analysis_score: analysis.score,
-      tickers,
+      title: item.title,
+      teaser: teaser || null,
+      summary: teaser || null,
+      sentiment: null,
+      analysis_score: null,
+      tickers: tickers.length > 0 ? tickers : [match.ticker],
       primary_ticker: match.ticker,
       company_name: match.row.name || item.companyName || null,
       published_at: parsePublishedAt(item.publishedAt),
       market_cap: match.row.market_cap,
       cap_bucket: capBucket(match.row.market_cap),
       language: item.language || "en",
-      llm_model: model,
+      llm_model: null,
     });
 
     if (insErr) {
@@ -238,7 +255,7 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
     }
 
     inserted += 1;
-    console.log("inserted", match.ticker, analysis.title);
+    console.log("inserted", match.ticker, item.title);
   }
 
   const message = `done, inserted ${inserted} (scanned ${items.length}, skipped ${skipped}, insertFailures ${insertFailures})`;

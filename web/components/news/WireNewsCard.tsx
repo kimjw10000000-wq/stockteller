@@ -12,8 +12,11 @@ import { disclosureTrend } from "@/lib/news-display";
 export function WireNewsCard({ item }: { item: WireNewsRow }) {
   const { t } = useI18n();
   const ticker = item.primary_ticker || item.tickers[0] || "—";
-  const trend = disclosureTrend(item.sentiment);
-  const preview = item.summary?.split("\n").filter(Boolean)[0] ?? "";
+  const trend = item.sentiment ? disclosureTrend(item.sentiment) : null;
+  const preview =
+    (item.teaser && item.teaser.trim()) ||
+    item.summary?.split("\n").filter(Boolean)[0] ||
+    "";
   const when = item.published_at || item.created_at;
   const capLabel =
     item.cap_bucket === "nano"

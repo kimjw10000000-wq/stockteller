@@ -1,7 +1,5 @@
-import { isSearchListedExchange } from "@/lib/companies/listing-diff";
-
 const LISTED_TAG =
-  /(?:nasdaq(?:cm|gm|gs)?|nyse\s*american|nyse\s*mkt|nyse|amex)\s*:\s*([A-Z][A-Z0-9.\-]{0,7})/gi;
+  /(?:nasdaq(?:cm|gm|gs)?|nyse\s*american|nyse\s*mkt|nyse|amex|otcqb|otcqx|otcbb|otc)\s*:\s*([A-Z][A-Z0-9.\-]{0,7})/gi;
 
 const NANO_MAX = 50_000_000;
 const MICRO_MAX = 300_000_000;
@@ -56,13 +54,28 @@ export function parseGnwCiks(texts: string[]): string[] {
   return out;
 }
 
-export function isActiveListed(row: {
-  is_active?: boolean | null;
-  exchange?: string | null;
-} | null | undefined): boolean {
+export function normalizeCompanyName(raw: string): string {
+  return String(raw ?? "")
+    .toUpperCase()
+    .replace(/[.,'"()/]/g, " ")
+    .replace(/\b(INCORPORATED|INC|CORPORATION|CORP|COMPANY|CO|LTD|LIMITED|LLC|PLC|SA|AG|NV)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isActiveIssuer(row: { is_active?: boolean | null } | null | undefined): boolean {
   if (!row) return false;
-  if (row.is_active === false) return false;
-  return isSearchListedExchange(String(row.exchange ?? ""));
+  return row.is_active !== false;
+}
+
+export function namesLikelyMatch(a: string, b: string): boolean {
+  const left = normalizeCompanyName(a);
+  const right = normalizeCompanyName(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (left.length >= 10 && right.includes(left)) return true;
+  if (right.length >= 10 && left.includes(right)) return true;
+  return false;
 }
 
 export function capBucket(marketCap: number | null | undefined): "nano" | "micro" | null {
