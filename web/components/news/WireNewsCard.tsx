@@ -8,11 +8,17 @@ import { Card } from "@/components/ui/card";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import type { WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
+import type { Sentiment } from "@/lib/types";
+
+const SENTIMENTS: Sentiment[] = ["positive", "negative", "neutral"];
 
 export function WireNewsCard({ item }: { item: WireNewsRow }) {
   const { t } = useI18n();
   const ticker = item.primary_ticker || item.tickers[0] || "—";
-  const trend = item.sentiment ? disclosureTrend(item.sentiment) : null;
+  const sentiment = SENTIMENTS.includes(item.sentiment as Sentiment)
+    ? (item.sentiment as Sentiment)
+    : null;
+  const trend = sentiment ? disclosureTrend(sentiment) : null;
   const preview =
     (item.teaser && item.teaser.trim()) ||
     item.summary?.split("\n").filter(Boolean)[0] ||
