@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron/edgar-6k",
-      "schedule": "7 * * * *"
+      "schedule": "7 2 * * *"
     }
   ],
   "redirects": [
