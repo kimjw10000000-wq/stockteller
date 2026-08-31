@@ -1,5 +1,5 @@
-# SEC 6-K Exhibit 99.1 → Groq → wire_news (News/SEC).
-# Vercel Hobby only allows daily crons; this workflow polls hourly.
+# SEC 6-K Exhibit 99.1 → Groq → wire_news.
+# Hourly schedule paused — turn back on with `on.schedule` when ready to experiment.
 #
 # Secret: CRON_SECRET (same as Vercel)
 # Optional: CRAWL_6K_WEBHOOK_URL (default https://whyup.net/api/cron/edgar-6k)
@@ -7,8 +7,6 @@
 name: edgar-6k-crawl
 
 on:
-  schedule:
-    - cron: "7 * * * *"
   workflow_dispatch: {}
 
 concurrency:

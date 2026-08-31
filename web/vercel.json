@@ -9,10 +9,6 @@
     {
       "path": "/api/cron/us-listed-sync",
       "schedule": "15 1 * * *"
-    },
-    {
-      "path": "/api/cron/edgar-6k",
-      "schedule": "7 2 * * *"
     }
   ],
   "redirects": [
