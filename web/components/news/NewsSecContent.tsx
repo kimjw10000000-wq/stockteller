@@ -5,9 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { WireNewsCard } from "@/components/news/WireNewsCard";
+import { WireNewsPager } from "@/components/news/WireNewsPager";
 import { useTickerQuotes } from "@/hooks/use-ticker-quotes";
 import type { WireNewsRow } from "@/lib/gnw/types";
-import { newsSecHref, WIRE_NEWS_MAX_PAGES, type WireNewsFilter } from "@/lib/gnw/nav";
+import { newsSecHref, type WireNewsFilter } from "@/lib/gnw/nav";
 import { uniqueWireNewsTickers, wireNewsTicker } from "@/lib/quotes/format";
 import type { TickerQuoteMap } from "@/lib/quotes/types";
 
@@ -25,7 +26,6 @@ export function NewsSecContent({
   filter?: WireNewsFilter;
 }) {
   const { t } = useI18n();
-  const pages = Math.min(WIRE_NEWS_MAX_PAGES, Math.max(1, totalPages));
   const quotes = useTickerQuotes(uniqueWireNewsTickers(items), {
     initial: initialQuotes,
     pollMs: 1_000,
@@ -77,28 +77,11 @@ export function NewsSecContent({
               />
             ))}
           </div>
-          <nav
-            aria-label={t("newsSec.pages")}
-            className="flex flex-wrap items-center justify-center gap-2 pt-2"
-          >
-            {Array.from({ length: WIRE_NEWS_MAX_PAGES }, (_, i) => i + 1).map((n) => {
-              const available = n <= pages;
-              if (!available) {
-                return (
-                  <Button key={n} type="button" size="sm" variant="outline" disabled>
-                    {n}
-                  </Button>
-                );
-              }
-              return (
-                <Button key={n} type="button" size="sm" variant={n === page ? "default" : "outline"} asChild>
-                  <Link href={newsSecHref(filter, n)} prefetch>
-                    {n}
-                  </Link>
-                </Button>
-              );
-            })}
-          </nav>
+          <WireNewsPager
+            page={page}
+            totalPages={totalPages}
+            hrefForPage={(n) => newsSecHref(filter, n)}
+          />
         </>
       )}
     </main>

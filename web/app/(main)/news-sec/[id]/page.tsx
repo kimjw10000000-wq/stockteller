@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { T } from "@/components/i18n/T";
 import { WireNewsCard } from "@/components/news/WireNewsCard";
 import { WireNewsDetailView } from "@/components/news/WireNewsDetailView";
-import { loadWireNews, loadWireNewsById } from "@/lib/gnw/query";
+import { loadRelatedWireNews, loadWireNewsById } from "@/lib/gnw/query";
 import { tServer } from "@/lib/i18n/server";
 import { uniqueWireNewsTickers, wireNewsTicker } from "@/lib/quotes/format";
 import { loadTickerQuotes } from "@/lib/quotes/ticker-quotes";
@@ -28,7 +28,7 @@ export default async function WireNewsDetailPage({ params }: PageProps) {
   const item = await loadWireNewsById(params.id);
   if (!item) notFound();
 
-  const related = (await loadWireNews()).filter((row) => row.id !== item.id).slice(0, 6);
+  const related = await loadRelatedWireNews(item, 6);
   const quotes = await loadTickerQuotes(uniqueWireNewsTickers([item, ...related]));
 
   return (

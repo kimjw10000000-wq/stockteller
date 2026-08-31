@@ -158,14 +158,14 @@
     "promptHint": "상단 검색창에서 티커·종목명·종목코드를 검색할 수 있습니다.",
     "emptyTitle": "「{q}」에 대한 검색 결과가 없습니다.",
     "emptyHint": "다른 티커나 종목명으로 다시 검색해 보세요.",
-    "capped": "검색 결과는 최대 200건까지 표시됩니다."
+    "pages": "검색 결과 페이지"
   },
   "newsSec": {
     "kicker": "GlobeNewswire",
     "title": "News/SEC",
     "lead": "미국 상장·OTC 종목과 맞는 GlobeNewswire 최신 보도자료입니다. 카드를 누르면 이 사이트의 원문 페이지로 갑니다.",
     "emptyTitle": "아직 표시할 보도자료가 없습니다",
-    "emptyBody": "폴러가 돌면 여기에 쌓입니다. 한 페이지에 16건, 최대 10페이지입니다.",
+    "emptyBody": "폴러가 돌면 여기에 쌓입니다. 한 페이지에 16건입니다.",
     "emptyMovers": "최근 3일 보도자료가 없거나, 아직 등락률이 없습니다.",
     "filters": "뉴스 필터",
     "filter": {
@@ -183,7 +183,9 @@
     "openOriginal": "GlobeNewswire에서 보기",
     "more": "다른 보도자료",
     "notFoundTitle": "보도자료를 찾을 수 없음",
-    "pages": "뉴스 페이지"
+    "pages": "뉴스 페이지",
+    "prevPage": "이전",
+    "nextPage": "다음"
   },
   "similar": {
     "kicker": "Similar movers",

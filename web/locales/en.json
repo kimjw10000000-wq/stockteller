@@ -158,14 +158,14 @@
     "promptHint": "Use the search bar above for ticker, name, or stock code.",
     "emptyTitle": "No results for “{q}”.",
     "emptyHint": "Try another ticker or company name.",
-    "capped": "Search results are limited to 200 items."
+    "pages": "Search result pages"
   },
   "newsSec": {
     "kicker": "GlobeNewswire",
     "title": "News/SEC",
     "lead": "Latest GlobeNewswire items that match U.S. listed and OTC issuers. Each card opens the article on this site.",
     "emptyTitle": "No press releases to show yet",
-    "emptyBody": "Items appear here after the poller runs. 16 per page, up to 10 pages.",
+    "emptyBody": "Items appear here after the poller runs. 16 per page.",
     "emptyMovers": "No releases from the last 3 days, or change data is not ready yet.",
     "filters": "News filters",
     "filter": {
@@ -183,7 +183,9 @@
     "openOriginal": "View on GlobeNewswire",
     "more": "More releases",
     "notFoundTitle": "Press release not found",
-    "pages": "News pages"
+    "pages": "News pages",
+    "prevPage": "Previous",
+    "nextPage": "Next"
   },
   "similar": {
     "kicker": "Similar movers",

@@ -1,15 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import {
-  WIRE_NEWS_MAX_PAGES,
-  WIRE_NEWS_PAGE_SIZE,
-} from "@/lib/gnw/nav";
+import { WIRE_NEWS_PAGE_SIZE } from "@/lib/gnw/nav";
 import type { WireNewsRow } from "@/lib/gnw/types";
 import { loadAllTickerQuotes } from "@/lib/quotes/ticker-quotes";
 import type { TickerQuoteMap } from "@/lib/quotes/types";
 
-export { WIRE_NEWS_MAX_PAGES, WIRE_NEWS_PAGE_SIZE } from "@/lib/gnw/nav";
+export { WIRE_NEWS_PAGE_SIZE } from "@/lib/gnw/nav";
 export type { WireNewsFilter } from "@/lib/gnw/nav";
-export { newsSecHref, parseWireNewsFilter, parseWireNewsPage } from "@/lib/gnw/nav";
+export { newsSecHref, parseWireNewsFilter, parseWireNewsPage, searchNewsHref } from "@/lib/gnw/nav";
 
 const WIRE_NEWS_COLUMNS =
   "id,source,external_id,url,title,teaser,summary,sentiment,analysis_score,tickers,primary_ticker,company_name,published_at,created_at,market_cap,cap_bucket,language,llm_model";
@@ -41,7 +38,7 @@ export async function loadWireNews(limit = WIRE_NEWS_PAGE_SIZE): Promise<WireNew
     .from("wire_news")
     .select(WIRE_NEWS_COLUMNS)
     .order("published_at", { ascending: false, nullsFirst: false })
-    .limit(Math.max(1, Math.min(limit, WIRE_NEWS_PAGE_SIZE * WIRE_NEWS_MAX_PAGES)));
+    .limit(Math.max(1, Math.min(limit, 32)));
 
   if (error) {
     console.error("[loadWireNews]", error.message);
@@ -65,7 +62,7 @@ export async function loadWireNewsPage(requestedPage: number): Promise<WireNewsP
     return empty;
   }
 
-  const total = Math.min(count ?? 0, WIRE_NEWS_PAGE_SIZE * WIRE_NEWS_MAX_PAGES);
+  const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / WIRE_NEWS_PAGE_SIZE));
   const page = Math.min(Math.max(1, requestedPage), totalPages);
   if (total === 0) return { ...empty, totalPages };
@@ -122,7 +119,7 @@ export async function loadWireNewsMoversPage(
     return publishedMs(b) - publishedMs(a);
   });
 
-  const total = Math.min(ranked.length, WIRE_NEWS_PAGE_SIZE * WIRE_NEWS_MAX_PAGES);
+  const total = ranked.length;
   const totalPages = Math.max(1, Math.ceil(total / WIRE_NEWS_PAGE_SIZE));
   const page = Math.min(Math.max(1, requestedPage), totalPages);
   if (total === 0) return { ...empty, totalPages };
@@ -166,4 +163,129 @@ export async function loadWireNewsById(id: string): Promise<WireNewsRow | null> 
   }
 
   return (data as WireNewsRow | null) ?? null;
+}
+
+function escapeIlike(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+async function resolveSearchTickers(client: SupabaseClient, q: string): Promise<string[]> {
+  const upper = q.trim().toUpperCase().replace(/\./g, "-");
+  const tickerShaped = /^[A-Z0-9-]{1,6}$/.test(upper);
+  if (tickerShaped) {
+    const { data, error } = await client
+      .from("us_listed_companies")
+      .select("ticker")
+      .eq("is_active", true)
+      .eq("ticker", upper)
+      .maybeSingle();
+    if (error) console.error("[resolveSearchTickers exact]", error.message);
+    if (data?.ticker) return [String(data.ticker).toUpperCase()];
+    return [upper];
+  }
+
+  const pattern = `%${escapeIlike(q.trim())}%`;
+  const { data, error } = await client
+    .from("us_listed_companies")
+    .select("ticker")
+    .eq("is_active", true)
+    .ilike("name", pattern)
+    .limit(40);
+  if (error) console.error("[resolveSearchTickers name]", error.message);
+  const tickers: string[] = [];
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    const t = typeof row.ticker === "string" ? row.ticker.trim().toUpperCase() : "";
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    tickers.push(t);
+  }
+  return tickers;
+}
+
+type SearchFilterQuery = {
+  or: (filters: string) => SearchFilterQuery;
+  in: (column: string, values: string[]) => SearchFilterQuery;
+  ilike: (column: string, pattern: string) => SearchFilterQuery;
+};
+
+function applyWireNewsSearchFilter<T extends SearchFilterQuery>(
+  query: T,
+  tickers: string[],
+  q: string
+): T {
+  const safe = tickers.filter((t) => /^[A-Z0-9-]{1,6}$/.test(t));
+  if (safe.length === 1) {
+    const ticker = safe[0]!;
+    return query.or(`primary_ticker.eq.${ticker},tickers.cs.{${ticker}}`) as T;
+  }
+  if (safe.length > 1) {
+    return query.in("primary_ticker", safe) as T;
+  }
+  return query.ilike("company_name", `%${escapeIlike(q)}%`) as T;
+}
+
+export async function searchWireNewsPage(rawQuery: string, requestedPage: number): Promise<WireNewsPage> {
+  const empty: WireNewsPage = { items: [], page: 1, totalPages: 1, total: 0 };
+  const q = rawQuery.trim();
+  if (!q) return empty;
+  const client = publicClient();
+  if (!client) return empty;
+
+  const tickers = await resolveSearchTickers(client, q);
+
+  const { count, error: countError } = await applyWireNewsSearchFilter(
+    client.from("wire_news").select("id", { count: "exact", head: true }),
+    tickers,
+    q
+  );
+  if (countError) {
+    console.error("[searchWireNewsPage count]", countError.message);
+    return empty;
+  }
+
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / WIRE_NEWS_PAGE_SIZE));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  if (total === 0) return { ...empty, totalPages };
+
+  const from = (page - 1) * WIRE_NEWS_PAGE_SIZE;
+  const to = from + WIRE_NEWS_PAGE_SIZE - 1;
+  const { data, error } = await applyWireNewsSearchFilter(
+    client
+      .from("wire_news")
+      .select(WIRE_NEWS_COLUMNS)
+      .order("published_at", { ascending: false, nullsFirst: false }),
+    tickers,
+    q
+  ).range(from, to);
+
+  if (error) {
+    console.error("[searchWireNewsPage]", error.message);
+    return { items: [], page, totalPages, total };
+  }
+
+  return { items: (data ?? []) as WireNewsRow[], page, totalPages, total };
+}
+
+export async function loadRelatedWireNews(item: WireNewsRow, limit = 6): Promise<WireNewsRow[]> {
+  const ticker = (item.primary_ticker || "").trim().toUpperCase();
+  const client = publicClient();
+  if (!client) return [];
+
+  let query = client
+    .from("wire_news")
+    .select(WIRE_NEWS_COLUMNS)
+    .neq("id", item.id)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(Math.max(1, Math.min(limit, 16)));
+
+  if (ticker) query = query.eq("primary_ticker", ticker);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[loadRelatedWireNews]", error.message);
+    return [];
+  }
+  return (data ?? []) as WireNewsRow[];
 }
