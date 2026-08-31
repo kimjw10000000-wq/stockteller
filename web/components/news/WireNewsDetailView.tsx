@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { QuoteChangePct } from "@/components/news/QuoteChangePct";
-import type { WireNewsRow } from "@/lib/gnw/types";
+import { wireNewsAffiliation, type WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
 import type { TickerQuote } from "@/lib/quotes/types";
 import type { Sentiment } from "@/lib/types";
@@ -36,6 +36,10 @@ export function WireNewsDetailView({
   const when = item.published_at || item.created_at;
   const body = wireNewsBody(item);
   const paragraphs = body.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  const affiliation = wireNewsAffiliation(item);
+  const wireLabel =
+    item.newswire?.trim() ||
+    (item.source === "globenewswire" ? "GlobeNewswire" : null);
 
   return (
     <article className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -50,6 +54,13 @@ export function WireNewsDetailView({
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <Badge variant="secondary" className="font-mono">
             {ticker}
+          </Badge>
+          <Badge variant={affiliation === "sec" ? "outline" : "default"}>
+            {affiliation === "sec" ? (
+              <T k="newsSec.affiliationSec" />
+            ) : (
+              <T k="newsSec.affiliationNews" />
+            )}
           </Badge>
           <QuoteChangePct changePct={quote?.changePct} lastPrice={quote?.lastPrice} />
           {item.company_name ? (
@@ -79,7 +90,13 @@ export function WireNewsDetailView({
 
         <h1 className="text-balance text-3xl font-semibold leading-tight text-foreground">{item.title}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          <T k="newsSec.sourceLabel" />
+          {affiliation === "sec" ? (
+            <T k="newsSec.secSourceLabel" />
+          ) : wireLabel ? (
+            <T k="newsSec.distributedBy" values={{ wire: wireLabel }} />
+          ) : (
+            <T k="newsSec.newsSourceLabel" />
+          )}
         </p>
       </header>
 
@@ -110,7 +127,7 @@ export function WireNewsDetailView({
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
           >
-            <T k="newsSec.openOriginal" />
+            {affiliation === "sec" ? <T k="newsSec.openSec" /> : <T k="newsSec.openOriginal" />}
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </a>
         </p>

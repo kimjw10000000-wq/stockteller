@@ -1,9 +1,10 @@
+import { secHeaders, sleep } from "@/lib/sec/edgar-client";
 import {
-  accessionToFolder,
-  secHeaders,
-  sleep,
-  stripHtml,
-} from "@/lib/sec/edgar-client";
+  archiveFileUrl,
+  fetchFilingPlainText,
+  listFilingDocumentNames,
+  pickExhibit99_1Names,
+} from "@/lib/sec/filing-documents";
 
 export type PrimaryNewswire = "PR Newswire" | "GlobeNewswire" | "Business Wire";
 
@@ -27,47 +28,7 @@ export function detectPrimaryNewswire(text: string): PrimaryNewswire | null {
   return null;
 }
 
-async function fetchText(url: string): Promise<string | null> {
-  const res = await fetch(url, { headers: secHeaders(), cache: "no-store" });
-  if (!res.ok) return null;
-  return stripHtml(await res.text());
-}
-
-async function listFilingDocuments(
-  cikNumeric: number,
-  accessionNumber: string
-): Promise<string[]> {
-  const folder = accessionToFolder(accessionNumber);
-  const indexUrl = `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${folder}/index.json`;
-  try {
-    const res = await fetch(indexUrl, { headers: secHeaders(), cache: "no-store" });
-    if (!res.ok) return [];
-    const data = (await res.json()) as {
-      directory?: { item?: Array<{ name?: string }> | { name?: string } };
-    };
-    const raw = data.directory?.item;
-    const items = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    return items.map((it) => String(it.name ?? "")).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function pickExhibit99Names(names: string[]): string[] {
-  return names.filter((n) => {
-    const lower = n.toLowerCase();
-    return (
-      /ex[-_.]?99\.?1/i.test(lower) ||
-      /exhibit[-_.]?99\.?1/i.test(lower) ||
-      (/99\.1/.test(lower) && /\.(htm|html|txt)$/i.test(lower))
-    );
-  });
-}
-
-/**
- * Scan recent 8-K/6-K Exhibit 99.1 for newswire keywords.
- * Returns null when no exhibit / no keyword found.
- */
+/** Scan recent 8-K/6-K Exhibit 99.1 for newswire keywords. */
 export async function detectNewswireForCik(
   cikPadded: string
 ): Promise<PrimaryNewswire | null> {
@@ -104,16 +65,14 @@ export async function detectNewswireForCik(
     const primary = String(primaryDocs[i] ?? "");
     if (!accession) continue;
 
-    const folder = accessionToFolder(accession);
-    const base = `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${folder}`;
-    const names = await listFilingDocuments(cikNumeric, accession);
-    const exhibits = pickExhibit99Names(names);
+    const names = await listFilingDocumentNames(cikNumeric, accession);
+    const exhibits = pickExhibit99_1Names(names);
 
     const candidates =
       exhibits.length > 0 ? exhibits : primary ? [primary] : [];
 
     for (const name of candidates) {
-      const text = await fetchText(`${base}/${name}`);
+      const text = await fetchFilingPlainText(archiveFileUrl(cikNumeric, accession, name));
       await sleep(FETCH_GAP_MS);
       const wire = text ? detectPrimaryNewswire(text) : null;
       if (wire) return wire;

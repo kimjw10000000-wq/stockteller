@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { QuoteChangePct } from "@/components/news/QuoteChangePct";
-import type { WireNewsRow } from "@/lib/gnw/types";
+import { wireNewsAffiliation, type WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
 import type { TickerQuote } from "@/lib/quotes/types";
 import type { Sentiment } from "@/lib/types";
@@ -33,6 +33,7 @@ export function WireNewsCard({
     item.summary?.split("\n").filter(Boolean)[0] ||
     "";
   const when = item.published_at || item.created_at;
+  const affiliation = wireNewsAffiliation(item);
   const capLabel =
     item.cap_bucket === "nano"
       ? t("newsSec.nano")
@@ -48,6 +49,9 @@ export function WireNewsCard({
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="font-mono">
                 {ticker}
+              </Badge>
+              <Badge variant={affiliation === "sec" ? "outline" : "default"}>
+                {affiliation === "sec" ? t("newsSec.affiliationSec") : t("newsSec.affiliationNews")}
               </Badge>
               <QuoteChangePct changePct={quote?.changePct} lastPrice={quote?.lastPrice} />
               {capLabel ? (

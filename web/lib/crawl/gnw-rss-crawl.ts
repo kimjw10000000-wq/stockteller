@@ -242,6 +242,10 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
       cap_bucket: capBucket(match.row.market_cap),
       language: item.language || "en",
       llm_model: null,
+      affiliation: "news",
+      newswire: "GlobeNewswire",
+      form_type: null,
+      accession: null,
     });
 
     if (insErr) {

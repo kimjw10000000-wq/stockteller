@@ -9,7 +9,10 @@ export type { WireNewsFilter } from "@/lib/gnw/nav";
 export { newsSecHref, parseWireNewsFilter, parseWireNewsPage, searchNewsHref } from "@/lib/gnw/nav";
 
 const WIRE_NEWS_COLUMNS =
-  "id,source,external_id,url,title,teaser,summary,sentiment,analysis_score,tickers,primary_ticker,company_name,published_at,created_at,market_cap,cap_bucket,language,llm_model";
+  "id,source,external_id,url,title,teaser,summary,sentiment,analysis_score,tickers,primary_ticker,company_name,published_at,created_at,market_cap,cap_bucket,language,llm_model,affiliation,newswire,form_type,accession";
+
+/** GNW RSS + SEC 6-K (Exhibit 99.1 only). 8-K Atom crawl stays on /feed, not here. */
+const NEWS_SEC_SOURCE_OR = "source.eq.globenewswire,source.eq.edgar-6k";
 
 export type WireNewsPage = {
   items: WireNewsRow[];
@@ -37,6 +40,7 @@ export async function loadWireNews(limit = WIRE_NEWS_PAGE_SIZE): Promise<WireNew
   const { data, error } = await client
     .from("wire_news")
     .select(WIRE_NEWS_COLUMNS)
+    .or(NEWS_SEC_SOURCE_OR)
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(Math.max(1, Math.min(limit, 32)));
 
@@ -55,7 +59,8 @@ export async function loadWireNewsPage(requestedPage: number): Promise<WireNewsP
 
   const { count, error: countError } = await client
     .from("wire_news")
-    .select("id", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true })
+    .or(NEWS_SEC_SOURCE_OR);
 
   if (countError) {
     console.error("[loadWireNewsPage]", countError.message);
@@ -72,6 +77,7 @@ export async function loadWireNewsPage(requestedPage: number): Promise<WireNewsP
   const { data, error } = await client
     .from("wire_news")
     .select(WIRE_NEWS_COLUMNS)
+    .or(NEWS_SEC_SOURCE_OR)
     .order("published_at", { ascending: false, nullsFirst: false })
     .range(from, to);
 
@@ -95,6 +101,7 @@ export async function loadWireNewsMoversPage(
   const { data, error } = await client
     .from("wire_news")
     .select(WIRE_NEWS_COLUMNS)
+    .or(NEWS_SEC_SOURCE_OR)
     .gte("published_at", since)
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(MOVER_FETCH_LIMIT);
@@ -216,7 +223,7 @@ export async function searchWireNewsPage(rawQuery: string, requestedPage: number
 
   const safe = safeSearchTickers(await resolveSearchTickers(client, q));
   const namePattern = `%${escapeIlike(q)}%`;
-  const countBase = client.from("wire_news").select("id", { count: "exact", head: true });
+  const countBase = client.from("wire_news").select("id", { count: "exact", head: true }).or(NEWS_SEC_SOURCE_OR);
   const { count, error: countError } =
     safe.length === 1
       ? await countBase.or(`primary_ticker.eq.${safe[0]},tickers.cs.{${safe[0]}}`)
@@ -238,6 +245,7 @@ export async function searchWireNewsPage(rawQuery: string, requestedPage: number
   const listBase = client
     .from("wire_news")
     .select(WIRE_NEWS_COLUMNS)
+    .or(NEWS_SEC_SOURCE_OR)
     .order("published_at", { ascending: false, nullsFirst: false });
   const { data, error } =
     safe.length === 1
@@ -262,6 +270,7 @@ export async function loadRelatedWireNews(item: WireNewsRow, limit = 6): Promise
   let query = client
     .from("wire_news")
     .select(WIRE_NEWS_COLUMNS)
+    .or(NEWS_SEC_SOURCE_OR)
     .neq("id", item.id)
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(Math.max(1, Math.min(limit, 16)));

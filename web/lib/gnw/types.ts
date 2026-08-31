@@ -1,3 +1,5 @@
+export type WireNewsAffiliation = "news" | "sec";
+
 export type WireNewsRow = {
   id: string;
   source: string;
@@ -17,4 +19,12 @@ export type WireNewsRow = {
   cap_bucket: "nano" | "micro" | string | null;
   language: string | null;
   llm_model: string | null;
+  affiliation?: WireNewsAffiliation | null;
+  newswire?: string | null;
+  form_type?: string | null;
+  accession?: string | null;
 };
+
+export function wireNewsAffiliation(item: WireNewsRow): WireNewsAffiliation {
+  return item.affiliation === "sec" ? "sec" : "news";
+}
