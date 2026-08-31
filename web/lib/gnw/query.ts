@@ -203,26 +203,8 @@ async function resolveSearchTickers(client: SupabaseClient, q: string): Promise<
   return tickers;
 }
 
-type SearchFilterQuery = {
-  or: (filters: string) => SearchFilterQuery;
-  in: (column: string, values: string[]) => SearchFilterQuery;
-  ilike: (column: string, pattern: string) => SearchFilterQuery;
-};
-
-function applyWireNewsSearchFilter<T extends SearchFilterQuery>(
-  query: T,
-  tickers: string[],
-  q: string
-): T {
-  const safe = tickers.filter((t) => /^[A-Z0-9-]{1,6}$/.test(t));
-  if (safe.length === 1) {
-    const ticker = safe[0]!;
-    return query.or(`primary_ticker.eq.${ticker},tickers.cs.{${ticker}}`) as T;
-  }
-  if (safe.length > 1) {
-    return query.in("primary_ticker", safe) as T;
-  }
-  return query.ilike("company_name", `%${escapeIlike(q)}%`) as T;
+function safeSearchTickers(tickers: string[]): string[] {
+  return tickers.filter((t) => /^[A-Z0-9-]{1,6}$/.test(t));
 }
 
 export async function searchWireNewsPage(rawQuery: string, requestedPage: number): Promise<WireNewsPage> {
@@ -232,13 +214,15 @@ export async function searchWireNewsPage(rawQuery: string, requestedPage: number
   const client = publicClient();
   if (!client) return empty;
 
-  const tickers = await resolveSearchTickers(client, q);
-
-  const { count, error: countError } = await applyWireNewsSearchFilter(
-    client.from("wire_news").select("id", { count: "exact", head: true }),
-    tickers,
-    q
-  );
+  const safe = safeSearchTickers(await resolveSearchTickers(client, q));
+  const namePattern = `%${escapeIlike(q)}%`;
+  const countBase = client.from("wire_news").select("id", { count: "exact", head: true });
+  const { count, error: countError } =
+    safe.length === 1
+      ? await countBase.or(`primary_ticker.eq.${safe[0]},tickers.cs.{${safe[0]}}`)
+      : safe.length > 1
+        ? await countBase.in("primary_ticker", safe)
+        : await countBase.ilike("company_name", namePattern);
   if (countError) {
     console.error("[searchWireNewsPage count]", countError.message);
     return empty;
@@ -251,14 +235,16 @@ export async function searchWireNewsPage(rawQuery: string, requestedPage: number
 
   const from = (page - 1) * WIRE_NEWS_PAGE_SIZE;
   const to = from + WIRE_NEWS_PAGE_SIZE - 1;
-  const { data, error } = await applyWireNewsSearchFilter(
-    client
-      .from("wire_news")
-      .select(WIRE_NEWS_COLUMNS)
-      .order("published_at", { ascending: false, nullsFirst: false }),
-    tickers,
-    q
-  ).range(from, to);
+  const listBase = client
+    .from("wire_news")
+    .select(WIRE_NEWS_COLUMNS)
+    .order("published_at", { ascending: false, nullsFirst: false });
+  const { data, error } =
+    safe.length === 1
+      ? await listBase.or(`primary_ticker.eq.${safe[0]},tickers.cs.{${safe[0]}}`).range(from, to)
+      : safe.length > 1
+        ? await listBase.in("primary_ticker", safe).range(from, to)
+        : await listBase.ilike("company_name", namePattern).range(from, to);
 
   if (error) {
     console.error("[searchWireNewsPage]", error.message);
