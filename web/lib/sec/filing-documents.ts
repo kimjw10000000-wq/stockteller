@@ -16,13 +16,13 @@ export function archiveIndexUrl(cikNumeric: number, accession: string): string {
   return `${archiveFolderUrl(cikNumeric, accession)}/${accession}-index.html`;
 }
 
+/** ex99-1.htm, exhibit_99-1.htm, ea…ex99-1.htm, ex-99.1.htm */
 export function isExhibit99_1Name(name: string): boolean {
   const lower = name.toLowerCase();
-  return (
-    /ex[-_.]?99\.?1/i.test(lower) ||
-    /exhibit[-_.]?99\.?1/i.test(lower) ||
-    (/99\.1/.test(lower) && /\.(htm|html|txt)$/i.test(lower))
-  );
+  if (!/\.(htm|html|txt)$/i.test(lower)) return false;
+  if (/-index(?:-headers)?\.html?$/i.test(lower)) return false;
+  if (/^\d{10}-\d{2}-\d{6}\.txt$/i.test(lower)) return false;
+  return /ex(?:hibit)?[-_.]?99[-_.]?1/i.test(lower) || /99\.1/.test(lower);
 }
 
 export function pickExhibit99_1Names(names: string[]): string[] {

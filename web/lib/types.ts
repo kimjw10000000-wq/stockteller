@@ -39,12 +39,11 @@ export type DisclosureWithStock = DisclosureRow & {
   stocks: Pick<StockRow, "name" | "ticker" | "sector" | "market"> | null;
 };
 
-/** 공시 분석 결과. `summary_lines`는 순서대로 [공시 의도 → 재무 영향 → 최종 결론] 한 줄씩. */
+/** LLM 요약 결과. 6-K 파이프라인은 사실 요약만 쓰고 sentiment/score는 항상 중립·0. */
 export type GeminiAnalysisResult = {
   title: string;
-  /** 길이 3: [0]=공시 의도, [1]=재무적 영향, [2]=최종 결론 */
   summary_lines: string[];
   sentiment: Sentiment;
-  /** 호재(+)/악재(-) 점수. -100 ~ +100. */
+  /** 호재(+)/악재(-) 점수. -100 ~ +100. 6-K 요약에서는 사용하지 않음. */
   score: number;
 };

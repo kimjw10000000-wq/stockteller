@@ -18,7 +18,7 @@ export function wireNewsTicker(item: WireNewsRow): string {
 }
 
 export function wireNewsBody(item: WireNewsRow): string {
-  return (item.teaser?.trim() || item.summary?.trim() || "");
+  return item.summary?.trim() || item.teaser?.trim() || "";
 }
 
 export function WireNewsDetailView({
@@ -62,6 +62,11 @@ export function WireNewsDetailView({
               <T k="newsSec.affiliationNews" />
             )}
           </Badge>
+          {wireLabel ? (
+            <Badge variant="outline" className="font-normal">
+              {wireLabel}
+            </Badge>
+          ) : null}
           <QuoteChangePct changePct={quote?.changePct} lastPrice={quote?.lastPrice} />
           {item.company_name ? (
             <span className="text-sm text-muted-foreground">{item.company_name}</span>
@@ -127,7 +132,13 @@ export function WireNewsDetailView({
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
           >
-            {affiliation === "sec" ? <T k="newsSec.openSec" /> : <T k="newsSec.openOriginal" />}
+            {item.source === "edgar-6k" && affiliation === "news" ? (
+              <T k="newsSec.openExhibit99" />
+            ) : affiliation === "sec" ? (
+              <T k="newsSec.openSec" />
+            ) : (
+              <T k="newsSec.openOriginal" />
+            )}
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </a>
         </p>

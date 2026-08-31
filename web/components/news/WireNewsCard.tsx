@@ -53,6 +53,11 @@ export function WireNewsCard({
               <Badge variant={affiliation === "sec" ? "outline" : "default"}>
                 {affiliation === "sec" ? t("newsSec.affiliationSec") : t("newsSec.affiliationNews")}
               </Badge>
+              {item.newswire?.trim() ? (
+                <Badge variant="outline" className="font-normal">
+                  {item.newswire.trim()}
+                </Badge>
+              ) : null}
               <QuoteChangePct changePct={quote?.changePct} lastPrice={quote?.lastPrice} />
               {capLabel ? (
                 <Badge variant="outline">{capLabel}</Badge>

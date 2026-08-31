@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test:alert-window": "tsx lib/alerts/eastern-premarket.selftest.ts",
     "test:6k-dateline": "tsx lib/sec/newswire-dateline.selftest.ts",
+    "test:source-figures": "tsx lib/sec/source-figures.selftest.ts",
     "seed:world-cities": "tsx scripts/seed-world-cities.ts",
     "crawl": "tsx scripts/crawl-edgar.ts",
     "crawl:6k": "tsx scripts/crawl-edgar-6k.ts",
