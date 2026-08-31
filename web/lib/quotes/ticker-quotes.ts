@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { hideSplitDistortedPct } from "./split-adjusted";
 import type { TickerQuote, TickerQuoteMap } from "./types";
 
 const COLUMNS = "ticker,last_price,change_pct,currency,fetched_at";
@@ -34,11 +35,13 @@ function rowToQuote(row: {
   const ticker = (row.ticker ?? "").trim().toUpperCase();
   if (!ticker) return null;
   const last = row.last_price == null ? null : Number(row.last_price);
+  const lastPrice = last != null && Number.isFinite(last) ? last : null;
   const pct = row.change_pct == null ? null : Number(row.change_pct);
+  const rawPct = pct != null && Number.isFinite(pct) ? pct : null;
   return {
     ticker,
-    lastPrice: last != null && Number.isFinite(last) ? last : null,
-    changePct: pct != null && Number.isFinite(pct) ? pct : null,
+    lastPrice,
+    changePct: hideSplitDistortedPct(rawPct, lastPrice),
     currency: row.currency ?? null,
     fetchedAt: row.fetched_at ?? null,
   };

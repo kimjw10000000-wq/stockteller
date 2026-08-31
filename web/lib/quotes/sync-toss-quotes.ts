@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchTossCandlesPage, fetchTossPrices } from "@/lib/toss/market-data";
 import { fetchTossRankings } from "@/lib/toss/rankings";
 import { tossSafe } from "@/lib/toss/client";
+import { hideSplitDistortedPct, looksLikeUnadjustedReverseSplit } from "./split-adjusted";
 import { upsertTickerQuotes } from "./ticker-quotes";
 import { etDayKey } from "./poll-window";
 import type { TickerQuote } from "./types";
@@ -17,7 +18,7 @@ let sessionDay = "";
 let tickerCache: { at: number; tickers: string[] } | null = null;
 let rankingCache: {
   at: number;
-  map: Map<string, { lastPrice: number | null; changePct: number | null }>;
+  map: Map<string, { lastPrice: number | null; changePct: number | null; basePrice: number | null }>;
 } | null = null;
 let candleCursor = 0;
 let hydrated = false;
@@ -38,6 +39,17 @@ function roundPct(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function dropSplitPct(
+  ticker: string,
+  pct: number | null,
+  last: number | null,
+  base?: number | null
+): number | null {
+  const cleaned = hideSplitDistortedPct(pct, last, base);
+  if (pct != null && cleaned == null) prevClose.delete(ticker);
+  return cleaned;
+}
+
 function inferPrevClose(last: number, changePct: number): number | null {
   const denom = 1 + changePct / 100;
   if (!Number.isFinite(last) || !Number.isFinite(denom) || denom === 0) return null;
@@ -47,6 +59,7 @@ function inferPrevClose(last: number, changePct: number): number | null {
 
 function rememberPrevClose(ticker: string, last: number | null, changePct: number | null): void {
   if (prevClose.has(ticker) || last == null || changePct == null) return;
+  if (looksLikeUnadjustedReverseSplit({ changePct, lastPrice: last })) return;
   const prev = inferPrevClose(last, changePct);
   if (prev != null) prevClose.set(ticker, prev);
 }
@@ -109,11 +122,13 @@ async function hydratePrevCloseFromDb(): Promise<void> {
   }
 }
 
-async function rankingPctBySymbol(): Promise<Map<string, { lastPrice: number | null; changePct: number | null }>> {
+async function rankingPctBySymbol(): Promise<
+  Map<string, { lastPrice: number | null; changePct: number | null; basePrice: number | null }>
+> {
   const now = Date.now();
   if (rankingCache && now - rankingCache.at < RANKING_TTL_MS) return rankingCache.map;
 
-  const map = new Map<string, { lastPrice: number | null; changePct: number | null }>();
+  const map = new Map<string, { lastPrice: number | null; changePct: number | null; basePrice: number | null }>();
   const [gainers, losers] = await Promise.all([
     tossSafe("rankings-gainers", () =>
       fetchTossRankings({ type: "TOP_GAINERS", marketCountry: "US", duration: "1d", count: 100 })
@@ -127,8 +142,19 @@ async function rankingPctBySymbol(): Promise<Map<string, { lastPrice: number | n
     for (const row of page.data.rankings ?? []) {
       const symbol = row.symbol?.trim().toUpperCase();
       if (!symbol) continue;
-      const pct = row.changeRate == null ? null : roundPct(row.changeRate * 100);
-      map.set(symbol, { lastPrice: row.lastPrice, changePct: pct });
+      const rawPct = row.changeRate == null ? null : roundPct(row.changeRate * 100);
+      const pct = hideSplitDistortedPct(rawPct, row.lastPrice, row.basePrice);
+      if (
+        pct == null &&
+        looksLikeUnadjustedReverseSplit({
+          changePct: rawPct,
+          lastPrice: row.lastPrice,
+          basePrice: row.basePrice,
+        })
+      ) {
+        prevClose.delete(symbol);
+      }
+      map.set(symbol, { lastPrice: row.lastPrice, changePct: pct, basePrice: row.basePrice });
     }
   }
   rankingCache = { at: now, map };
@@ -207,13 +233,14 @@ export async function syncTossQuotesForWireNews(): Promise<SyncTossQuotesResult>
       if (p.lastPrice != null && p.lastPrice > 0) lastPrices.set(ticker, p.lastPrice);
       rememberPrevClose(ticker, p.lastPrice, p.changePct == null ? null : roundPct(p.changePct));
       const prev = prevClose.get(ticker);
-      const pct =
+      const rawPct =
         p.changePct != null
           ? roundPct(p.changePct)
           : prev != null && p.lastPrice != null
             ? roundPct(((p.lastPrice - prev) / prev) * 100)
             : null;
-      if (p.changePct != null) empty.fromPrices += 1;
+      const pct = dropSplitPct(ticker, rawPct, p.lastPrice);
+      if (p.changePct != null && pct != null) empty.fromPrices += 1;
       byTicker.set(ticker, {
         ticker,
         lastPrice: p.lastPrice,
@@ -236,10 +263,11 @@ export async function syncTossQuotesForWireNews(): Promise<SyncTossQuotesResult>
       const last = prev?.lastPrice ?? hit.lastPrice;
       rememberPrevClose(ticker, last, hit.changePct);
       const pc = prevClose.get(ticker);
-      const pct =
+      const rawPct =
         pc != null && last != null
           ? roundPct(((last - pc) / pc) * 100)
           : hit.changePct;
+      const pct = dropSplitPct(ticker, rawPct, last, hit.basePrice);
       if (pct == null) continue;
       byTicker.set(ticker, {
         ticker,
@@ -259,7 +287,11 @@ export async function syncTossQuotesForWireNews(): Promise<SyncTossQuotesResult>
     const q = byTicker.get(ticker);
     const pc = prevClose.get(ticker);
     if (!q || q.changePct != null || q.lastPrice == null || pc == null || pc === 0) continue;
-    q.changePct = roundPct(((q.lastPrice - pc) / pc) * 100);
+    q.changePct = dropSplitPct(ticker, roundPct(((q.lastPrice - pc) / pc) * 100), q.lastPrice);
+  }
+
+  for (const q of byTicker.values()) {
+    q.changePct = dropSplitPct(q.ticker, q.changePct, q.lastPrice);
   }
 
   const quotes = [...byTicker.values()];

@@ -51,7 +51,7 @@ export function WireNewsDetailView({
           <Badge variant="secondary" className="font-mono">
             {ticker}
           </Badge>
-          <QuoteChangePct changePct={quote?.changePct} />
+          <QuoteChangePct changePct={quote?.changePct} lastPrice={quote?.lastPrice} />
           {item.company_name ? (
             <span className="text-sm text-muted-foreground">{item.company_name}</span>
           ) : null}

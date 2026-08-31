@@ -49,7 +49,7 @@ export function WireNewsCard({
               <Badge variant="secondary" className="font-mono">
                 {ticker}
               </Badge>
-              <QuoteChangePct changePct={quote?.changePct} />
+              <QuoteChangePct changePct={quote?.changePct} lastPrice={quote?.lastPrice} />
               {capLabel ? (
                 <Badge variant="outline">{capLabel}</Badge>
               ) : null}
