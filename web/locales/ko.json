@@ -184,6 +184,7 @@
     "openSec": "SEC에서 보기",
     "openExhibit99": "Exhibit 99.1 원문 보기",
     "distributedBy": "{wire}에서 배포",
+    "wireAttribution": "본 내용은 {wire}에 배포된 보도자료입니다.",
     "affiliationNews": "News",
     "affiliationSec": "SEC",
     "secSourceLabel": "SEC Form 6-K 요약",

@@ -1,7 +1,8 @@
-import { detectPrimaryNewswire } from "@/lib/companies/newswire";
+import { detectListedNewswire } from "@/lib/sec/listed-newswires";
 
 /** "wire" letters — GlobeNewswire, Business Wire, PR Newswire, NEWSWIRE, … */
 const WIRE_RE = /wire/i;
+const PRESS_RELEASE_RE = /press[\s\-]?release/i;
 const DATELINE_CHARS = 2_000;
 
 export type Exhibit99Classification = {
@@ -34,31 +35,26 @@ export function findCityInText(text: string, cities: Set<string>): string | null
   return best;
 }
 
-function extractWireParen(text: string): string | null {
-  const m = /\(([^)]{0,80}wire[^)]{0,40})\)/i.exec(text);
-  const inner = m?.[1]?.replace(/\s+/g, " ").trim();
-  return inner || null;
+export function hasPressRelease(text: string): boolean {
+  return PRESS_RELEASE_RE.test(text || "");
 }
 
 /**
- * Press-release dateline: a world city AND the word "wire"
- * (GlobeNewswire, Business Wire, PR Newswire, …) in the opening of Exhibit 99.1.
+ * 6-K Exhibit 99.1 counts as News when the document contains "press release".
+ * Newswire label is optional (GlobeNewswire / Business Wire / PR Newswire).
  */
 export function classifyExhibit99Dateline(
   text: string,
   cities: Set<string>
 ): Exhibit99Classification {
-  const window = (text || "").slice(0, DATELINE_CHARS);
+  const body = text || "";
+  if (!hasPressRelease(body)) {
+    return { isNewswire: false, city: null, newswire: null };
+  }
+  const window = body.slice(0, DATELINE_CHARS);
   const wireAt = window.search(WIRE_RE);
-  if (wireAt < 0) {
-    return { isNewswire: false, city: null, newswire: null };
-  }
-  const prefix = window.slice(0, wireAt);
-  const city = findCityInText(prefix, cities);
-  if (!city) {
-    return { isNewswire: false, city: null, newswire: null };
-  }
-  const labeled =
-    detectPrimaryNewswire(window) || extractWireParen(window) || "Wire";
-  return { isNewswire: true, city, newswire: labeled };
+  const city =
+    wireAt >= 0 ? findCityInText(window.slice(0, wireAt), cities) : findCityInText(window, cities);
+  const newswire = detectListedNewswire(body);
+  return { isNewswire: true, city, newswire };
 }

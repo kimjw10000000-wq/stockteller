@@ -184,6 +184,7 @@
     "openSec": "View on SEC",
     "openExhibit99": "View Exhibit 99.1",
     "distributedBy": "Distributed by {wire}",
+    "wireAttribution": "This article is based on a press release distributed by {wire}.",
     "affiliationNews": "News",
     "affiliationSec": "SEC",
     "secSourceLabel": "SEC Form 6-K summary",

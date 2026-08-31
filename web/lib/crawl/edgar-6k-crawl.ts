@@ -1,5 +1,5 @@
 /**
- * SEC current/company 6-K → Exhibit 99.1 with city+wire dateline → Groq → wire_news as News.
+ * SEC current/company 6-K → Exhibit 99.1 containing "press release" → Groq → wire_news as News.
  * GlobeNewswire RSS stays News. 6-K without that dateline is skipped (not stored as SEC).
  */
 
@@ -14,6 +14,7 @@ import {
   pickExhibit99_1Names,
 } from "@/lib/sec/filing-documents";
 import { classifyExhibit99Dateline } from "@/lib/sec/newswire-dateline";
+import { detectListedNewswire, withNewswireAttribution } from "@/lib/sec/listed-newswires";
 import { loadWorldCityNames } from "@/lib/sec/world-cities";
 import { resolveTickerMeta, secFetch, sleep } from "@/lib/sec/edgar-client";
 import type { GeminiAnalysisResult } from "@/lib/types";
@@ -320,12 +321,15 @@ async function ingestOne(
 
   const classified = classifyExhibit99Dateline(exhibitText, cities);
   if (!classified.isNewswire) {
-    console.log("[edgar-6k] skip (no city+wire in 99.1)", listed.ticker, row.accession);
+    console.log("[edgar-6k] skip (no press release in 99.1)", listed.ticker, row.accession);
     return { kind: "no-wire", inserted: 0 };
   }
 
   const news = await summarize(exhibitText, "news");
   if (!news) return { kind: "skip", inserted: 0 };
+
+  const wire = detectListedNewswire(exhibitText) || classified.newswire;
+  const summary = withNewswireAttribution(news.summary_lines.join("\n"), wire);
 
   const publishedAt = publishedIso(row.e.updated);
   const inserted = await insertCards(client, {
@@ -339,15 +343,15 @@ async function ingestOne(
         externalId: `${row.accession}:news`,
         url: exhibitUrl,
         title: news.title,
-        summary: news.summary_lines.join("\n"),
+        summary,
         teaser: news.summary_lines[0] ?? "",
-        newswire: classified.newswire,
+        newswire: wire,
       },
     ],
     llmModel: groqModel(),
   });
   done.add(row.accession);
-  console.log("[edgar-6k]", listed.ticker, row.accession, "news", classified.newswire);
+  console.log("[edgar-6k]", listed.ticker, row.accession, "news", wire);
   return { kind: "done", inserted };
 }
 
@@ -405,7 +409,7 @@ async function runTickerCrawl(
       if (result.kind === "exists") skipped += 1;
     }
     if (taken === 0) {
-      console.warn("[edgar-6k] no 6-K Exhibit 99.1 with city+wire", ticker);
+      console.warn("[edgar-6k] no 6-K Exhibit 99.1 with press release", ticker);
     }
   }
 

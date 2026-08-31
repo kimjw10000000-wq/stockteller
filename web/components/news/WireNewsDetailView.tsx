@@ -8,6 +8,7 @@ import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { QuoteChangePct } from "@/components/news/QuoteChangePct";
 import { wireNewsAffiliation, type WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
+import { resolveNewsWireLabel, summaryHasNewswireAttribution } from "@/lib/sec/listed-newswires";
 import type { TickerQuote } from "@/lib/quotes/types";
 import type { Sentiment } from "@/lib/types";
 
@@ -37,9 +38,9 @@ export function WireNewsDetailView({
   const body = wireNewsBody(item);
   const paragraphs = body.split(/\n+/).map((p) => p.trim()).filter(Boolean);
   const affiliation = wireNewsAffiliation(item);
-  const wireLabel =
-    item.newswire?.trim() ||
-    (item.source === "globenewswire" ? "GlobeNewswire" : null);
+  const wireLabel = resolveNewsWireLabel(item);
+  const showAttribution =
+    affiliation === "news" && Boolean(wireLabel) && !summaryHasNewswireAttribution(body, wireLabel);
 
   return (
     <article className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -123,6 +124,11 @@ export function WireNewsDetailView({
               <T k="newsSec.noBody" />
             </p>
           )}
+          {showAttribution ? (
+            <p className="mt-5 text-sm leading-[1.8] text-muted-foreground">
+              <T k="newsSec.wireAttribution" values={{ wire: wireLabel ?? "" }} />
+            </p>
+          ) : null}
         </section>
 
         <p className="mt-10 border-t border-border pt-6">
