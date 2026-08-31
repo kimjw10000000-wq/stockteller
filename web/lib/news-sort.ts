@@ -1,3 +1,5 @@
+import { formatSeoulDateTime } from "@/lib/i18n/format-seoul-datetime";
+
 export type NewsSortKey = "latest" | "all_views" | "hour_views";
 export type NewsMarketKey = "all" | "us" | "kr";
 
@@ -67,14 +69,7 @@ export function inferStockMarket(
 
 export function formatNewsDate(iso: string): string {
   try {
-    return new Intl.DateTimeFormat("ko-KR", {
-      timeZone: "Asia/Seoul",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
+    return formatSeoulDateTime(iso, "ko");
   } catch {
     return iso;
   }
