@@ -12,7 +12,7 @@ const WIRE_NEWS_COLUMNS =
   "id,source,external_id,url,title,teaser,summary,sentiment,analysis_score,tickers,primary_ticker,company_name,published_at,created_at,market_cap,cap_bucket,language,llm_model,affiliation,newswire,form_type,accession";
 
 /** GNW RSS + SEC 6-K (Exhibit 99.1 only). 8-K Atom crawl stays on /feed, not here. */
-const NEWS_SEC_SOURCE_OR = "source.eq.globenewswire,source.eq.edgar-6k";
+export const NEWS_SEC_SOURCE_OR = "source.eq.globenewswire,source.eq.edgar-6k";
 
 export type WireNewsPage = {
   items: WireNewsRow[];

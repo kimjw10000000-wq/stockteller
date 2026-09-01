@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isSameEtDay } from "./prev-close";
 import { hideSplitDistortedPct } from "./split-adjusted";
 import type { TickerQuote, TickerQuoteMap } from "./types";
 
@@ -38,10 +39,11 @@ function rowToQuote(row: {
   const lastPrice = last != null && Number.isFinite(last) ? last : null;
   const pct = row.change_pct == null ? null : Number(row.change_pct);
   const rawPct = pct != null && Number.isFinite(pct) ? pct : null;
+  const freshPct = isSameEtDay(row.fetched_at) ? rawPct : null;
   return {
     ticker,
     lastPrice,
-    changePct: hideSplitDistortedPct(rawPct, lastPrice),
+    changePct: hideSplitDistortedPct(freshPct, lastPrice),
     currency: row.currency ?? null,
     fetchedAt: row.fetched_at ?? null,
   };

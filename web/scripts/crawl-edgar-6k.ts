@@ -8,6 +8,7 @@ import { config } from "dotenv";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { runEdgar6kCrawl } from "../lib/crawl/edgar-6k-crawl";
+import { priorSessionClose } from "../lib/quotes/prev-close";
 import { hideSplitDistortedPct } from "../lib/quotes/split-adjusted";
 import { upsertTickerQuotes } from "../lib/quotes/ticker-quotes";
 import type { TickerQuote } from "../lib/quotes/types";
@@ -41,11 +42,10 @@ async function syncTossQuotes(tickers: string[]): Promise<void> {
     let rawPct = p?.changePct == null ? null : roundPct(p.changePct);
     if (rawPct == null) {
       try {
-        const page = await fetchTossCandlesPage(ticker, "1d", { count: 2 });
-        const closes = page.candles.map((c) => c.close).filter((n): n is number => n != null);
-        const last = lastPrice ?? closes[closes.length - 1] ?? null;
-        if (closes.length >= 2 && closes[closes.length - 2]! > 0 && last != null) {
-          const prev = closes[closes.length - 2]!;
+        const page = await fetchTossCandlesPage(ticker, "1d", { count: 4 });
+        const last = lastPrice ?? page.candles.at(-1)?.close ?? null;
+        const prev = priorSessionClose(page.candles);
+        if (prev != null && last != null) {
           rawPct = roundPct(((last - prev) / prev) * 100);
         }
         quotes.push({
