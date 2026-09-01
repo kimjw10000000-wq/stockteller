@@ -10,7 +10,7 @@ import { etDayKey } from "./poll-window";
 import type { TickerQuote } from "./types";
 
 const NEWS_ROW_LIMIT = 500;
-const NEWS_TICKER_LIMIT = 200;
+const PRICE_CHUNK = 200;
 const CANDLES_PER_CYCLE = 5;
 const CANDLE_COUNT = 4;
 const TICKER_LIST_TTL_MS = 30_000;
@@ -86,9 +86,7 @@ async function loadRecentNewsTickers(): Promise<string[]> {
       if (!ticker || seen.has(ticker)) continue;
       seen.add(ticker);
       out.push(ticker);
-      if (out.length >= NEWS_TICKER_LIMIT) break;
     }
-    if (out.length >= NEWS_TICKER_LIMIT) break;
   }
   tickerCache = { at: now, tickers: out };
   return out;
@@ -184,8 +182,10 @@ export async function syncTossQuotesForWireNews(): Promise<SyncTossQuotesResult>
   const nowIso = now.toISOString();
   const byTicker = new Map<string, TickerQuote>();
 
-  const pricesRes = await tossSafe("prices", () => fetchTossPrices(tickers));
-  if (pricesRes.ok) {
+  for (let i = 0; i < tickers.length; i += PRICE_CHUNK) {
+    const chunk = tickers.slice(i, i + PRICE_CHUNK);
+    const pricesRes = await tossSafe("prices", () => fetchTossPrices(chunk));
+    if (!pricesRes.ok) continue;
     for (const p of pricesRes.data) {
       const ticker = p.symbol.trim().toUpperCase();
       if (!ticker) continue;
