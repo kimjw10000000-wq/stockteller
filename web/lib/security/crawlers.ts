@@ -76,10 +76,20 @@ export const SEARCH_OR_PREVIEW_UA_PATTERNS: RegExp[] = [
   /\bslackbot\b/i,
   /\bdiscordbot\b/i,
   /\btelegrambot\b/i,
+  /\btelegram\b/i,
   /\bwhatsapp\b/i,
+  /\bkakaotalk-scrap\b/i,
   /\bkakaotalk\b/i,
   /\bkakaostory\b/i,
+  /\bkakaolink\b/i,
+  /\bkakaoinsight\b/i,
+  /\bdevtalk\.kakao\.com\b/i,
   /\bpinterest\b/i,
+  /\bredditbot\b/i,
+  /\bthreadsbot\b/i,
+  /\bline[-_/ ]/i,
+  /\bembed\.ly\b/i,
+  /\bembedly\b/i,
 ];
 
 export function isAiTrainingCrawler(userAgent: string): boolean {

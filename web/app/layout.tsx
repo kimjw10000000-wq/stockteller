@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
+import { KakaoSdkLoader } from "@/components/news/KakaoSdkLoader";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { ADSENSE_CLIENT, getSiteUrl } from "@/lib/site";
 
@@ -68,6 +69,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
         <I18nProvider initialLocale={locale}>{children}</I18nProvider>
+        <KakaoSdkLoader />
         <Analytics />
       </body>
     </html>
