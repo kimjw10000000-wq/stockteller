@@ -55,21 +55,23 @@ export function SiteHeader() {
             </span>
           </Link>
 
-          <form onSubmit={onSearch} className="site-search" role="search">
-            <input
-              ref={inputRef}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("header.searchPlaceholder")}
-              className="site-search__field"
-              aria-label={t("header.searchAria")}
-              enterKeyHint="search"
-            />
-            <button type="submit" className="sr-only">
-              {t("header.searchAria")}
-            </button>
-          </form>
+          <div className="site-search-wrap">
+            <form onSubmit={onSearch} className="site-search" role="search">
+              <input
+                ref={inputRef}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("header.searchPlaceholder")}
+                className="site-search__field"
+                aria-label={t("header.searchAria")}
+                enterKeyHint="search"
+              />
+              <button type="submit" className="sr-only">
+                {t("header.searchAria")}
+              </button>
+            </form>
+          </div>
 
           <LanguageSwitcher />
           <HeaderAuth />
