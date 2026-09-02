@@ -47,7 +47,7 @@ export function SiteHeader() {
   return (
     <header className="relative z-30 border-b border-border bg-card">
       <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="site-header-top flex items-center gap-2 sm:gap-3">
           <Link href="/feed" prefetch className="flex shrink-0 items-center gap-2">
             <TrendingUp className="h-7 w-7 text-green-500 sm:h-8 sm:w-8" aria-hidden />
             <span className="text-lg font-semibold text-foreground sm:text-xl">
@@ -56,14 +56,6 @@ export function SiteHeader() {
           </Link>
 
           <form onSubmit={onSearch} className="site-search" role="search">
-            {/* 장식용 클레이 검색창 이미지 — next/image 최적화 불필요 */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/search-bar.png"
-              alt=""
-              className="site-search__art"
-              draggable={false}
-            />
             <input
               ref={inputRef}
               type="search"

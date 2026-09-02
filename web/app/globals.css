@@ -381,32 +381,31 @@ body {
   pointer-events: none;
 }
 
-/* 헤더 검색창 — 디자인 PNG를 그대로 쓰고, 안쪽만 실제 input */
+/* 헤더 검색창 — 9-slice: 높이 고정, 양 끝 보존, 가운데 홈만 가로로 신축 */
 .site-search {
   position: relative;
+  box-sizing: border-box;
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 32.5rem;
-  aspect-ratio: 740 / 113;
-}
-
-.site-search__art {
-  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: fill;
-  pointer-events: none;
-  user-select: none;
+  max-width: 650px;
+  height: 50px;
+  border-style: solid;
+  border-color: transparent;
+  /* 소스 113px → 표시 50px 비율로 좌(돋보기)·우(라운드) 캡 고정 */
+  border-width: 16px 25px 13px 58px;
+  border-image-source: url("/search-bar.png");
+  border-image-slice: 36 56 30 130 fill;
+  border-image-repeat: stretch;
 }
 
 .site-search__field {
   position: absolute;
-  left: 18.8%;
-  right: 7.2%;
-  top: 29%;
-  bottom: 27%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  padding: 0 0.15rem;
+  padding: 0 10px;
   border: 0;
   background: transparent;
   color: #1e293b;
@@ -432,6 +431,16 @@ body {
 }
 
 @media (max-width: 640px) {
+  .site-header-top {
+    flex-wrap: wrap;
+  }
+
+  .site-search {
+    flex: 1 1 100%;
+    order: 3;
+    max-width: 100%;
+  }
+
   .site-search__field {
     font-size: 14px;
   }
