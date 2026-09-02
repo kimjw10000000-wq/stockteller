@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Share2, X } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   buildKakaoSharePayload,
   getFacebookShareUrl,
-  getNewsShareUrl,
+  getRedditShareUrl,
   getTwitterShareUrl,
   KAKAO_JAVASCRIPT_KEY,
   KAKAO_SDK_URL,
@@ -17,10 +17,11 @@ import {
 } from "@/lib/kakao-share";
 
 type NewsShareModalProps = {
-  newsId: string;
+  url: string;
   title: string;
   description: string;
-  imageUrl: string | null;
+  imageUrl?: string | null;
+  variant?: "button" | "icon";
 };
 
 declare global {
@@ -36,18 +37,17 @@ declare global {
 }
 
 export function NewsShareModal({
-  newsId,
+  url,
   title,
   description,
-  imageUrl,
+  imageUrl = null,
+  variant = "button",
 }: NewsShareModalProps) {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
   const [mounted, setMounted] = useState(false);
-
-  const shareUrl = getNewsShareUrl(newsId);
 
   useEffect(() => {
     setMounted(true);
@@ -69,38 +69,47 @@ export function NewsShareModal({
     }
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    if (window.Kakao) initKakao();
+  }, [isOpen, initKakao]);
+
   const handleKakaoShare = useCallback(() => {
     const Kakao = window.Kakao;
     if (!Kakao?.isInitialized()) {
-      console.error("[share] Kakao SDK not ready", { newsId });
+      console.error("[share] Kakao SDK not ready", { url });
       return;
     }
     try {
       Kakao.Share.sendDefault(
-        buildKakaoSharePayload({ newsId, title, description, imageUrl })
+        buildKakaoSharePayload({ pageUrl: url, title, description, imageUrl })
       );
     } catch (err) {
-      console.error("[share] Kakao sendDefault failed", err, { newsId, title });
+      console.error("[share] Kakao sendDefault failed", err, { url, title });
     }
-  }, [newsId, title, description, imageUrl]);
+  }, [url, title, description, imageUrl]);
 
   const handleFacebookShare = useCallback(() => {
-    openSharePopup(getFacebookShareUrl(shareUrl));
-  }, [shareUrl]);
+    openSharePopup(getFacebookShareUrl(url));
+  }, [url]);
 
   const handleTwitterShare = useCallback(() => {
-    openSharePopup(getTwitterShareUrl(shareUrl, title));
-  }, [shareUrl, title]);
+    openSharePopup(getTwitterShareUrl(url, title));
+  }, [url, title]);
+
+  const handleRedditShare = useCallback(() => {
+    openSharePopup(getRedditShareUrl(url, title));
+  }, [url, title]);
 
   const handleCopyLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(url);
       setCopiedToast(true);
     } catch (err) {
       console.error("[share] clipboard copy failed", err);
-      window.prompt("링크를 복사하세요:", shareUrl);
+      window.prompt("링크를 복사하세요:", url);
     }
-  }, [shareUrl]);
+  }, [url]);
 
   useEffect(() => {
     if (!copiedToast) return;
@@ -122,6 +131,12 @@ export function NewsShareModal({
     };
   }, [isOpen]);
 
+  const openModal = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOpen(true);
+  };
+
   const modal =
     isOpen && mounted
       ? createPortal(
@@ -131,7 +146,6 @@ export function NewsShareModal({
             aria-modal="true"
             aria-labelledby="share-modal-title"
           >
-            {/* 딤드 배경 — 클릭 시 닫기 */}
             <button
               type="button"
               className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -139,7 +153,6 @@ export function NewsShareModal({
               onClick={() => setIsOpen(false)}
             />
 
-            {/* 모바일·데스크톱 공통: 뷰포트 정중앙 카드 */}
             <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
               <div className="mb-5 flex items-center justify-between">
                 <h2 id="share-modal-title" className="text-lg font-semibold text-foreground">
@@ -155,7 +168,7 @@ export function NewsShareModal({
                 </button>
               </div>
 
-              <div className="mb-6 flex items-start justify-center gap-6">
+              <div className="mb-6 flex flex-wrap items-start justify-center gap-5">
                 <ShareCircleButton
                   label={t("news.kakao")}
                   disabled={!sdkReady}
@@ -165,25 +178,32 @@ export function NewsShareModal({
                   <KakaoIcon />
                 </ShareCircleButton>
                 <ShareCircleButton
+                  label={t("news.twitter")}
+                  onClick={handleTwitterShare}
+                  className="bg-foreground text-background hover:bg-foreground/90"
+                >
+                  <XIcon />
+                </ShareCircleButton>
+                <ShareCircleButton
+                  label={t("news.reddit")}
+                  onClick={handleRedditShare}
+                  className="bg-[#FF4500] text-white hover:bg-[#FF4500]/90"
+                >
+                  <RedditIcon />
+                </ShareCircleButton>
+                <ShareCircleButton
                   label={t("news.facebook")}
                   onClick={handleFacebookShare}
                   className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90"
                 >
                   <FacebookIcon />
                 </ShareCircleButton>
-                <ShareCircleButton
-                  label="X"
-                  onClick={handleTwitterShare}
-                  className="bg-foreground text-background hover:bg-foreground/90"
-                >
-                  <XIcon />
-                </ShareCircleButton>
               </div>
 
               <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 p-2">
                 <input
                   readOnly
-                  value={shareUrl}
+                  value={url}
                   aria-label={t("news.shareLinkAria")}
                   className="min-w-0 flex-1 truncate bg-transparent px-2 text-sm text-muted-foreground outline-none"
                 />
@@ -217,25 +237,40 @@ export function NewsShareModal({
 
   return (
     <>
-      <Script
-        src={KAKAO_SDK_URL}
-        strategy="lazyOnload"
-        onLoad={initKakao}
-        onError={() => console.error("[share] Kakao SDK script failed to load")}
-      />
+      {isOpen ? (
+        <Script
+          src={KAKAO_SDK_URL}
+          strategy="lazyOnload"
+          onLoad={initKakao}
+          onError={() => console.error("[share] Kakao SDK script failed to load")}
+        />
+      ) : null}
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setIsOpen(true)}
-        className="gap-2 rounded-full border-border/80 bg-muted/40 px-4 text-foreground hover:bg-muted/70"
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-      >
-        <Share2 className="h-4 w-4" aria-hidden />
-        {t("news.share")}
-      </Button>
+      {variant === "icon" ? (
+        <button
+          type="button"
+          onClick={openModal}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={t("news.share")}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+        >
+          <Share2 className="h-4 w-4" aria-hidden />
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openModal}
+          className="gap-2 rounded-full border-border/80 bg-muted/40 px-4 text-foreground hover:bg-muted/70"
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+        >
+          <Share2 className="h-4 w-4" aria-hidden />
+          {t("news.share")}
+        </Button>
+      )}
 
       {modal}
       {toast}
@@ -248,7 +283,7 @@ type ShareCircleButtonProps = {
   onClick: () => void;
   className: string;
   disabled?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 function ShareCircleButton({
@@ -295,6 +330,14 @@ function XIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden fill="currentColor">
       <path d="M17.3 3H20l-6.5 7.4L21 21h-5.9l-4.6-6-5.3 6H3.4l7-8L3 3h6l4.2 5.5L17.3 3zm-2 16.2h1.6L8.9 4.7H7.2L15.3 19.2z" />
+    </svg>
+  );
+}
+
+function RedditIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm6.24 8.16c.2.2.32.43.32.67 0 1.7-1.97 3.1-4.4 3.42.18.48.3 1 .3 1.53 0 2.07-2.01 3.75-4.5 3.75s-4.5-1.68-4.5-3.75c0-.53.12-1.05.3-1.53-2.43-.32-4.4-1.72-4.4-3.42 0-.24.12-.47.32-.67.5-.49 1.32-.5 1.86-.07.7-.45 1.57-.78 2.54-.94l.54-2.55a.75.75 0 0 1 .71-.47l2.63.56c.5-.31 1.1-.49 1.74-.49.55 0 1 .45 1 1 0 .38-.21.7-.52.87.06.4.1.83.1 1.27 0 .18-.02.35-.05.53zM8.5 13.5a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm5.5 3.03c-.7.7-2.03.76-2.53.76s-1.83-.06-2.53-.76a.5.5 0 1 1 .71-.71c.45.45 1.37.48 1.82.48s1.37-.03 1.82-.48a.5.5 0 1 1 .71.71zM14.5 14.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
     </svg>
   );
 }

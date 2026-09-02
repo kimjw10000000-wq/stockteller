@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import type { WireNewsRow } from "@/lib/gnw/types";
 import type { DisclosureWithStock } from "@/lib/types";
 import { getCoverImageUrl, previewSummaryFromBody } from "@/lib/manual-post";
 import { disclosureStockLabel } from "@/lib/news-display";
+import { DEFAULT_SHARE_IMAGE_PATH } from "@/lib/kakao-share";
 import { getSiteUrl, SITE_NAME_KO } from "@/lib/site";
 
 const META_DESCRIPTION_MAX = 160;
@@ -97,9 +99,10 @@ export function buildNewsDetailMetadata(
 ): Metadata {
   const title = row.title?.trim() || "뉴스";
   const description = buildReportDescription(row);
-  const cover = getCoverImageUrl(row);
+  const cover = getCoverImageUrl(row) || DEFAULT_SHARE_IMAGE_PATH;
   const canonicalPath = `/news/${id}`;
   const { name } = disclosureStockLabel(row);
+  const ogTitle = `${name} — ${title}`;
 
   return {
     title,
@@ -107,17 +110,54 @@ export function buildNewsDetailMetadata(
     alternates: { canonical: canonicalPath },
     openGraph: {
       type: "article",
-      title: `${name} — ${title}`,
+      title: ogTitle,
       description,
       url: canonicalPath,
       publishedTime: row.created_at,
-      ...(cover ? { images: [{ url: cover, alt: buildReportImageAlt(title) }] } : {}),
+      images: [{ url: cover, width: 1200, height: 630, alt: buildReportImageAlt(title) }],
     },
     twitter: {
-      card: cover ? "summary_large_image" : "summary",
-      title: `${name} — ${title}`,
+      card: "summary_large_image",
+      title: ogTitle,
       description,
-      ...(cover ? { images: [cover] } : {}),
+      images: [cover],
+    },
+  };
+}
+
+export function buildWireNewsDetailMetadata(item: WireNewsRow): Metadata {
+  const title = item.title?.trim() || "News/SEC";
+  const description = truncateMetaDescription(item.teaser || item.summary || title);
+  const canonicalPath = `/news-sec/${item.id}`;
+  const ticker = item.primary_ticker || item.tickers?.[0] || "";
+  const ogTitle = ticker ? `${ticker} — ${title}` : title;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      type: "article",
+      title: ogTitle,
+      description,
+      url: canonicalPath,
+      siteName: SITE_NAME_KO,
+      locale: "ko_KR",
+      publishedTime: item.published_at || item.created_at || undefined,
+      images: [
+        {
+          url: DEFAULT_SHARE_IMAGE_PATH,
+          width: 1200,
+          height: 630,
+          alt: ogTitle,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: ogTitle,
+      description,
+      images: [DEFAULT_SHARE_IMAGE_PATH],
     },
   };
 }

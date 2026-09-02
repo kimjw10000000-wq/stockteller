@@ -1,25 +1,44 @@
+import { PRODUCTION_SITE_ORIGIN } from "@/lib/site";
+
 /** 카카오 개발자 센터 JavaScript 키 */
 export const KAKAO_JAVASCRIPT_KEY = "32475a3b053ee93e162ff7667e8d0fd2";
 
 export const KAKAO_SDK_URL =
   "https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js";
 
-const SHARE_HOST = "https://www.whyup.net";
-const DEFAULT_SHARE_IMAGE = `${SHARE_HOST}/website.png`;
+/** www는 apex로 301 되므로 공유·OG는 공개 도메인을 쓴다. */
+export const SHARE_ORIGIN = PRODUCTION_SITE_ORIGIN;
+export const DEFAULT_SHARE_IMAGE_PATH = "/og-share.jpg";
+const DEFAULT_SHARE_IMAGE = `${SHARE_ORIGIN}${DEFAULT_SHARE_IMAGE_PATH}`;
 
 export type KakaoShareInput = {
-  newsId: string;
+  pageUrl: string;
   title: string;
   description: string;
   imageUrl: string | null;
+  buttonTitle?: string;
 };
 
-export function getNewsShareUrl(newsId: string): string {
-  return `${SHARE_HOST}/news/${newsId}`;
+export function getSharePageUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return new URL(normalized, SHARE_ORIGIN).toString();
 }
 
-export function resolveShareImageUrl(imageUrl: string | null): string {
+export function getNewsShareUrl(newsId: string): string {
+  return getSharePageUrl(`/news/${newsId}`);
+}
+
+export function getWireNewsShareUrl(id: string): string {
+  return getSharePageUrl(`/news-sec/${id}`);
+}
+
+export function getDefaultShareImageUrl(): string {
+  return DEFAULT_SHARE_IMAGE;
+}
+
+export function resolveShareImageUrl(imageUrl: string | null | undefined): string {
   if (imageUrl && /^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl && imageUrl.startsWith("/")) return `${SHARE_ORIGIN}${imageUrl}`;
   return DEFAULT_SHARE_IMAGE;
 }
 
@@ -35,7 +54,7 @@ export function buildShareDescription(summary: string | null | undefined, title:
 }
 
 export function buildKakaoSharePayload(input: KakaoShareInput) {
-  const link = getNewsShareUrl(input.newsId);
+  const link = input.pageUrl;
   const imageUrl = resolveShareImageUrl(input.imageUrl);
 
   return {
@@ -51,7 +70,7 @@ export function buildKakaoSharePayload(input: KakaoShareInput) {
     },
     buttons: [
       {
-        title: "뉴스 보기",
+        title: input.buttonTitle ?? "뉴스 보기",
         link: {
           mobileWebUrl: link,
           webUrl: link,
@@ -71,6 +90,14 @@ export function getTwitterShareUrl(pageUrl: string, text: string): string {
     text: truncateShareText(text, 100),
   });
   return `https://twitter.com/intent/tweet?${params.toString()}`;
+}
+
+export function getRedditShareUrl(pageUrl: string, title: string): string {
+  const params = new URLSearchParams({
+    url: pageUrl,
+    title: truncateShareText(title, 300),
+  });
+  return `https://www.reddit.com/submit?${params.toString()}`;
 }
 
 export function openSharePopup(url: string): void {

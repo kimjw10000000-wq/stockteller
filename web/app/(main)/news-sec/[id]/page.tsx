@@ -7,6 +7,7 @@ import { loadRelatedWireNews, loadWireNewsById } from "@/lib/gnw/query";
 import { tServer } from "@/lib/i18n/server";
 import { uniqueWireNewsTickers, wireNewsTicker } from "@/lib/quotes/format";
 import { loadTickerQuotes } from "@/lib/quotes/ticker-quotes";
+import { buildWireNewsDetailMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,12 +17,7 @@ type PageProps = { params: { id: string } };
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const item = await loadWireNewsById(params.id);
   if (!item) return { title: tServer("newsSec.notFoundTitle") };
-  const description = (item.teaser || item.summary || item.title).slice(0, 160);
-  return {
-    title: item.title,
-    description,
-    alternates: { canonical: `/news-sec/${item.id}` },
-  };
+  return buildWireNewsDetailMetadata(item);
 }
 
 export default async function WireNewsDetailPage({ params }: PageProps) {

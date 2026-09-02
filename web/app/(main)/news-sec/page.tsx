@@ -13,6 +13,18 @@ export const metadata: Metadata = {
   title: "News/SEC",
   description: `${SITE_NAME_KO} — 미국 상장·OTC 통신사 뉴스와 SEC 8-K·6-K 보도자료`,
   alternates: { canonical: "/news-sec" },
+  openGraph: {
+    title: `News/SEC · ${SITE_NAME_KO}`,
+    description: `${SITE_NAME_KO} — 미국 상장·OTC 통신사 뉴스와 SEC 8-K·6-K 보도자료`,
+    url: "/news-sec",
+    images: [{ url: "/og-share.jpg", width: 1200, height: 630, alt: "News/SEC" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `News/SEC · ${SITE_NAME_KO}`,
+    description: `${SITE_NAME_KO} — 미국 상장·OTC 통신사 뉴스와 SEC 8-K·6-K 보도자료`,
+    images: ["/og-share.jpg"],
+  },
 };
 
 type PageProps = { searchParams: { page?: string; filter?: string } };

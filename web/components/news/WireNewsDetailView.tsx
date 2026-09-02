@@ -5,7 +5,9 @@ import { T } from "@/components/i18n/T";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
+import { NewsShareModal } from "@/components/news/NewsShareModal";
 import { QuoteChangePct } from "@/components/news/QuoteChangePct";
+import { buildShareDescription, getWireNewsShareUrl } from "@/lib/kakao-share";
 import { wireNewsAffiliation, type WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
 import { resolveNewsWireLabel, summaryHasNewswireAttribution } from "@/lib/sec/listed-newswires";
@@ -45,12 +47,19 @@ export function WireNewsDetailView({
   return (
     <article className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
       <header className="border-b border-border pb-6">
-        <Button variant="ghost" asChild className="-ml-2 mb-4 gap-2">
-          <Link href="/news-sec" prefetch>
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-            <T k="newsSec.backToList" />
-          </Link>
-        </Button>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <Button variant="ghost" asChild className="-ml-2 gap-2">
+            <Link href="/news-sec" prefetch>
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              <T k="newsSec.backToList" />
+            </Link>
+          </Button>
+          <NewsShareModal
+            url={getWireNewsShareUrl(item.id)}
+            title={item.title}
+            description={buildShareDescription(item.teaser || item.summary, item.title)}
+          />
+        </div>
 
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <Badge variant="secondary" className="font-mono">
