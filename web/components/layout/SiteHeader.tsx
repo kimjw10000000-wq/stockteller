@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { HeaderAuth } from "@/components/auth/HeaderAuth";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { SiteGnb } from "@/components/layout/SiteGnb";
-import { Input } from "@/components/ui/input";
 
 export function SiteHeader() {
   const router = useRouter();
@@ -56,21 +55,28 @@ export function SiteHeader() {
             </span>
           </Link>
 
-          <form onSubmit={onSearch} className="relative min-w-0 flex-1 max-w-md">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
+          <form onSubmit={onSearch} className="site-search" role="search">
+            {/* 장식용 클레이 검색창 이미지 — next/image 최적화 불필요 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/search-bar.png"
+              alt=""
+              className="site-search__art"
+              draggable={false}
             />
-            <Input
+            <input
               ref={inputRef}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("header.searchPlaceholder")}
-              className="border-border pl-10"
+              className="site-search__field"
               aria-label={t("header.searchAria")}
               enterKeyHint="search"
             />
+            <button type="submit" className="sr-only">
+              {t("header.searchAria")}
+            </button>
           </form>
 
           <LanguageSwitcher />

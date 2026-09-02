@@ -380,3 +380,59 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+/* 헤더 검색창 — 디자인 PNG를 그대로 쓰고, 안쪽만 실제 input */
+.site-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 32.5rem;
+  aspect-ratio: 740 / 113;
+}
+
+.site-search__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+.site-search__field {
+  position: absolute;
+  left: 18.8%;
+  right: 7.2%;
+  top: 29%;
+  bottom: 27%;
+  margin: 0;
+  padding: 0 0.15rem;
+  border: 0;
+  background: transparent;
+  color: #1e293b;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  outline: none;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.site-search__field::placeholder {
+  color: #64748b;
+  opacity: 0.85;
+}
+
+.site-search__field::-webkit-search-decoration,
+.site-search__field::-webkit-search-cancel-button,
+.site-search__field::-webkit-search-results-button,
+.site-search__field::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+}
+
+@media (max-width: 640px) {
+  .site-search__field {
+    font-size: 14px;
+  }
+}
