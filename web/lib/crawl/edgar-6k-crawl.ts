@@ -28,6 +28,10 @@ const COMPANY_ATOM_COUNT = 10;
 export type SixKCrawlOptions = {
   tickers?: string[];
   latestPerTicker?: number;
+  /** Process-lifetime accessions we already opened or rejected — skip SEC document fetches. */
+  seenAccessions?: Set<string>;
+  /** Max new filings to open documents for in this run (cron default 8, VPS poll 1). */
+  maxItems?: number;
 };
 
 export type SixKCrawlResult = {
@@ -310,6 +314,7 @@ async function ingestOne(
   const names = await listFilingDocumentNames(cikNumeric, row.accession);
   const exhibits = pickExhibit99_1Names(names);
   if (exhibits.length === 0) {
+    done.add(row.accession);
     console.log("[edgar-6k] skip (no Exhibit 99.1)", listed.ticker, row.accession);
     return { kind: "no-exhibit", inserted: 0 };
   }
@@ -317,16 +322,23 @@ async function ingestOne(
   const exhibitName = exhibits[0]!;
   const exhibitUrl = archiveFileUrl(cikNumeric, row.accession, exhibitName);
   const exhibitText = await fetchFilingPlainText(exhibitUrl);
-  if (!exhibitText) return { kind: "skip", inserted: 0 };
+  if (!exhibitText) {
+    done.add(row.accession);
+    return { kind: "skip", inserted: 0 };
+  }
 
   const classified = classifyExhibit99Dateline(exhibitText, cities);
   if (!classified.isNewswire) {
+    done.add(row.accession);
     console.log("[edgar-6k] skip (no press release in 99.1)", listed.ticker, row.accession);
     return { kind: "no-wire", inserted: 0 };
   }
 
   const news = await summarize(exhibitText, "news");
-  if (!news) return { kind: "skip", inserted: 0 };
+  if (!news) {
+    done.add(row.accession);
+    return { kind: "skip", inserted: 0 };
+  }
 
   const wire = detectListedNewswire(exhibitText) || classified.newswire;
   const summary = withNewswireAttribution(news.summary_lines.join("\n"), wire);
@@ -444,16 +456,21 @@ export async function runEdgar6kCrawl(
 
   const xml = await fetchSecAtom(CURRENT_ATOM, ua);
   const entries = parseAtom(xml);
-  const max = Math.max(1, Number(process.env.CRAWL_6K_MAX_ITEMS || DEFAULT_MAX) || DEFAULT_MAX);
+  const max = Math.max(
+    1,
+    options?.maxItems ?? (Number(process.env.CRAWL_6K_MAX_ITEMS || DEFAULT_MAX) || DEFAULT_MAX)
+  );
   const parsed = parseFilings(entries);
   const listedMap = await lookupListedByCiks(
     client,
     parsed.map((p) => p.cik)
   );
-  const done = await alreadyAccessions(
+  const done = options?.seenAccessions ?? new Set<string>();
+  const fromDb = await alreadyAccessions(
     client,
     parsed.map((p) => p.accession)
   );
+  for (const acc of fromDb) done.add(acc);
   const cities = await loadWorldCityNames(client);
 
   let inserted = 0;
@@ -461,18 +478,23 @@ export async function runEdgar6kCrawl(
   let processed = 0;
 
   for (const row of parsed) {
-    if (processed >= max) break;
-    const listed = listedMap.get(row.cik);
-    if (!listed) {
+    if (done.has(row.accession)) {
       skipped += 1;
       continue;
     }
+    const listed = listedMap.get(row.cik);
+    if (!listed) {
+      done.add(row.accession);
+      skipped += 1;
+      continue;
+    }
+    if (processed >= max) break;
+    processed += 1;
     const result = await ingestOne(client, row, listed, cities, done);
     if (result.kind === "exists" || result.kind === "no-exhibit" || result.kind === "no-wire" || result.kind === "skip") {
       skipped += 1;
       continue;
     }
-    processed += 1;
     inserted += result.inserted;
   }
 

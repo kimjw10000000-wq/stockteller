@@ -17,6 +17,7 @@
     "crawl:gnw": "tsx scripts/crawl-gnw.ts",
     "poll:gnw": "tsx scripts/poll-gnw.ts",
     "poll:toss-quotes": "tsx scripts/poll-toss-quotes.ts",
+    "poll:6k": "tsx scripts/poll-edgar-6k.ts",
     "test:toss-prices": "tsx scripts/test-toss-prices.ts",
     "engine": "tsx scripts/run-market-engine.ts",
     "sync:us-listed": "tsx scripts/sync-us-listed-companies.ts",
