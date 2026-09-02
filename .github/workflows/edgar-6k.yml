@@ -1,4 +1,4 @@
-# SEC 6-K Exhibit 99.1 → Groq → wire_news.
+# SEC 8-K / 6-K Exhibit 99.1 press release → Groq → wire_news.
 # Hourly schedule paused — turn back on with `on.schedule` when ready to experiment.
 #
 # Secret: CRON_SECRET (same as Vercel)

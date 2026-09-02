@@ -138,7 +138,7 @@ export function WireNewsDetailView({
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
           >
-            {item.source === "edgar-6k" && affiliation === "news" ? (
+            {(item.source === "edgar-6k" || item.source === "edgar-8k") && affiliation === "news" ? (
               <T k="newsSec.openExhibit99" />
             ) : affiliation === "sec" ? (
               <T k="newsSec.openSec" />

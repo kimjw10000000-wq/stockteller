@@ -24,8 +24,13 @@ export async function GET(req: Request) {
 
   try {
     const admin = createAdminClient();
-    const result = await runEdgar6kCrawl(admin);
-    return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+    const eight = await runEdgar6kCrawl(admin, { form: "8-k" });
+    const six = await runEdgar6kCrawl(admin, { form: "6-k" });
+    const ok = eight.ok && six.ok;
+    return NextResponse.json(
+      { ok, inserted: eight.inserted + six.inserted, "8-k": eight, "6-k": six },
+      { status: ok ? 200 : 500 }
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[cron/edgar-6k]", message);

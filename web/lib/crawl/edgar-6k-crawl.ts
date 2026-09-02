@@ -1,6 +1,6 @@
 /**
- * SEC current/company 6-K → Exhibit 99.1 containing "press release" → Groq → wire_news as News.
- * GlobeNewswire RSS stays News. 6-K without that dateline is skipped (not stored as SEC).
+ * SEC current 8-K / 6-K → Exhibit 99.1 containing "press release" → Groq → wire_news as News.
+ * GlobeNewswire RSS stays News. Filings without that exhibit/phrase are skipped (not stored as SEC).
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -19,15 +19,15 @@ import { loadWorldCityNames } from "@/lib/sec/world-cities";
 import { resolveTickerMeta, secFetch, sleep } from "@/lib/sec/edgar-client";
 import type { GeminiAnalysisResult } from "@/lib/types";
 
-const SOURCE = "edgar-6k";
-const CURRENT_ATOM =
-  "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=6-k&count=40&output=atom";
 const DEFAULT_MAX = 8;
 const COMPANY_ATOM_COUNT = 10;
+
+export type EdgarPressForm = "6-k" | "8-k";
 
 export type SixKCrawlOptions = {
   tickers?: string[];
   latestPerTicker?: number;
+  form?: EdgarPressForm;
   /** Process-lifetime accessions we already opened or rejected — skip SEC document fetches. */
   seenAccessions?: Set<string>;
   /** Max new filings to open documents for in this run (cron default 8, VPS poll 1). */
@@ -39,6 +39,7 @@ export type SixKCrawlResult = {
   inserted: number;
   scanned: number;
   skipped: number;
+  form?: EdgarPressForm;
   tickers?: string[];
   message: string;
 };
@@ -59,12 +60,35 @@ type AtomEntry = {
   link: string;
 };
 
+type FormType = "6-K" | "6-K/A" | "8-K" | "8-K/A";
+
 type ParsedFiling = {
   e: AtomEntry;
   accession: string;
   cik: string;
-  form: "6-K" | "6-K/A";
+  form: FormType;
 };
+
+function pressSource(form: EdgarPressForm): "edgar-6k" | "edgar-8k" {
+  return form === "8-k" ? "edgar-8k" : "edgar-6k";
+}
+
+function currentAtomUrl(form: EdgarPressForm): string {
+  return `https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=${form}&count=40&output=atom`;
+}
+
+function companyAtomUrl(cik: string, form: EdgarPressForm) {
+  const type = form === "8-k" ? "8-K" : "6-K";
+  return `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${encodeURIComponent(
+    cik
+  )}&type=${encodeURIComponent(type)}&owner=include&count=${COMPANY_ATOM_COUNT}&output=atom`;
+}
+
+function formFromTitle(title: string, family: EdgarPressForm): FormType {
+  const t = title.trim();
+  if (family === "8-k") return /^8-K\/A/i.test(t) ? "8-K/A" : "8-K";
+  return /^6-K\/A/i.test(t) ? "6-K/A" : "6-K";
+}
 
 function requireEnv(name: string): string {
   const v = process.env[name]?.trim();
@@ -123,29 +147,19 @@ function cikFromEntry(title: string, link: string, idHref: string): string | nul
   return fromTitle ? normalizeCik(fromTitle[1]) : null;
 }
 
-function formFromTitle(title: string): "6-K" | "6-K/A" {
-  return /^6-K\/A/i.test(title.trim()) ? "6-K/A" : "6-K";
-}
-
 function publishedIso(updated: string): string | null {
   const t = Date.parse(updated);
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
-function parseFilings(entries: AtomEntry[]): ParsedFiling[] {
+function parseFilings(entries: AtomEntry[], family: EdgarPressForm): ParsedFiling[] {
   return entries
     .map((e) => {
       const accession = accessionFromText(e.link) || accessionFromText(e.idHref) || accessionFromText(e.title);
       const cik = cikFromEntry(e.title, e.link, e.idHref);
-      return accession && cik ? { e, accession, cik, form: formFromTitle(e.title) } : null;
+      return accession && cik ? { e, accession, cik, form: formFromTitle(e.title, family) } : null;
     })
     .filter((x): x is ParsedFiling => Boolean(x));
-}
-
-function companyAtomUrl(cik: string) {
-  return `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${encodeURIComponent(
-    cik
-  )}&type=6-K&owner=include&count=${COMPANY_ATOM_COUNT}&output=atom`;
 }
 
 async function fetchSecAtom(url: string, ua: string, attempts = 3): Promise<string> {
@@ -165,7 +179,7 @@ async function fetchSecAtom(url: string, ua: string, attempts = 3): Promise<stri
     lastBody = await res.text().catch(() => "");
     if (res.status !== 403 && res.status !== 429 && res.status < 500) break;
   }
-  throw new Error(`SEC 6-K atom fetch failed ${lastStatus}: ${lastBody.slice(0, 300)}`);
+  throw new Error(`SEC atom fetch failed ${lastStatus}: ${lastBody.slice(0, 300)}`);
 }
 
 async function lookupListedByCiks(client: SupabaseClient, ciks: string[]): Promise<Map<string, ListedRow>> {
@@ -217,16 +231,20 @@ async function cikForListed(listed: ListedRow): Promise<string | null> {
   return meta?.cikPadded ?? null;
 }
 
-async function alreadyAccessions(client: SupabaseClient, accessions: string[]): Promise<Set<string>> {
+async function alreadyAccessions(
+  client: SupabaseClient,
+  source: "edgar-6k" | "edgar-8k",
+  accessions: string[]
+): Promise<Set<string>> {
   const seen = new Set<string>();
   if (accessions.length === 0) return seen;
   const { data, error } = await client
     .from("wire_news")
     .select("accession,external_id")
-    .eq("source", SOURCE)
+    .eq("source", source)
     .in("accession", accessions);
   if (error) {
-    console.warn("[edgar-6k] existing lookup", error.message);
+    console.warn(`[${source}] existing lookup`, error.message);
     return seen;
   }
   for (const row of data ?? []) {
@@ -235,10 +253,14 @@ async function alreadyAccessions(client: SupabaseClient, accessions: string[]): 
   return seen;
 }
 
-async function summarize(raw: string, kind: "news" | "sec"): Promise<GeminiAnalysisResult | null> {
+async function summarize(
+  raw: string,
+  kind: "news" | "sec",
+  source: "edgar-6k" | "edgar-8k"
+): Promise<GeminiAnalysisResult | null> {
   const result = await analyzeFilingText(raw, kind);
   if (!result.ok) {
-    console.warn("[edgar-6k] groq failed", result.error.slice(0, 240));
+    console.warn(`[${source}] groq failed`, result.error.slice(0, 240));
     return null;
   }
   return { ...result.data, sentiment: "neutral", score: 0 };
@@ -257,6 +279,7 @@ type InsertCard = {
 async function insertCards(
   client: SupabaseClient,
   params: {
+    source: "edgar-6k" | "edgar-8k";
     accession: string;
     formType: string;
     listed: ListedRow;
@@ -268,7 +291,7 @@ async function insertCards(
   let n = 0;
   for (const card of params.cards) {
     const { error } = await client.from("wire_news").insert({
-      source: SOURCE,
+      source: params.source,
       external_id: card.externalId,
       url: card.url,
       title: card.title,
@@ -291,7 +314,7 @@ async function insertCards(
     });
     if (error) {
       if (/duplicate|unique/i.test(error.message)) continue;
-      console.warn("[edgar-6k] insert failed", card.externalId, error.message);
+      console.warn(`[${params.source}] insert failed`, card.externalId, error.message);
       continue;
     }
     n += 1;
@@ -303,6 +326,7 @@ type IngestKind = "exists" | "no-exhibit" | "no-wire" | "skip" | "done";
 
 async function ingestOne(
   client: SupabaseClient,
+  source: "edgar-6k" | "edgar-8k",
   row: ParsedFiling,
   listed: ListedRow,
   cities: Set<string>,
@@ -315,7 +339,7 @@ async function ingestOne(
   const exhibits = pickExhibit99_1Names(names);
   if (exhibits.length === 0) {
     done.add(row.accession);
-    console.log("[edgar-6k] skip (no Exhibit 99.1)", listed.ticker, row.accession);
+    console.log(`[${source}] skip (no Exhibit 99.1)`, listed.ticker, row.accession);
     return { kind: "no-exhibit", inserted: 0 };
   }
 
@@ -330,11 +354,11 @@ async function ingestOne(
   const classified = classifyExhibit99Dateline(exhibitText, cities);
   if (!classified.isNewswire) {
     done.add(row.accession);
-    console.log("[edgar-6k] skip (no press release in 99.1)", listed.ticker, row.accession);
+    console.log(`[${source}] skip (no press release in 99.1)`, listed.ticker, row.accession);
     return { kind: "no-wire", inserted: 0 };
   }
 
-  const news = await summarize(exhibitText, "news");
+  const news = await summarize(exhibitText, "news", source);
   if (!news) {
     done.add(row.accession);
     return { kind: "skip", inserted: 0 };
@@ -345,6 +369,7 @@ async function ingestOne(
 
   const publishedAt = publishedIso(row.e.updated);
   const inserted = await insertCards(client, {
+    source,
     accession: row.accession,
     formType: row.form,
     listed,
@@ -363,16 +388,18 @@ async function ingestOne(
     llmModel: groqModel(),
   });
   done.add(row.accession);
-  console.log("[edgar-6k]", listed.ticker, row.accession, "news", wire);
+  console.log(`[${source}]`, listed.ticker, row.accession, "news", wire);
   return { kind: "done", inserted };
 }
 
 async function runTickerCrawl(
   client: SupabaseClient,
   ua: string,
+  family: EdgarPressForm,
   tickers: string[],
   latestPerTicker: number
 ): Promise<SixKCrawlResult> {
+  const source = pressSource(family);
   const wanted = [...new Set(tickers.map((t) => normalizeTicker(t)).filter(Boolean))];
   const listedMap = await lookupListedByTickers(client, wanted);
   const cities = await loadWorldCityNames(client);
@@ -387,23 +414,24 @@ async function runTickerCrawl(
     if (i > 0) await sleep(8_000);
     const listed = listedMap.get(ticker);
     if (!listed) {
-      console.warn("[edgar-6k] not in us_listed_companies", ticker);
+      console.warn(`[${source}] not in us_listed_companies`, ticker);
       skipped += 1;
       continue;
     }
     const cik = await cikForListed(listed);
     if (!cik) {
-      console.warn("[edgar-6k] no CIK", ticker);
+      console.warn(`[${source}] no CIK`, ticker);
       skipped += 1;
       continue;
     }
 
-    const xml = await fetchSecAtom(companyAtomUrl(cik), ua);
-    const parsed = parseFilings(parseAtom(xml));
+    const xml = await fetchSecAtom(companyAtomUrl(cik, family), ua);
+    const parsed = parseFilings(parseAtom(xml), family);
     scanned += parsed.length;
 
     const existing = await alreadyAccessions(
       client,
+      source,
       parsed.map((p) => p.accession)
     );
     for (const acc of existing) done.add(acc);
@@ -411,7 +439,7 @@ async function runTickerCrawl(
     let taken = 0;
     for (const row of parsed) {
       if (taken >= latestPerTicker) break;
-      const result = await ingestOne(client, { ...row, cik }, listed, cities, done);
+      const result = await ingestOne(client, source, { ...row, cik }, listed, cities, done);
       if (result.kind === "no-exhibit" || result.kind === "no-wire" || result.kind === "skip") {
         skipped += 1;
         continue;
@@ -421,13 +449,13 @@ async function runTickerCrawl(
       if (result.kind === "exists") skipped += 1;
     }
     if (taken === 0) {
-      console.warn("[edgar-6k] no 6-K Exhibit 99.1 with press release", ticker);
+      console.warn(`[${source}] no Exhibit 99.1 with press release`, ticker);
     }
   }
 
-  const message = `done, inserted ${inserted} (tickers ${wanted.join(",")}, scanned ${scanned}, skipped ${skipped})`;
+  const message = `${family} done, inserted ${inserted} (tickers ${wanted.join(",")}, scanned ${scanned}, skipped ${skipped})`;
   console.log(message);
-  return { ok: true, inserted, scanned, skipped, tickers: wanted, message };
+  return { ok: true, inserted, scanned, skipped, form: family, tickers: wanted, message };
 }
 
 export async function runEdgar6kCrawl(
@@ -446,21 +474,24 @@ export async function runEdgar6kCrawl(
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+  const family: EdgarPressForm = options?.form === "8-k" ? "8-k" : "6-k";
+  const source = pressSource(family);
+
   const tickers = (options?.tickers ?? [])
     .map((t) => normalizeTicker(t))
     .filter(Boolean);
   if (tickers.length) {
     const latest = Math.max(1, options?.latestPerTicker ?? 1);
-    return runTickerCrawl(client, ua, tickers, latest);
+    return runTickerCrawl(client, ua, family, tickers, latest);
   }
 
-  const xml = await fetchSecAtom(CURRENT_ATOM, ua);
+  const xml = await fetchSecAtom(currentAtomUrl(family), ua);
   const entries = parseAtom(xml);
-  const max = Math.max(
-    1,
-    options?.maxItems ?? (Number(process.env.CRAWL_6K_MAX_ITEMS || DEFAULT_MAX) || DEFAULT_MAX)
-  );
-  const parsed = parseFilings(entries);
+  const max =
+    options?.maxItems != null
+      ? Math.max(0, options.maxItems)
+      : Math.max(1, Number(process.env.CRAWL_6K_MAX_ITEMS || DEFAULT_MAX) || DEFAULT_MAX);
+  const parsed = parseFilings(entries, family);
   const listedMap = await lookupListedByCiks(
     client,
     parsed.map((p) => p.cik)
@@ -468,6 +499,7 @@ export async function runEdgar6kCrawl(
   const done = options?.seenAccessions ?? new Set<string>();
   const fromDb = await alreadyAccessions(
     client,
+    source,
     parsed.map((p) => p.accession)
   );
   for (const acc of fromDb) done.add(acc);
@@ -490,7 +522,7 @@ export async function runEdgar6kCrawl(
     }
     if (processed >= max) break;
     processed += 1;
-    const result = await ingestOne(client, row, listed, cities, done);
+    const result = await ingestOne(client, source, row, listed, cities, done);
     if (result.kind === "exists" || result.kind === "no-exhibit" || result.kind === "no-wire" || result.kind === "skip") {
       skipped += 1;
       continue;
@@ -498,10 +530,10 @@ export async function runEdgar6kCrawl(
     inserted += result.inserted;
   }
 
-  const message = `done, inserted ${inserted} (scanned ${entries.length}, processed ${processed}, skipped ${skipped})`;
+  const message = `${family} done, inserted ${inserted} (scanned ${entries.length}, processed ${processed}, skipped ${skipped})`;
   console.log(message);
   if (entries.length === 0) {
-    return { ok: false, inserted: 0, scanned: 0, skipped, message: "SEC 6-K atom returned 0 entries" };
+    return { ok: false, inserted: 0, scanned: 0, skipped, form: family, message: `SEC ${family} atom returned 0 entries` };
   }
-  return { ok: true, inserted, scanned: entries.length, skipped, message };
+  return { ok: true, inserted, scanned: entries.length, skipped, form: family, message };
 }

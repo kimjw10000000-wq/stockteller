@@ -40,7 +40,7 @@ export function hasPressRelease(text: string): boolean {
 }
 
 /**
- * 6-K Exhibit 99.1 counts as News when the document contains "press release".
+ * 8-K / 6-K Exhibit 99.1 counts as News when the document contains "press release".
  * Newswire label is optional (GlobeNewswire / Business Wire / PR Newswire).
  */
 export function classifyExhibit99Dateline(

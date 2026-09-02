@@ -14,6 +14,7 @@
     "seed:world-cities": "tsx scripts/seed-world-cities.ts",
     "crawl": "tsx scripts/crawl-edgar.ts",
     "crawl:6k": "tsx scripts/crawl-edgar-6k.ts",
+    "crawl:8k": "tsx scripts/crawl-edgar-6k.ts --form=8-k",
     "crawl:gnw": "tsx scripts/crawl-gnw.ts",
     "poll:gnw": "tsx scripts/poll-gnw.ts",
     "poll:toss-quotes": "tsx scripts/poll-toss-quotes.ts",

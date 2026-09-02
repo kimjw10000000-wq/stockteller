@@ -1,13 +1,14 @@
 /**
- * CLI: SEC 6-K + Exhibit 99.1 → Groq Korean summary → wire_news.
+ * CLI: SEC 8-K / 6-K + Exhibit 99.1 press release → Groq Korean summary → wire_news.
  * Usage: npx tsx scripts/crawl-edgar-6k.ts RDHL CLGN
- * No args: latest current 6-K Atom (cron behavior).
+ *        npx tsx scripts/crawl-edgar-6k.ts --form=8-k
+ * No ticker args: latest current Atom for that form (cron behavior).
  * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GROQ_API_KEY
  */
 import { config } from "dotenv";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { runEdgar6kCrawl } from "../lib/crawl/edgar-6k-crawl";
+import { runEdgar6kCrawl, type EdgarPressForm } from "../lib/crawl/edgar-6k-crawl";
 import { priorSessionClose } from "../lib/quotes/prev-close";
 import { hideSplitDistortedPct } from "../lib/quotes/split-adjusted";
 import { upsertTickerQuotes } from "../lib/quotes/ticker-quotes";
@@ -80,9 +81,26 @@ async function syncTossQuotes(tickers: string[]): Promise<void> {
   );
 }
 
-const tickers = process.argv.slice(2).map((t) => t.trim().toUpperCase()).filter(Boolean);
+function parseCli(): { form: EdgarPressForm; tickers: string[] } {
+  let form: EdgarPressForm = "6-k";
+  const tickers: string[] = [];
+  for (const raw of process.argv.slice(2)) {
+    if (raw.startsWith("--form=")) {
+      const v = raw.slice(7).toLowerCase().replace("/", "-");
+      if (v === "8-k" || v === "8k") form = "8-k";
+      else if (v === "6-k" || v === "6k") form = "6-k";
+      continue;
+    }
+    if (raw.startsWith("--")) continue;
+    const t = raw.trim().toUpperCase();
+    if (t) tickers.push(t);
+  }
+  return { form, tickers };
+}
 
-runEdgar6kCrawl(undefined, tickers.length ? { tickers, latestPerTicker: 1 } : undefined)
+const { form, tickers } = parseCli();
+
+runEdgar6kCrawl(undefined, tickers.length ? { form, tickers, latestPerTicker: 1 } : { form })
   .then(async (r) => {
     console.log(r.message);
     if (r.tickers?.length) await syncTossQuotes(r.tickers);

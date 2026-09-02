@@ -10,7 +10,7 @@
     "articles": "Articles",
     "articlesDesc": "Human-written analysis articles",
     "newsSec": "News/SEC",
-    "newsSecDesc": "AI summaries of U.S. press releases and SEC 6-K filings",
+    "newsSecDesc": "AI summaries of U.S. press releases and SEC 8-K/6-K Exhibit 99.1 filings",
     "indicators": "Live releases",
     "indicatorsDesc": "CPI, PPI, and earnings releases",
     "halts": "TradeHalt",
@@ -163,7 +163,7 @@
   "newsSec": {
     "kicker": "News / SEC",
     "title": "News/SEC",
-    "lead": "Newswire press releases (News) and SEC 6-K summaries (SEC). Each card opens the article on this site.",
+    "lead": "Newswire press releases (News) and SEC 8-K/6-K Exhibit 99.1 press releases. Each card opens the article on this site.",
     "emptyTitle": "No press releases to show yet",
     "emptyBody": "Items appear here after the poller runs. 16 per page.",
     "emptyMovers": "No releases from the last 3 days, or change data is not ready yet.",

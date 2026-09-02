@@ -163,7 +163,7 @@
   "newsSec": {
     "kicker": "News / SEC",
     "title": "News/SEC",
-    "lead": "통신사 보도자료(News)와 SEC 6-K 요약(SEC)입니다. 카드를 누르면 이 사이트의 원문 페이지로 갑니다.",
+    "lead": "통신사 보도자료(News)와 SEC 8-K·6-K Exhibit 99.1 보도자료입니다. 카드를 누르면 이 사이트의 원문 페이지로 갑니다.",
     "emptyTitle": "아직 표시할 보도자료가 없습니다",
     "emptyBody": "폴러가 돌면 여기에 쌓입니다. 한 페이지에 16건입니다.",
     "emptyMovers": "최근 3일 보도자료가 없거나, 아직 등락률이 없습니다.",
