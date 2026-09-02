@@ -282,3 +282,93 @@ export async function analyzeFilingText(
 ): Promise<AnalyzeDisclosureResult> {
   return runFilingAnalysis(kind, rawContent);
 }
+
+function translateInstruction(): string {
+  return `You translate a GlobeNewswire RSS headline and teaser into Korean.
+
+Write Korean directly. This is a literal translation, not a summary and not analysis.
+
+User-facing answer must be ONLY valid JSON (no markdown, no code fences):
+{"title":"Korean headline","summary_lines":["sentence1","sentence2"]}
+
+Hard rules:
+- Translate every fact in the headline and teaser. Do not drop material clauses. Do not add facts, numbers, dates, tickers, or names that are not in the source.
+- Do not interpret, shorten, or rewrite as an investor summary.
+- The user message lists source figure strings (money, percents, share counts, split/merger ratios). Copy those English strings EXACTLY. Do not convert million into 만 or rewrite 1-for-20.
+- Do not call the news 호재 or 악재. Do not assign a sentiment or score.
+- One summary_lines item per source sentence when possible. Keep the same order.
+- If input is empty or unreadable, return title "번역 불가" and 1 short Korean line explaining why.`;
+}
+
+function parseTranslateJson(text: string): GeminiAnalysisResult {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+  const lines = parseLineList(parsed);
+  return {
+    title: String(parsed.title ?? "제목 없음").trim() || "제목 없음",
+    summary_lines: lines.length ? lines.slice(0, 20) : ["원문에서 번역할 문장을 찾지 못했습니다."],
+    sentiment: "neutral",
+    score: 0,
+  };
+}
+
+/** RSS headline+teaser → Korean literal translation. Source English is not modified. */
+export async function translatePressRelease(params: {
+  title: string;
+  teaser: string;
+}): Promise<AnalyzeDisclosureResult> {
+  if (!isGroqConfigured()) {
+    return { ok: false, error: "GROQ_API_KEY is not configured" };
+  }
+
+  const source = [`HEADLINE:\n${params.title.trim()}`, `TEASER:\n${(params.teaser || "").trim() || "(empty)"}`].join(
+    "\n\n"
+  );
+  const figures = extractSourceFigures(source);
+  const user = [figuresPromptBlock(figures), source].filter(Boolean).join("\n\n");
+
+  let lastError = "Unknown LLM error";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const text = await groqChatJson({
+        system: translateInstruction(),
+        user,
+        temperature: 0.1,
+        maxTokens: 1_600,
+      });
+      try {
+        const parsed = parseTranslateJson(text);
+        const localized = localizeFilingResult(parsed, source);
+        if ("error" in localized) {
+          lastError = localized.error;
+          console.warn("[translatePressRelease]", lastError);
+          if (attempt < 2) continue;
+          return { ok: false, error: lastError, data: fallbackResult("번역 숫자 오류", [lastError]) };
+        }
+        return { ok: true, data: localized, model: groqModel() };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "JSON parse failed";
+        return {
+          ok: false,
+          error: `Failed to parse JSON: ${message}`,
+          data: fallbackResult("JSON 파싱 오류", ["모델 응답을 구조화하지 못했습니다."]),
+        };
+      }
+    } catch (e) {
+      lastError =
+        e instanceof GroqApiError ? e.message : e instanceof Error ? e.message : "Unknown LLM error";
+      const wait = retryAfterMs(e);
+      if (wait == null || attempt === 2) {
+        console.error("[translatePressRelease]", lastError);
+        break;
+      }
+      console.warn(`[translatePressRelease] rate limited, retry in ${Math.ceil(wait / 1000)}s`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  return {
+    ok: false,
+    error: lastError,
+    data: fallbackResult("AI 번역 실패", ["번역 호출 중 오류가 발생했습니다."]),
+  };
+}

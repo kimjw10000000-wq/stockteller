@@ -179,6 +179,7 @@
     "backToList": "Back to News/SEC",
     "sourceLabel": "Text included in the RSS feed",
     "body": "Summary",
+    "originalRss": "RSS original (English)",
     "noBody": "No original text is stored.",
     "openOriginal": "View original",
     "openSec": "View on SEC",

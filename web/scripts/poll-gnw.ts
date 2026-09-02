@@ -1,7 +1,7 @@
 /**
  * VPS loop: GlobeNewswire RSS → wire_news.
  * Premarket 04:00–09:30 ET: every 15s. Otherwise every 60s.
- * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GROQ_API_KEY
  */
 import { config } from "dotenv";
 import { resolve } from "node:path";

@@ -179,6 +179,7 @@
     "backToList": "News/SEC 목록으로",
     "sourceLabel": "RSS에 포함된 본문",
     "body": "요약",
+    "originalRss": "RSS 원문 (영어)",
     "noBody": "원문이 없습니다.",
     "openOriginal": "원본 보기",
     "openSec": "SEC에서 보기",

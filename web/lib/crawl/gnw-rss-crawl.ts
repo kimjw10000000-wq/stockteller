@@ -1,10 +1,14 @@
 /**
- * GlobeNewswire public RSS → Supabase `wire_news` (headline + teaser, no Groq).
+ * GlobeNewswire public RSS → Groq Korean literal translation → wire_news.
+ * Stores RSS English in original_* and Korean in title/teaser/summary.
  * Used by `npm run crawl:gnw`, `npm run poll:gnw`, and `/api/cron/gnw-rss`.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { groqModel, isGroqConfigured } from "@/lib/groq/client";
 import { fetchGnwRssFeeds, type GnwRssItem } from "@/lib/gnw/rss";
+import { translatePressRelease } from "@/lib/llm/analyze-disclosure";
+import { withNewswireAttribution } from "@/lib/sec/listed-newswires";
 import {
   capBucket,
   isActiveIssuer,
@@ -15,7 +19,7 @@ import {
 } from "@/lib/gnw/tickers";
 
 const SOURCE = "globenewswire";
-const DEFAULT_MAX = 20;
+const DEFAULT_MAX = 8;
 
 export type GnwCrawlResult = {
   ok: boolean;
@@ -66,15 +70,24 @@ async function existingTeaserLengths(
   const chunkSize = 80;
   for (let i = 0; i < ids.length; i += chunkSize) {
     const chunk = ids.slice(i, i + chunkSize);
-    const { data, error } = await client
+    const full = await client
       .from("wire_news")
-      .select("external_id,teaser")
+      .select("external_id,teaser,original_teaser")
       .eq("source", SOURCE)
       .in("external_id", chunk);
+    const { data, error } =
+      full.error && /original_teaser/i.test(full.error.message)
+        ? await client
+            .from("wire_news")
+            .select("external_id,teaser")
+            .eq("source", SOURCE)
+            .in("external_id", chunk)
+        : full;
     if (error) throw new Error(`wire_news lookup: ${error.message}`);
     for (const row of data ?? []) {
       if (!row.external_id) continue;
-      seen.set(String(row.external_id), String(row.teaser ?? "").length);
+      const original = "original_teaser" in row ? String(row.original_teaser ?? "") : "";
+      seen.set(String(row.external_id), (original || String(row.teaser ?? "")).length);
     }
   }
   return seen;
@@ -132,6 +145,84 @@ async function listedLookup(
   return indexListed(rows);
 }
 
+type GnwKoCopy = {
+  title: string;
+  teaser: string;
+  summary: string;
+  language: string;
+  llmModel: string | null;
+};
+
+async function translateGnwCopy(title: string, teaser: string): Promise<GnwKoCopy | null> {
+  if (!isGroqConfigured()) {
+    return {
+      title,
+      teaser,
+      summary: teaser,
+      language: "en",
+      llmModel: null,
+    };
+  }
+  const result = await translatePressRelease({ title, teaser });
+  if (!result.ok) {
+    console.warn("gnw translate failed", result.error.slice(0, 240));
+    return null;
+  }
+  const lines = result.data.summary_lines.filter(Boolean);
+  const summary = withNewswireAttribution(lines.join("\n"), "GlobeNewswire");
+  return {
+    title: result.data.title,
+    teaser: lines[0] ?? "",
+    summary,
+    language: "ko",
+    llmModel: groqModel(),
+  };
+}
+
+async function wireNewsHasOriginalColumns(client: SupabaseClient): Promise<boolean> {
+  const { error } = await client.from("wire_news").select("original_title").limit(1);
+  return !error;
+}
+
+function gnwRowPayload(
+  item: GnwRssItem,
+  match: { ticker: string; row: ListedRow },
+  tickers: string[],
+  originalTitle: string,
+  originalTeaser: string,
+  ko: GnwKoCopy,
+  withOriginal: boolean
+) {
+  const row: Record<string, unknown> = {
+    source: SOURCE,
+    external_id: item.id,
+    url: item.url,
+    title: ko.title,
+    teaser: ko.teaser || null,
+    summary: ko.summary || null,
+    sentiment: null,
+    analysis_score: null,
+    tickers: tickers.length > 0 ? tickers : [match.ticker],
+    primary_ticker: match.ticker,
+    company_name: match.row.name || item.companyName || null,
+    published_at: parsePublishedAt(item.publishedAt),
+    market_cap: match.row.market_cap,
+    cap_bucket: capBucket(match.row.market_cap),
+    language: ko.language,
+    llm_model: ko.llmModel,
+    affiliation: "news",
+    newswire: "GlobeNewswire",
+    form_type: null,
+    accession: null,
+  };
+  if (withOriginal) {
+    row.original_title = originalTitle;
+    row.original_teaser = originalTeaser || null;
+    row.original_summary = originalTeaser || null;
+  }
+  return row;
+}
+
 function pickIssuer(
   tickers: string[],
   ciks: string[],
@@ -166,6 +257,13 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
     createClient(url, service, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+  const hasOriginal = await wireNewsHasOriginalColumns(client);
+  if (!hasOriginal) {
+    console.warn(
+      "wire_news original_* missing — run web/supabase/migrations/20260902_wire_news_original.sql (English-only this cycle)"
+    );
+  }
 
   const items = [...(await fetchGnwRssFeeds())].sort(
     (a, b) => publishedMs(b.publishedAt) - publishedMs(a.publishedAt)
@@ -224,29 +322,26 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
     }
     kept += 1;
 
-    const teaser = item.teaser || "";
-    const { error: insErr } = await client.from("wire_news").insert({
-      source: SOURCE,
-      external_id: item.id,
-      url: item.url,
-      title: item.title,
-      teaser: teaser || null,
-      summary: teaser || null,
-      sentiment: null,
-      analysis_score: null,
-      tickers: tickers.length > 0 ? tickers : [match.ticker],
-      primary_ticker: match.ticker,
-      company_name: match.row.name || item.companyName || null,
-      published_at: parsePublishedAt(item.publishedAt),
-      market_cap: match.row.market_cap,
-      cap_bucket: capBucket(match.row.market_cap),
-      language: item.language || "en",
-      llm_model: null,
-      affiliation: "news",
-      newswire: "GlobeNewswire",
-      form_type: null,
-      accession: null,
-    });
+    const originalTitle = item.title;
+    const originalTeaser = item.teaser || "";
+    const ko =
+      hasOriginal && isGroqConfigured()
+        ? await translateGnwCopy(originalTitle, originalTeaser)
+        : {
+            title: originalTitle,
+            teaser: originalTeaser,
+            summary: originalTeaser,
+            language: item.language || "en",
+            llmModel: null as string | null,
+          };
+    if (!ko) {
+      skipped += 1;
+      continue;
+    }
+
+    const { error: insErr } = await client
+      .from("wire_news")
+      .insert(gnwRowPayload(item, match, tickers, originalTitle, originalTeaser, ko, hasOriginal));
 
     if (insErr) {
       if (/duplicate|unique/i.test(insErr.message)) {
@@ -268,22 +363,79 @@ export async function runGnwRssCrawl(supabase?: SupabaseClient): Promise<GnwCraw
     }
 
     inserted += 1;
-    console.log("inserted", match.ticker, item.title);
+    console.log("inserted", match.ticker, ko.title);
   }
 
   let updated = 0;
   for (const item of refresh) {
-    const teaser = item.teaser || "";
-    const { error } = await client
-      .from("wire_news")
-      .update({ teaser: teaser || null, summary: teaser || null })
-      .eq("source", SOURCE)
-      .eq("external_id", item.id);
+    const originalTitle = item.title;
+    const originalTeaser = item.teaser || "";
+    const ko =
+      hasOriginal && isGroqConfigured()
+        ? await translateGnwCopy(originalTitle, originalTeaser)
+        : {
+            title: originalTitle,
+            teaser: originalTeaser,
+            summary: originalTeaser,
+            language: item.language || "en",
+            llmModel: null as string | null,
+          };
+    if (!ko) continue;
+    const patch: Record<string, unknown> = {
+      title: ko.title,
+      teaser: ko.teaser || null,
+      summary: ko.summary || null,
+      language: ko.language,
+      llm_model: ko.llmModel,
+    };
+    if (hasOriginal) {
+      patch.original_title = originalTitle;
+      patch.original_teaser = originalTeaser || null;
+      patch.original_summary = originalTeaser || null;
+    }
+    const { error } = await client.from("wire_news").update(patch).eq("source", SOURCE).eq("external_id", item.id);
     if (error) {
       console.warn("wire_news teaser update failed", item.id, error.message);
       continue;
     }
     updated += 1;
+  }
+
+  if (hasOriginal && isGroqConfigured()) {
+    const pendingKo = await client
+      .from("wire_news")
+      .select("id,external_id,title,teaser,summary,original_title,original_teaser")
+      .eq("source", SOURCE)
+      .is("llm_model", null)
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(4);
+    if (!pendingKo.error) {
+      for (const row of pendingKo.data ?? []) {
+        const originalTitle = String(row.original_title || row.title || "");
+        const originalTeaser = String(row.original_teaser || row.teaser || row.summary || "");
+        const ko = await translateGnwCopy(originalTitle, originalTeaser);
+        if (!ko) continue;
+        const patch: Record<string, unknown> = {
+          title: ko.title,
+          teaser: ko.teaser || null,
+          summary: ko.summary || null,
+          language: ko.language,
+          llm_model: ko.llmModel,
+          original_title: originalTitle,
+          original_teaser: originalTeaser || null,
+          original_summary: originalTeaser || null,
+        };
+        let { error } = await client.from("wire_news").update(patch).eq("id", row.id);
+        if (error && /original_title|original_teaser|original_summary/i.test(error.message)) {
+          delete patch.original_title;
+          delete patch.original_teaser;
+          delete patch.original_summary;
+          const retry = await client.from("wire_news").update(patch).eq("id", row.id);
+          error = retry.error;
+        }
+        if (!error) updated += 1;
+      }
+    }
   }
 
   const message = `done, inserted ${inserted}, updated ${updated} (scanned ${items.length}, skipped ${skipped}, insertFailures ${insertFailures})`;

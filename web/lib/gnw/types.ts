@@ -23,6 +23,9 @@ export type WireNewsRow = {
   newswire?: string | null;
   form_type?: string | null;
   accession?: string | null;
+  original_title?: string | null;
+  original_teaser?: string | null;
+  original_summary?: string | null;
 };
 
 export function wireNewsAffiliation(item: WireNewsRow): WireNewsAffiliation {

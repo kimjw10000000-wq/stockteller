@@ -131,6 +131,22 @@ export function WireNewsDetailView({
           ) : null}
         </section>
 
+        {item.source === "globenewswire" && (item.original_title || item.original_teaser || item.original_summary) ? (
+          <section className="mt-10 border-t border-border pt-8" aria-labelledby="wire-original-heading">
+            <h2 id="wire-original-heading" className="text-lg font-medium text-foreground">
+              <T k="newsSec.originalRss" />
+            </h2>
+            {item.original_title ? (
+              <p className="mt-4 font-medium leading-snug text-foreground">{item.original_title}</p>
+            ) : null}
+            {(item.original_teaser || item.original_summary) ? (
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-[1.8] text-muted-foreground">
+                {item.original_teaser?.trim() || item.original_summary}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
         <p className="mt-10 border-t border-border pt-6">
           <a
             href={item.url}
