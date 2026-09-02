@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { TickerQuoteMap } from "@/lib/quotes/types";
+import type { TickerQuote, TickerQuoteMap } from "@/lib/quotes/types";
+
+function mergeQuotes(prev: TickerQuoteMap, incoming: TickerQuoteMap): TickerQuoteMap {
+  const next: TickerQuoteMap = { ...prev };
+  for (const [ticker, quote] of Object.entries(incoming) as [string, TickerQuote][]) {
+    const old = prev[ticker];
+    next[ticker] = {
+      ...quote,
+      lastPrice: quote.lastPrice ?? old?.lastPrice ?? null,
+      changePct: quote.changePct ?? old?.changePct ?? null,
+    };
+  }
+  return next;
+}
 
 export function useTickerQuotes(
   tickers: string[],
@@ -26,7 +39,8 @@ export function useTickerQuotes(
         const res = await fetch("/api/news-sec/quotes", { cache: "default" });
         if (!res.ok) return;
         const data = (await res.json()) as { quotes?: TickerQuoteMap };
-        if (!cancelled && data.quotes) setQuotes(data.quotes);
+        if (cancelled || !data.quotes || Object.keys(data.quotes).length === 0) return;
+        setQuotes((prev) => mergeQuotes(prev, data.quotes as TickerQuoteMap));
       } catch {
         /* keep last */
       }
