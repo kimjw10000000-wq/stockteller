@@ -256,12 +256,13 @@ export function NewsShareModal({
         <button
           type="button"
           onClick={openModal}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label={t("news.share")}
+          className="inline-flex h-8 items-center gap-1 rounded-full px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={t("news.shareCta")}
           aria-haspopup="dialog"
           aria-expanded={isOpen}
         >
-          <Share2 className="h-4 w-4" aria-hidden />
+          <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+          {t("news.shareCta")}
         </button>
       ) : (
         <Button

@@ -46,7 +46,7 @@ export function WireNewsCard({
   return (
     <ProtectedContent className="h-full" blockContextMenu={false}>
       <Card className="relative h-full gap-0 overflow-hidden p-0 transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-md">
-        <Link href={`/news-sec/${item.id}`} prefetch className="block h-full cursor-pointer p-4 pr-12">
+        <Link href={`/news-sec/${item.id}`} prefetch className="block h-full cursor-pointer p-4 pr-28">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="font-mono">
               {ticker}
