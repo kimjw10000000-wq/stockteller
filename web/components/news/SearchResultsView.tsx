@@ -59,7 +59,7 @@ export function SearchResultsView({
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2" role="list">
+      <div className="grid gap-y-4 gap-x-8 md:grid-cols-2" role="list">
         {items.map((item) => (
           <div key={item.id} role="listitem">
             <WireNewsCard item={item} quote={quotes[wireNewsTicker(item)]} />

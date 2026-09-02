@@ -68,7 +68,7 @@ export function NewsSecContent({
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-y-4 gap-x-8 md:grid-cols-2">
             {items.map((item) => (
               <WireNewsCard
                 key={item.id}

@@ -1,6 +1,6 @@
 export function FeedGridSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2" aria-hidden>
+    <div className="grid gap-y-4 gap-x-8 md:grid-cols-2" aria-hidden>
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="h-36 animate-pulse rounded-xl border border-border bg-muted/60" />
       ))}

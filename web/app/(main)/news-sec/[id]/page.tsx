@@ -35,7 +35,7 @@ export default async function WireNewsDetailPage({ params }: PageProps) {
           <h2 className="mb-4 text-lg font-medium text-foreground">
             <T k="newsSec.more" />
           </h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-y-4 gap-x-8 md:grid-cols-2">
             {related.map((row) => (
               <WireNewsCard key={row.id} item={row} quote={quotes[wireNewsTicker(row)]} />
             ))}

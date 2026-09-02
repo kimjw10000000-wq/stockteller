@@ -472,6 +472,7 @@ body {
     flex: 1 1 100%;
     order: 3;
     max-width: 100%;
+    height: 62px;
   }
 
   .site-search-wrap::before {
@@ -479,7 +480,14 @@ body {
     width: 100%;
   }
 
+  /* 모바일은 그림이 밀리지 않으므로, 하얀 홈과 같은 두께로 입력칸을 맞춤 */
+  .site-search {
+    height: 62px;
+    border-width: 18px 28px 20px 89px;
+  }
+
   .site-search__field {
-    font-size: 14px;
+    font-size: 16px;
+    padding: 0 12px;
   }
 }
