@@ -14,16 +14,15 @@ import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 type NewsCardProps = {
   item: DisclosureWithStock;
-  variant?: "default" | "neo";
 };
 
-function NewsCardInner({ item, variant = "default" }: NewsCardProps) {
+function NewsCardInner({ item }: NewsCardProps) {
   const { t } = useI18n();
   const { stock } = disclosureStockLabel(item);
   const trend = disclosureTrend(item.sentiment);
   const title = item.title ?? t("news.untitled");
   const preview = item.summary?.split("\n").filter(Boolean)[0] ?? "";
-  const cover = variant === "neo" ? null : getCoverImageUrl(item);
+  const cover = getCoverImageUrl(item);
 
   return (
     <ProtectedContent className="h-full" blockContextMenu={false}>
@@ -33,57 +32,32 @@ function NewsCardInner({ item, variant = "default" }: NewsCardProps) {
         className="block h-full"
         onClick={(e) => e.stopPropagation()}
       >
-        {variant === "neo" ? (
-          <article className="feed-neo-card flex h-full cursor-pointer flex-col p-5 sm:p-6">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="feed-neo-inset inline-flex rounded-full px-3 py-1 font-mono text-xs font-medium text-[var(--neo-ink)]">
+        <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
+          {cover ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cover} alt="" className="pointer-events-none h-36 w-full object-cover" />
+          ) : null}
+          <div className="p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Badge variant="secondary" className="font-mono">
                 {stock}
-              </span>
+              </Badge>
               {trend === "up" ? (
-                <TrendingUp className="h-4 w-4 shrink-0 text-green-600" aria-label={t("news.trendUp")} />
+                <TrendingUp className="h-4 w-4 shrink-0 text-green-500" aria-label={t("news.trendUp")} />
               ) : trend === "down" ? (
                 <TrendingDown className="h-4 w-4 shrink-0 text-red-500" aria-label={t("news.trendDown")} />
               ) : null}
             </div>
-            <h3 className="mb-2 text-base font-bold leading-snug text-[var(--neo-ink)]">{title}</h3>
+            <h3 className="mb-2 font-medium leading-snug text-foreground">{title}</h3>
             {preview ? (
-              <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-[var(--neo-muted)]">{preview}</p>
-            ) : (
-              <div className="mb-4 flex-1" />
-            )}
-            <div className="mt-auto flex items-center gap-2 text-sm text-[var(--neo-muted)]">
-              <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
+            ) : null}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-3 w-3 shrink-0" aria-hidden />
               <LocalizedDate iso={item.created_at} />
             </div>
-          </article>
-        ) : (
-          <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
-            {cover ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={cover} alt="" className="pointer-events-none h-36 w-full object-cover" />
-            ) : null}
-            <div className="p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <Badge variant="secondary" className="font-mono">
-                  {stock}
-                </Badge>
-                {trend === "up" ? (
-                  <TrendingUp className="h-4 w-4 shrink-0 text-green-500" aria-label={t("news.trendUp")} />
-                ) : trend === "down" ? (
-                  <TrendingDown className="h-4 w-4 shrink-0 text-red-500" aria-label={t("news.trendDown")} />
-                ) : null}
-              </div>
-              <h3 className="mb-2 font-medium leading-snug text-foreground">{title}</h3>
-              {preview ? (
-                <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
-              ) : null}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="h-3 w-3 shrink-0" aria-hidden />
-                <LocalizedDate iso={item.created_at} />
-              </div>
-            </div>
-          </Card>
-        )}
+          </div>
+        </Card>
       </Link>
     </ProtectedContent>
   );
@@ -91,7 +65,6 @@ function NewsCardInner({ item, variant = "default" }: NewsCardProps) {
 
 function sameCard(a: NewsCardProps, b: NewsCardProps) {
   return (
-    a.variant === b.variant &&
     a.item.id === b.item.id &&
     a.item.title === b.item.title &&
     a.item.summary === b.item.summary &&
