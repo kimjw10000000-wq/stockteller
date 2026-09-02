@@ -125,6 +125,34 @@ async function insertCompanies(admin: SupabaseClient, rows: CompanyInsert[]): Pr
   return n;
 }
 
+async function refreshWireNewsIssuer(
+  admin: SupabaseClient,
+  params: {
+    ticker: string;
+    name: string;
+    replaceTicker?: { from: string; to: string };
+  }
+): Promise<void> {
+  const { data, error } = await admin
+    .from("wire_news")
+    .select("id,tickers")
+    .eq("primary_ticker", params.ticker);
+  if (error || !data?.length) return;
+  const from = params.replaceTicker?.from.toUpperCase();
+  const to = params.replaceTicker?.to;
+  for (const row of data) {
+    let tickers = Array.isArray(row.tickers) ? (row.tickers as unknown[]).map(String) : [params.ticker];
+    if (from && to) {
+      tickers = tickers.map((t) => (t.toUpperCase() === from ? to : t));
+      if (!tickers.includes(to)) tickers = [to, ...tickers];
+    }
+    await admin
+      .from("wire_news")
+      .update({ company_name: params.name, tickers })
+      .eq("id", row.id);
+  }
+}
+
 async function applyListingPlan(
   admin: SupabaseClient,
   plan: ListingDiffPlan,
@@ -168,6 +196,19 @@ async function applyListingPlan(
         .from("us_listed_companies")
         .update({ exchange: "OTC", is_active: false, updated_at: now })
         .eq("ticker", rename.from);
+      await admin
+        .from("company_analysis_results")
+        .update({ ticker: rename.to })
+        .eq("ticker", rename.from);
+      await admin
+        .from("wire_news")
+        .update({ primary_ticker: rename.to, company_name: rename.name })
+        .eq("primary_ticker", rename.from);
+      await refreshWireNewsIssuer(admin, {
+        ticker: rename.to,
+        name: rename.name,
+        replaceTicker: { from: rename.from, to: rename.to },
+      });
       tickerRenamed += 1;
       continue;
     }
@@ -176,6 +217,11 @@ async function applyListingPlan(
       .from("company_analysis_results")
       .update({ ticker: rename.to })
       .eq("ticker", rename.from);
+    await refreshWireNewsIssuer(admin, {
+      ticker: rename.to,
+      name: rename.name,
+      replaceTicker: { from: rename.from, to: rename.to },
+    });
   }
 
   const inserts: CompanyInsert[] = plan.inserts.map((r) => ({
@@ -204,7 +250,10 @@ async function applyListingPlan(
         };
         if (row.previous_tickers) patch.previous_tickers = row.previous_tickers;
         const { error } = await admin.from("us_listed_companies").update(patch).eq("ticker", row.ticker);
-        if (!error) exchangeUpdated += 1;
+        if (!error) {
+          exchangeUpdated += 1;
+          await admin.from("wire_news").update({ company_name: row.name }).eq("primary_ticker", row.ticker);
+        }
       })
     );
   }

@@ -27,10 +27,11 @@ export type EdgarPressForm = "6-k" | "8-k";
 export type SixKCrawlOptions = {
   tickers?: string[];
   latestPerTicker?: number;
-  form?: EdgarPressForm;
+  /** Omit or `"both"` = 8-K and 6-K in the same run. */
+  form?: EdgarPressForm | "both";
   /** Process-lifetime accessions we already opened or rejected — skip SEC document fetches. */
   seenAccessions?: Set<string>;
-  /** Max new filings to open documents for in this run (cron default 8, VPS poll 1). */
+  /** Max new filings to open per form in this run (cron default 8, VPS poll 1). */
   maxItems?: number;
 };
 
@@ -72,6 +73,22 @@ type ParsedFiling = {
 function pressSource(form: EdgarPressForm): "edgar-6k" | "edgar-8k" {
   return form === "8-k" ? "edgar-8k" : "edgar-6k";
 }
+
+function resolveFamilies(form?: EdgarPressForm | "both"): EdgarPressForm[] {
+  if (form === "8-k") return ["8-k"];
+  if (form === "6-k") return ["6-k"];
+  return ["8-k", "6-k"];
+}
+
+function preferListed(prev: ListedRow | undefined, next: ListedRow): ListedRow {
+  if (!prev) return next;
+  const capA = prev.market_cap ?? -1;
+  const capB = next.market_cap ?? -1;
+  if (capB !== capA) return capB > capA ? next : prev;
+  return next.ticker.length < prev.ticker.length ? next : prev;
+}
+
+type QueuedFiling = ParsedFiling & { family: EdgarPressForm; source: "edgar-6k" | "edgar-8k" };
 
 function currentAtomUrl(form: EdgarPressForm): string {
   return `https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=${form}&count=40&output=atom`;
@@ -197,7 +214,7 @@ async function lookupListedByCiks(client: SupabaseClient, ciks: string[]): Promi
   }
   for (const row of (data ?? []) as ListedRow[]) {
     const cik = normalizeCik(row.cik ?? "");
-    if (cik && isActiveIssuer(row)) map.set(cik, row);
+    if (cik && isActiveIssuer(row)) map.set(cik, preferListed(map.get(cik), row));
   }
   return map;
 }
@@ -231,20 +248,15 @@ async function cikForListed(listed: ListedRow): Promise<string | null> {
   return meta?.cikPadded ?? null;
 }
 
-async function alreadyAccessions(
-  client: SupabaseClient,
-  source: "edgar-6k" | "edgar-8k",
-  accessions: string[]
-): Promise<Set<string>> {
+async function alreadyAccessions(client: SupabaseClient, accessions: string[]): Promise<Set<string>> {
   const seen = new Set<string>();
   if (accessions.length === 0) return seen;
   const { data, error } = await client
     .from("wire_news")
-    .select("accession,external_id")
-    .eq("source", source)
+    .select("accession")
     .in("accession", accessions);
   if (error) {
-    console.warn(`[${source}] existing lookup`, error.message);
+    console.warn("[edgar-press] existing lookup", error.message);
     return seen;
   }
   for (const row of data ?? []) {
@@ -431,7 +443,6 @@ async function runTickerCrawl(
 
     const existing = await alreadyAccessions(
       client,
-      source,
       parsed.map((p) => p.accession)
     );
     for (const acc of existing) done.add(acc);
@@ -474,42 +485,71 @@ export async function runEdgar6kCrawl(
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-  const family: EdgarPressForm = options?.form === "8-k" ? "8-k" : "6-k";
-  const source = pressSource(family);
+  const families = resolveFamilies(options?.form);
 
   const tickers = (options?.tickers ?? [])
     .map((t) => normalizeTicker(t))
     .filter(Boolean);
   if (tickers.length) {
     const latest = Math.max(1, options?.latestPerTicker ?? 1);
-    return runTickerCrawl(client, ua, family, tickers, latest);
+    let inserted = 0;
+    let scanned = 0;
+    let skipped = 0;
+    const used: string[] = [];
+    for (const family of families) {
+      const r = await runTickerCrawl(client, ua, family, tickers, latest);
+      inserted += r.inserted;
+      scanned += r.scanned;
+      skipped += r.skipped;
+      if (r.tickers) used.push(...r.tickers);
+      if (!r.ok) {
+        return { ...r, inserted, scanned, skipped, tickers: [...new Set(used)] };
+      }
+    }
+    const label = families.join("+");
+    const message = `${label} done, inserted ${inserted} (tickers ${[...new Set(used)].join(",")}, scanned ${scanned}, skipped ${skipped})`;
+    console.log(message);
+    return { ok: true, inserted, scanned, skipped, tickers: [...new Set(used)], message };
   }
 
-  const xml = await fetchSecAtom(currentAtomUrl(family), ua);
-  const entries = parseAtom(xml);
+  const queued: QueuedFiling[] = [];
+  let scanned = 0;
+  let emptyAtoms = 0;
+  for (const family of families) {
+    const xml = await fetchSecAtom(currentAtomUrl(family), ua);
+    const entries = parseAtom(xml);
+    if (entries.length === 0) emptyAtoms += 1;
+    scanned += entries.length;
+    const source = pressSource(family);
+    for (const row of parseFilings(entries, family)) {
+      queued.push({ ...row, family, source });
+    }
+  }
+  queued.sort(
+    (a, b) => Date.parse(b.e.updated) - Date.parse(a.e.updated) || b.accession.localeCompare(a.accession)
+  );
+
   const max =
     options?.maxItems != null
       ? Math.max(0, options.maxItems)
       : Math.max(1, Number(process.env.CRAWL_6K_MAX_ITEMS || DEFAULT_MAX) || DEFAULT_MAX);
-  const parsed = parseFilings(entries, family);
   const listedMap = await lookupListedByCiks(
     client,
-    parsed.map((p) => p.cik)
+    queued.map((p) => p.cik)
   );
   const done = options?.seenAccessions ?? new Set<string>();
   const fromDb = await alreadyAccessions(
     client,
-    source,
-    parsed.map((p) => p.accession)
+    queued.map((p) => p.accession)
   );
   for (const acc of fromDb) done.add(acc);
   const cities = await loadWorldCityNames(client);
 
   let inserted = 0;
   let skipped = 0;
-  let processed = 0;
+  const processedByForm: Record<EdgarPressForm, number> = { "8-k": 0, "6-k": 0 };
 
-  for (const row of parsed) {
+  for (const row of queued) {
     if (done.has(row.accession)) {
       skipped += 1;
       continue;
@@ -520,9 +560,9 @@ export async function runEdgar6kCrawl(
       skipped += 1;
       continue;
     }
-    if (processed >= max) break;
-    processed += 1;
-    const result = await ingestOne(client, source, row, listed, cities, done);
+    if (processedByForm[row.family] >= max) continue;
+    processedByForm[row.family] += 1;
+    const result = await ingestOne(client, row.source, row, listed, cities, done);
     if (result.kind === "exists" || result.kind === "no-exhibit" || result.kind === "no-wire" || result.kind === "skip") {
       skipped += 1;
       continue;
@@ -530,10 +570,12 @@ export async function runEdgar6kCrawl(
     inserted += result.inserted;
   }
 
-  const message = `${family} done, inserted ${inserted} (scanned ${entries.length}, processed ${processed}, skipped ${skipped})`;
+  const processed = processedByForm["8-k"] + processedByForm["6-k"];
+  const label = families.join("+");
+  const message = `${label} done, inserted ${inserted} (scanned ${scanned}, processed ${processed}, skipped ${skipped})`;
   console.log(message);
-  if (entries.length === 0) {
-    return { ok: false, inserted: 0, scanned: 0, skipped, form: family, message: `SEC ${family} atom returned 0 entries` };
+  if (emptyAtoms === families.length) {
+    return { ok: false, inserted: 0, scanned: 0, skipped, message: `SEC ${label} atom returned 0 entries` };
   }
-  return { ok: true, inserted, scanned: entries.length, skipped, form: family, message };
+  return { ok: true, inserted, scanned, skipped, message };
 }

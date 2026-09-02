@@ -2,7 +2,7 @@
  * CLI: SEC 8-K / 6-K + Exhibit 99.1 press release → Groq Korean summary → wire_news.
  * Usage: npx tsx scripts/crawl-edgar-6k.ts RDHL CLGN
  *        npx tsx scripts/crawl-edgar-6k.ts --form=8-k
- * No ticker args: latest current Atom for that form (cron behavior).
+ * No ticker args: latest current 8-K and 6-K Atom in one run (cron/VPS behavior).
  * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GROQ_API_KEY
  */
 import { config } from "dotenv";
@@ -81,14 +81,15 @@ async function syncTossQuotes(tickers: string[]): Promise<void> {
   );
 }
 
-function parseCli(): { form: EdgarPressForm; tickers: string[] } {
-  let form: EdgarPressForm = "6-k";
+function parseCli(): { form: EdgarPressForm | "both"; tickers: string[] } {
+  let form: EdgarPressForm | "both" = "both";
   const tickers: string[] = [];
   for (const raw of process.argv.slice(2)) {
     if (raw.startsWith("--form=")) {
       const v = raw.slice(7).toLowerCase().replace("/", "-");
       if (v === "8-k" || v === "8k") form = "8-k";
       else if (v === "6-k" || v === "6k") form = "6-k";
+      else if (v === "both") form = "both";
       continue;
     }
     if (raw.startsWith("--")) continue;
