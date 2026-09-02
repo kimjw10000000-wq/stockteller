@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import {
   NEWS_MARKET_OPTIONS,
@@ -13,6 +12,7 @@ import {
   type NewsMarketKey,
   type NewsSortKey,
 } from "@/lib/news-sort";
+import { cn } from "@/lib/utils";
 
 const SORT_KEYS: Record<NewsSortKey, string> = {
   all_views: "feed.sortViews",
@@ -40,28 +40,27 @@ export function NewsSortBar() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2.5">
       {NEWS_SORT_OPTIONS.map(({ key }) => (
-        <Button key={key} type="button" size="sm" variant={sort === key ? "default" : "outline"} asChild>
-          <Link href={hrefFor({ sort: key })} prefetch>
-            {t(SORT_KEYS[key])}
-          </Link>
-        </Button>
+        <Link
+          key={key}
+          href={hrefFor({ sort: key })}
+          prefetch
+          className={cn("feed-neo-pill", sort === key && "feed-neo-pill-active")}
+        >
+          {t(SORT_KEYS[key])}
+        </Link>
       ))}
-      <span className="mx-1 hidden h-5 w-px bg-border sm:inline" aria-hidden />
       {NEWS_MARKET_OPTIONS.filter((o): o is { key: "us" | "kr"; label: string } => o.key !== "all").map(
         ({ key }) => (
-          <Button
+          <Link
             key={key}
-            type="button"
-            size="sm"
-            variant={market === key ? "default" : "outline"}
-            asChild
+            href={hrefFor({ market: key })}
+            prefetch
+            className={cn("feed-neo-pill", market === key && "feed-neo-pill-active")}
           >
-            <Link href={hrefFor({ market: key })} prefetch>
-              {t(MARKET_KEYS[key])}
-            </Link>
-          </Button>
+            {t(MARKET_KEYS[key])}
+          </Link>
         )
       )}
     </div>

@@ -12,8 +12,8 @@ export function FeedPageHeader({ q }: FeedPageHeaderProps) {
   const { t } = useI18n();
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-semibold text-foreground">{t("feed.title")}</h1>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-bold tracking-tight text-[var(--neo-ink,#1b1f24)]">{t("feed.title")}</h1>
         <Suspense fallback={<div className="h-8 w-48 animate-pulse rounded-md bg-muted" />}>
           <NewsSortBar />
         </Suspense>

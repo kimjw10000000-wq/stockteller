@@ -35,11 +35,11 @@ function NewsFeedListInner({
   if (items.length === 0) {
     return (
       <div
-        className="flex flex-col items-center rounded-xl border border-border bg-card px-6 py-12 text-center"
+        className="feed-neo-card flex flex-col items-center px-6 py-12 text-center"
         role="status"
       >
-        <FileWarning className="mb-3 h-10 w-10 text-muted-foreground" aria-hidden />
-        <p className="text-sm font-medium text-foreground">
+        <FileWarning className="mb-3 h-10 w-10 text-[var(--neo-muted)]" aria-hidden />
+        <p className="text-sm font-medium text-[var(--neo-ink)]">
           {q ? t("feed.emptyQuery", { q }) : t("feed.empty")}
         </p>
       </div>
@@ -48,19 +48,19 @@ function NewsFeedListInner({
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2" role="list">
+      <div className="grid gap-5 md:grid-cols-2 md:gap-6" role="list">
         {items.map((item) => (
           <div key={item.id} role="listitem">
-            <NewsCard item={item} />
+            <NewsCard item={item} variant="neo" />
           </div>
         ))}
       </div>
       <div ref={sentinelRef} className="h-4 w-full" aria-hidden />
       {loading ? (
-        <p className="mt-4 text-center text-sm text-muted-foreground">{t("feed.loadingMore")}</p>
+        <p className="mt-4 text-center text-sm text-[var(--neo-muted)]">{t("feed.loadingMore")}</p>
       ) : null}
       {done && items.length > 0 ? (
-        <p className="mt-4 text-center text-xs text-muted-foreground">{t("feed.loadedAll")}</p>
+        <p className="mt-4 text-center text-xs text-[var(--neo-muted)]">{t("feed.loadedAll")}</p>
       ) : null}
     </>
   );
