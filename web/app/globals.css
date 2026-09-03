@@ -397,14 +397,26 @@ body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding-bottom: 2px;
-  border-bottom: 2px solid transparent;
-  transition: border-color 0.15s ease;
 }
 
-.site-header-top > .site-logo:hover,
-.site-header-top > .site-logo:focus-visible {
-  border-bottom-color: var(--foreground);
+/* 호버 밑줄은 로고 하늘색 배경 위에 */
+.site-header-top > .site-logo::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 5px;
+  z-index: 1;
+  height: 2px;
+  background: var(--foreground);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.site-header-top > .site-logo:hover::after,
+.site-header-top > .site-logo:focus-visible::after {
+  opacity: 1;
 }
 
 .site-logo__img {
