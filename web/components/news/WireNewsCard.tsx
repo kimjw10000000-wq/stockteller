@@ -20,9 +20,11 @@ const SENTIMENTS: Sentiment[] = ["positive", "negative", "neutral"];
 export function WireNewsCard({
   item,
   quote,
+  lead = false,
 }: {
   item: WireNewsRow;
   quote?: TickerQuote | null;
+  lead?: boolean;
 }) {
   const { t } = useI18n();
   const ticker = item.primary_ticker || item.tickers?.[0] || "—";
@@ -45,7 +47,7 @@ export function WireNewsCard({
 
   return (
     <ProtectedContent className="h-full" blockContextMenu={false}>
-      <Card className="relative h-full gap-0 overflow-hidden p-0 transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-md">
+      <Card className={`news-card-frame relative h-full gap-0 p-0${lead ? " news-card-frame--lead" : ""}`}>
         <Link href={`/news-sec/${item.id}`} prefetch className="block h-full cursor-pointer p-4 pr-28">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="font-mono">

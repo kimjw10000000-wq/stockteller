@@ -2,7 +2,10 @@ export function FeedGridSkeleton() {
   return (
     <div className="grid gap-y-4 gap-x-12 md:grid-cols-2" aria-hidden>
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-36 animate-pulse rounded-xl border border-border bg-muted/60" />
+        <div
+          key={i}
+          className={`news-card-frame h-36 animate-pulse${i < 2 ? " news-card-frame--lead" : ""}`}
+        />
       ))}
     </div>
   );

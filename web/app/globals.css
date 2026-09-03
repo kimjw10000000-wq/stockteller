@@ -544,3 +544,27 @@ body {
     padding: 0 12px;
   }
 }
+
+/* 뉴스 카드: 하늘색 입체 테두리 이미지, 안쪽 흰 칸에 글 */
+.news-card-frame[data-slot="card"],
+.news-card-frame {
+  position: relative;
+  box-sizing: border-box;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 14px 16px 14px 14px;
+  border-image-source: url("/card-frame.png?v=1");
+  border-image-slice: 40 52 38 32 fill;
+  border-image-repeat: stretch;
+}
+
+.news-card-frame--lead[data-slot="card"],
+.news-card-frame--lead {
+  border-width: 16px 16px 14px 14px;
+  border-image-source: url("/card-frame-lead.png?v=1");
+  border-image-slice: 52 52 40 32 fill;
+}

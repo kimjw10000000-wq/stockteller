@@ -37,9 +37,9 @@ export function NewsOlderInfiniteList({
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-foreground">{t("news.olderTitle")}</h2>
       <div className="grid gap-y-4 gap-x-12 md:grid-cols-2" role="list">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <div key={item.id} role="listitem">
-            <NewsCard item={item} />
+            <NewsCard item={item} lead={index < 2} />
           </div>
         ))}
       </div>

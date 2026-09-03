@@ -14,9 +14,10 @@ import { ProtectedContent } from "@/components/security/ProtectedContent";
 
 type NewsCardProps = {
   item: DisclosureWithStock;
+  lead?: boolean;
 };
 
-function NewsCardInner({ item }: NewsCardProps) {
+function NewsCardInner({ item, lead = false }: NewsCardProps) {
   const { t } = useI18n();
   const { stock } = disclosureStockLabel(item);
   const trend = disclosureTrend(item.sentiment);
@@ -32,7 +33,7 @@ function NewsCardInner({ item }: NewsCardProps) {
         className="block h-full"
         onClick={(e) => e.stopPropagation()}
       >
-        <Card className="h-full cursor-pointer gap-0 overflow-hidden p-0 transition-all hover:border-primary/50 hover:shadow-md">
+        <Card className={`news-card-frame h-full cursor-pointer gap-0 p-0${lead ? " news-card-frame--lead" : ""}`}>
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={cover} alt="" className="pointer-events-none h-36 w-full object-cover" />
@@ -69,7 +70,8 @@ function sameCard(a: NewsCardProps, b: NewsCardProps) {
     a.item.title === b.item.title &&
     a.item.summary === b.item.summary &&
     a.item.created_at === b.item.created_at &&
-    a.item.sentiment === b.item.sentiment
+    a.item.sentiment === b.item.sentiment &&
+    a.lead === b.lead
   );
 }
 

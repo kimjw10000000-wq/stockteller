@@ -60,9 +60,9 @@ export function SearchResultsView({
   return (
     <>
       <div className="grid gap-y-4 gap-x-12 md:grid-cols-2" role="list">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <div key={item.id} role="listitem">
-            <WireNewsCard item={item} quote={quotes[wireNewsTicker(item)]} />
+            <WireNewsCard item={item} quote={quotes[wireNewsTicker(item)]} lead={index < 2} />
           </div>
         ))}
       </div>

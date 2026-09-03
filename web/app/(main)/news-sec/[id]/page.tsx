@@ -36,8 +36,8 @@ export default async function WireNewsDetailPage({ params }: PageProps) {
             <T k="newsSec.more" />
           </h2>
           <div className="grid gap-y-4 gap-x-12 md:grid-cols-2">
-            {related.map((row) => (
-              <WireNewsCard key={row.id} item={row} quote={quotes[wireNewsTicker(row)]} />
+            {related.map((row, index) => (
+              <WireNewsCard key={row.id} item={row} quote={quotes[wireNewsTicker(row)]} lead={index < 2} />
             ))}
           </div>
         </section>
