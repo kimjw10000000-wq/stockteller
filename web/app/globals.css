@@ -29,8 +29,17 @@
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background: transparent;
   font-size: var(--font-size);
+}
+
+/* 사이트 맨 아래 레이어 — 검색창·카드·로고는 이 위에 */
+html {
+  background-color: #b0cddb;
+  background-image: url("/site-bg.jpg?v=1");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
 }
 
 /* 모바일 핀치 축소 시 가로 여백·오버스크롤 방지 */

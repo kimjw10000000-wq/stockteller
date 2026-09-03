@@ -67,7 +67,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
       </head>
-      <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
+      <body className={`${inter.variable} min-h-screen font-sans antialiased`}>
         <I18nProvider initialLocale={locale}>{children}</I18nProvider>
         <KakaoSdkLoader />
         <Analytics />
