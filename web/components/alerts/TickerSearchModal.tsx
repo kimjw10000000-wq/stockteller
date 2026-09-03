@@ -134,7 +134,7 @@ export function TickerSearchModal({
             placeholder={t("alerts.searchPlaceholder")}
             aria-label={t("alerts.searchAria")}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-11 w-full rounded-xl border-2 border-sky-400 bg-sky-50 pl-10 pr-10 text-base text-slate-900 outline-none placeholder:text-slate-400 focus-visible:border-sky-600 focus-visible:ring-2 focus-visible:ring-sky-300"
+            className="h-11 w-full rounded-xl border-2 border-sky-400 bg-sky-50 pl-10 pr-10 text-base text-slate-900 outline-none placeholder:text-slate-700 focus-visible:border-sky-600 focus-visible:ring-2 focus-visible:ring-sky-300"
           />
         </div>
         <ul className="mt-3 min-h-[8rem] overflow-auto">
@@ -150,12 +150,12 @@ export function TickerSearchModal({
                 className="flex w-full items-baseline gap-2 rounded-lg px-3 py-2.5 text-left hover:bg-sky-50"
               >
                 <span className="font-mono text-sm font-semibold text-sky-700">{hit.ticker}</span>
-                <span className="truncate text-sm text-slate-500">{hit.name}</span>
+                <span className="truncate text-sm text-slate-900">{hit.name}</span>
               </button>
             </li>
           ))}
           {!loading && query.trim() && hits.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-slate-400">{t("alerts.noResults")}</li>
+            <li className="px-3 py-6 text-center text-sm text-slate-900">{t("alerts.noResults")}</li>
           ) : null}
         </ul>
       </div>

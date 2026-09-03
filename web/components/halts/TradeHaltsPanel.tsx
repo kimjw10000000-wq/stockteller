@@ -61,7 +61,7 @@ function LocalDateTimeCell({
       return (
         <span className="block tabular-nums">
           <span className="block text-[12px] font-bold leading-tight text-neutral-950">{time}</span>
-          <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-500">
+          <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-950">
             {date}
           </span>
         </span>
@@ -70,16 +70,16 @@ function LocalDateTimeCell({
   }
 
   if (requireTime && !(etTime ?? "").trim()) {
-    return <span className="text-[11px] font-medium text-neutral-500">미정</span>;
+    return <span className="text-[11px] font-medium text-neutral-950">미정</span>;
   }
   const parts = formatEtWallToLocal(etDate, etTime);
   if (parts.empty) {
-    return <span className="text-[11px] font-medium text-neutral-500">미정</span>;
+    return <span className="text-[11px] font-medium text-neutral-950">미정</span>;
   }
   return (
     <span className="block tabular-nums">
       <span className="block text-[12px] font-bold leading-tight text-neutral-950">{parts.time}</span>
-      <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-500">
+      <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-950">
         {parts.date}
       </span>
     </span>
@@ -102,24 +102,19 @@ function ElapsedCell({
   nowMs: number;
 }) {
   if (!isLudpReason(row.reasonCode)) {
-    return <span className="text-[11px] font-medium text-neutral-500">장기 정지</span>;
+    return <span className="text-[11px] font-medium text-neutral-950">장기 정지</span>;
   }
 
   const haltMs = haltEventMs(row) || parseHaltEtMs(row.haltDate, row.haltTime);
   if (haltMs == null || haltMs <= 0) {
-    return <span className="text-[11px] font-medium text-neutral-500">—</span>;
+    return <span className="text-[11px] font-medium text-neutral-950">—</span>;
   }
 
   // 거래 재개 시각이 있으면 타이머 고정 = 재개 − 정지 (RSS 1분 지연 보정)
   const endMs = ludpElapsedEndMs(row, nowMs);
-  const frozen = Boolean((row.resumptionTradeTime ?? "").trim());
 
   return (
-    <span
-      className={`font-mono text-[12px] font-bold tabular-nums ${
-        frozen ? "text-neutral-600" : "text-neutral-950"
-      }`}
-    >
+    <span className="font-mono text-[12px] font-bold tabular-nums text-neutral-950">
       {formatElapsedKo(haltMs, endMs)}
     </span>
   );
@@ -246,7 +241,7 @@ export function TradeHaltsPanel() {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-neutral-500">{t("halts.kicker")}</p>
+      <p className="text-xs font-medium text-neutral-950">{t("halts.kicker")}</p>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
@@ -283,7 +278,7 @@ export function TradeHaltsPanel() {
               role="listbox"
             >
               {suggestions.length === 0 ? (
-                <li className="px-3 py-2 text-xs text-neutral-500">목록에 일치 항목 없음</li>
+                <li className="px-3 py-2 text-xs text-neutral-950">목록에 일치 항목 없음</li>
               ) : (
                 suggestions.map((row) => (
                   <li key={rowKey(row)} role="option" aria-selected={query.trim().toUpperCase() === row.symbol}>
@@ -295,7 +290,7 @@ export function TradeHaltsPanel() {
                       <span className="font-mono text-sm font-bold tracking-wide text-neutral-950">
                         {row.symbol}
                       </span>
-                      <span className="line-clamp-1 text-[11px] text-neutral-600">{row.name}</span>
+                      <span className="line-clamp-1 text-[11px] text-neutral-950">{row.name}</span>
                     </button>
                   </li>
                 ))
@@ -305,18 +300,18 @@ export function TradeHaltsPanel() {
         </div>
       </div>
 
-      <p className="text-xs text-neutral-600">
+      <p className="text-xs text-neutral-950">
         나스닥/미국 주식 Halt · 재개 일정 (사용자 현지 시간 기준)
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] leading-snug text-neutral-600">
+        <p className="text-[11px] leading-snug text-neutral-950">
           서버 중계 · 목록 {CLIENT_POLL_MS / 1000}초마다 동기화
-          <span className="ml-1.5 text-neutral-500">
+          <span className="ml-1.5 text-neutral-950">
             · NASDAQ RSS 원본 최대 1분 (가이드 준수)
           </span>
           {relayMeta.servedFromCache != null ? (
-            <span className="ml-1.5 text-neutral-500">
+            <span className="ml-1.5 text-neutral-950">
               · {relayMeta.servedFromCache ? "캐시" : "원본 갱신"}
               {typeof relayMeta.upstreamAgeMs === "number"
                 ? ` ${Math.round(relayMeta.upstreamAgeMs / 1000)}초 전`
@@ -324,12 +319,12 @@ export function TradeHaltsPanel() {
             </span>
           ) : null}
           {fetchedAt ? (
-            <span className="ml-1.5 text-neutral-500">
+            <span className="ml-1.5 text-neutral-950">
               · {new Date(fetchedAt).toLocaleString("ko-KR")}
             </span>
           ) : null}
           {hasLudp ? (
-            <span className="ml-1.5 text-neutral-500">· LUDP 경과 실시간</span>
+            <span className="ml-1.5 text-neutral-950">· LUDP 경과 실시간</span>
           ) : null}
         </p>
         <button
@@ -353,19 +348,19 @@ export function TradeHaltsPanel() {
         </div>
 
         {loading && items.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 px-3 py-10 text-xs text-neutral-600">
+          <div className="flex items-center justify-center gap-2 px-3 py-10 text-xs text-neutral-950">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Halt 목록 불러오는 중…
           </div>
         ) : items.length === 0 ? (
-          <div className="px-3 py-8 text-center text-xs text-neutral-600">
+          <div className="px-3 py-8 text-center text-xs text-neutral-950">
             현재 표시할 Trade Halt가 없습니다.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse bg-white text-left text-[12px] text-neutral-950">
               <thead>
-                <tr className="border-b border-neutral-200 bg-white text-[10px] font-semibold uppercase tracking-wide text-neutral-700">
+                <tr className="border-b border-neutral-200 bg-white text-[10px] font-semibold uppercase tracking-wide text-neutral-950">
                   <th className="w-[22%] px-2.5 py-2">종목</th>
                   <th className="w-[9%] px-2 py-2">시장</th>
                   <th className="w-[16%] px-2 py-2">사유</th>
@@ -407,7 +402,7 @@ export function TradeHaltsPanel() {
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-2 max-w-[180px] text-[10px] leading-relaxed text-neutral-600">
+                        <p className="mt-2 max-w-[180px] text-[10px] leading-relaxed text-neutral-950">
                           {row.name}
                         </p>
                       </td>
@@ -455,7 +450,7 @@ export function TradeHaltsPanel() {
         )}
       </ProtectedContent>
 
-      <p className="text-[10px] leading-relaxed text-neutral-500">
+      <p className="text-[10px] leading-relaxed text-neutral-950">
         출처: NASDAQ Trade Halt RSS(미국 Halt/Resume) + 토스 Open API(VI/유의·종목명·시장).
         목록은 정지 발생 일시 최신순입니다. LUDP·VI만 경과 타이머를 표시합니다.
       </p>

@@ -62,7 +62,7 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
         <h2 id={titleId} className="mt-2 text-lg font-semibold text-slate-900">
           {t("alerts.upgradeTitle")}
         </h2>
-        <p className="mt-3 text-sm leading-relaxed text-slate-500">{t("alerts.upgradeBody")}</p>
+        <p className="mt-3 text-sm leading-relaxed text-slate-900">{t("alerts.upgradeBody")}</p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
           <Link
             href="/pricing"
@@ -74,7 +74,7 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-sky-400 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-sky-50"
+            className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-sky-400 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-sky-50"
           >
             {t("alerts.upgradeLater")}
           </button>

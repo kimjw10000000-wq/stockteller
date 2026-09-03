@@ -19,22 +19,22 @@ function RowItem({ r }: { r: VolatileRow }) {
   const pct = r.change_pct != null ? Number(r.change_pct) : null;
   const pctLabel = pct == null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
   const pctClass =
-    pct == null ? "text-slate-400" : pct >= 0 ? "font-semibold text-rose-600" : "font-medium text-blue-600";
+    pct == null ? "text-slate-900" : pct >= 0 ? "font-semibold text-rose-600" : "font-medium text-blue-600";
 
   return (
     <li className="border-b border-inherit px-3 py-2.5 text-sm last:border-0">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-mono font-semibold text-slate-900">{r.ticker}</span>
-        <span className="text-xs text-slate-500">{r.currency}</span>
+        <span className="text-xs text-slate-900">{r.currency}</span>
         <span className={pctClass}>{pctLabel}</span>
       </div>
       {r.name ? (
-        <p className="mt-1 line-clamp-2 text-left text-xs leading-snug text-slate-600">{r.name}</p>
+        <p className="mt-1 line-clamp-2 text-left text-xs leading-snug text-slate-900">{r.name}</p>
       ) : null}
-      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-900">
         {r.last_price != null ? <span>가격 {Number(r.last_price).toLocaleString()}</span> : null}
         {r.volume != null ? <span>거래량 {Number(r.volume).toLocaleString()}</span> : null}
-        <span className="ml-auto text-slate-400">{r.source}</span>
+        <span className="ml-auto text-slate-900">{r.source}</span>
       </div>
     </li>
   );
@@ -197,7 +197,7 @@ export function VolatileStocksLive() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-900">
         미국:{" "}
         {usLoading ? (
           "목록 불러오는 중…"
@@ -213,7 +213,7 @@ export function VolatileStocksLive() {
               </span>
             ) : null}
             {usFinnhub ? (
-              <span className="text-slate-600">
+              <span className="text-slate-900">
                 {" "}
                 · 등락률은 Finnhub 시세로 맞춤(무료 플랜은 거래소별 지연·틱 실시간 아님).
               </span>
@@ -274,10 +274,10 @@ export function VolatileStocksLive() {
                   <span className={`rounded-lg px-2 py-0.5 text-xs font-bold ${cfg.badge}`}>{cfg.key}</span>
                   <h2 className="text-base font-bold text-slate-900">{cfg.title}</h2>
                 </div>
-                <p className="mt-1 text-xs text-slate-600">{cfg.subtitle}</p>
+                <p className="mt-1 text-xs text-slate-900">{cfg.subtitle}</p>
               </header>
               {list.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-slate-400">
+                <div className="px-4 py-8 text-center text-sm text-slate-900">
                   감지된 종목 없음
                   <br />
                   <span className="text-xs">{emptyHint}</span>

@@ -26,7 +26,7 @@ function statusColor(status: IndicatorCompareStatus): {
     case "EQUAL":
       return { text: "text-[#B45309]", bg: "bg-[#FFCC00]/25", ring: "ring-[#FFCC00]/50" };
     default:
-      return { text: "text-neutral-500", bg: "bg-neutral-100", ring: "ring-neutral-200" };
+      return { text: "text-neutral-950", bg: "bg-neutral-100", ring: "ring-neutral-200" };
   }
 }
 
@@ -84,7 +84,7 @@ function IndicatorCard({
             <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
               {item.indicator}
             </h2>
-            <p className="mt-0.5 text-xs text-neutral-500">{item.label}</p>
+            <p className="mt-0.5 text-xs text-neutral-950">{item.label}</p>
           </div>
           {item.scraping ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">
@@ -96,7 +96,7 @@ function IndicatorCard({
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-neutral-50 px-3 py-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-950">
               예측 (Consensus)
             </p>
             <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-neutral-900">
@@ -105,13 +105,13 @@ function IndicatorCard({
           </div>
 
           <div className={`rounded-xl px-3 py-4 ${colors.bg}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-950">
               실제 (Actual)
             </p>
             {pending ? (
               <div className="mt-2 flex items-center gap-2">
                 <Loader2 className={`h-5 w-5 animate-spin ${colors.text}`} aria-hidden />
-                <span className="text-sm font-medium text-neutral-600">발표 대기 중…</span>
+                <span className="text-sm font-medium text-neutral-950">발표 대기 중…</span>
               </div>
             ) : (
               <p className={`mt-2 font-mono text-2xl font-bold tabular-nums ${colors.text}`}>
@@ -119,7 +119,7 @@ function IndicatorCard({
               </p>
             )}
             {!pending && item.period && item.period !== "unknown" ? (
-              <p className="mt-1 text-[10px] font-medium uppercase text-neutral-500">
+              <p className="mt-1 text-[10px] font-medium uppercase text-neutral-950">
                 {item.observationPeriod ? `${item.observationPeriod} · ` : ""}
                 {item.period === "mom" ? "전월 대비" : "전년 대비"}
               </p>
@@ -127,7 +127,7 @@ function IndicatorCard({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-950">
           <span>{cd ? `다음 발표 ${cd}` : "다음 발표 일정 미설정"}</span>
           {item.releasedAt ? (
             <span className="tabular-nums">
@@ -313,17 +313,17 @@ export function IndicatorsLivePanel() {
   return (
     <div className="space-y-6">
       <header className="border-b border-neutral-200 pb-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
+        <p className="text-xs font-medium uppercase tracking-wider text-neutral-950">
           US Macro · BLS
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950 sm:text-3xl">
           {t("indicators.title")}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-950">
           {t("indicators.lead")}
         </p>
-        <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-neutral-500">
-          <Radio className={`h-3.5 w-3.5 ${connected ? "text-emerald-600" : "text-neutral-400"}`} />
+        <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-neutral-950">
+          <Radio className={`h-3.5 w-3.5 ${connected ? "text-emerald-600" : "text-neutral-800"}`} />
           {subtitle}
         </p>
       </header>
@@ -368,7 +368,7 @@ export function IndicatorsLivePanel() {
         ))}
       </ProtectedContent>
 
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-[11px] leading-relaxed text-neutral-600">
+      <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-[11px] leading-relaxed text-neutral-950">
         <p>
           색상: 실제 &gt; 예측 <span className="font-semibold text-[#FF3B30]">빨강</span> · 실제
           &lt; 예측 <span className="font-semibold text-[#34C759]">초록</span> · 동일{" "}

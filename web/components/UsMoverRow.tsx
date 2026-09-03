@@ -61,24 +61,24 @@ function InsightModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-white/80 hover:text-slate-800"
+            className="rounded-lg px-2 py-1 text-sm text-slate-900 hover:bg-white/80 hover:text-slate-950"
           >
             {t("mover.close")}
           </button>
         </div>
 
-        <div className="px-4 py-4 text-sm text-slate-700">
+        <div className="px-4 py-4 text-sm text-slate-900">
           {state.status === "loading" ? (
-            <p className="text-slate-500">{t("mover.loading")}</p>
+            <p className="text-slate-900">{t("mover.loading")}</p>
           ) : state.status === "error" ? (
             <p className="text-amber-800" role="alert">
               {state.message}
             </p>
           ) : state.status === "idle" ? (
-            <p className="text-slate-500">{t("mover.wait")}</p>
+            <p className="text-slate-900">{t("mover.wait")}</p>
           ) : (
             <>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-900">
                 {t("mover.secSource", { date: state.filingDate })}
                 {state.secViewerUrl ? (
                   <>
@@ -117,7 +117,7 @@ export const UsMoverRow = memo(function UsMoverRow({ r }: { r: VolatileRow }) {
   const pct = r.change_pct != null ? Number(r.change_pct) : null;
   const pctLabel = pct == null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
   const pctClass =
-    pct == null ? "text-slate-400" : pct >= 0 ? "font-semibold text-rose-600" : "font-medium text-blue-600";
+    pct == null ? "text-slate-900" : pct >= 0 ? "font-semibold text-rose-600" : "font-medium text-blue-600";
 
   const [insight, setInsight] = useState<InsightState>({ status: "idle" });
   const insightRef = useRef<InsightState>(insight);
@@ -205,11 +205,11 @@ export const UsMoverRow = memo(function UsMoverRow({ r }: { r: VolatileRow }) {
     <li className="border-b border-inherit px-3 py-2.5 text-sm last:border-0">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-mono font-semibold text-slate-900">{r.ticker}</span>
-        <span className="text-xs text-slate-500">{r.currency}</span>
+        <span className="text-xs text-slate-900">{r.currency}</span>
         <span className={pctClass}>{pctLabel}</span>
       </div>
       {r.name ? (
-        <p className="mt-1 line-clamp-2 text-left text-xs leading-snug text-slate-600">{r.name}</p>
+        <p className="mt-1 line-clamp-2 text-left text-xs leading-snug text-slate-900">{r.name}</p>
       ) : null}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -236,7 +236,7 @@ export const UsMoverRow = memo(function UsMoverRow({ r }: { r: VolatileRow }) {
           {t("mover.bear")}
         </button>
         {insight.status === "loading" ? (
-          <span className="text-xs text-slate-400">{t("mover.analyzing")}</span>
+          <span className="text-xs text-slate-900">{t("mover.analyzing")}</span>
         ) : insight.status === "error" && !modal ? (
           <span className="max-w-[12rem] truncate text-xs text-amber-700" title={insight.message}>
             {insight.message}
@@ -244,10 +244,10 @@ export const UsMoverRow = memo(function UsMoverRow({ r }: { r: VolatileRow }) {
         ) : null}
       </div>
 
-      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-900">
         {r.last_price != null ? <span>{t("mover.price")} {Number(r.last_price).toLocaleString()}</span> : null}
         {r.volume != null ? <span>{t("mover.volume")} {Number(r.volume).toLocaleString()}</span> : null}
-        <span className="ml-auto text-slate-400">{r.source}</span>
+        <span className="ml-auto text-slate-900">{r.source}</span>
       </div>
 
       <InsightModal

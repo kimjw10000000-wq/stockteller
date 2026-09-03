@@ -29,7 +29,7 @@ export function SiteGnb() {
                 "shrink-0 whitespace-nowrap border-b-2 px-2.5 py-2.5 text-sm transition-colors sm:px-3",
                 active
                   ? "border-foreground font-semibold text-foreground"
-                  : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+                  : "border-transparent font-semibold text-foreground hover:text-foreground"
               )}
             >
               {t(item.labelKey)}

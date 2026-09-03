@@ -21,7 +21,7 @@ function statusClass(status: DilutionAlertDto["status"]): string {
   if (status === "sent_today") {
     return "border-amber-200 bg-amber-50 text-amber-800";
   }
-  return "border-slate-200 bg-slate-50 text-slate-500";
+  return "border-slate-200 bg-slate-50 text-slate-900";
 }
 
 function statusKey(status: DilutionAlertDto["status"]): string {
@@ -44,7 +44,7 @@ function AlertCardInner({ alert, busy, onChangeTicker, onToggle }: AlertCardProp
           <p className="font-mono text-2xl font-semibold tracking-wide text-slate-900">
             {alert.ticker || t("alerts.pickTicker")}
           </p>
-          <p className="mt-1 truncate text-sm text-slate-500">
+          <p className="mt-1 truncate text-sm text-slate-900">
             {alert.companyName || t("alerts.pickTickerHint")}
           </p>
         </div>
@@ -106,8 +106,8 @@ export const LockedSlotCard = memo(function LockedSlotCard({ onClick }: LockedSl
         Pro
       </span>
       <Plus className="h-10 w-10 text-sky-500" strokeWidth={1.75} aria-hidden />
-      <p className="mt-3 text-sm font-medium text-slate-600">{t("alerts.lockedTitle")}</p>
-      <p className="mt-1 text-xs text-slate-400">{t("alerts.addAlert")}</p>
+      <p className="mt-3 text-sm font-medium text-slate-900">{t("alerts.lockedTitle")}</p>
+      <p className="mt-1 text-xs text-slate-900">{t("alerts.addAlert")}</p>
     </button>
   );
 });
@@ -127,7 +127,7 @@ export const EmptySlotCard = memo(function EmptySlotCard({ busy, onClick }: Empt
       className="flex h-full min-h-[240px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-500 bg-white/70 p-5 text-center shadow-sm transition-colors hover:border-sky-600 hover:bg-white disabled:opacity-50"
     >
       <Plus className="h-10 w-10 text-sky-500" strokeWidth={1.75} aria-hidden />
-      <p className="mt-3 text-sm font-medium text-slate-600">{t("alerts.addAlert")}</p>
+      <p className="mt-3 text-sm font-medium text-slate-900">{t("alerts.addAlert")}</p>
     </button>
   );
 });

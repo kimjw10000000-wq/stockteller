@@ -243,7 +243,7 @@ export function AlertsDashboard() {
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
           {t("alerts.title")}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 sm:text-base">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-900 sm:text-base">
           {t("alerts.lead")}
         </p>
         {!isPro ? (
@@ -258,7 +258,7 @@ export function AlertsDashboard() {
       </header>
 
       {!authed && !loading ? (
-        <p className="mb-4 rounded-xl border-2 border-sky-400 bg-white/85 px-3 py-2 text-sm text-slate-600">
+        <p className="mb-4 rounded-xl border-2 border-sky-400 bg-white/85 px-3 py-2 text-sm text-slate-900">
           {t("alerts.loginPromptBefore")}{" "}
           <Link
             href="/login?next=/watchman"

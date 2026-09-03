@@ -54,14 +54,14 @@ export function LanguageSwitcher() {
           {LOCALES.map((code, i) => (
             <span key={code} className="inline-flex items-center gap-1">
               {i > 0 ? (
-                <span className="text-muted-foreground/50" aria-hidden>
+                <span className="text-foreground" aria-hidden>
                   |
                 </span>
               ) : null}
               <span
                 className={cn(
-                  "tabular-nums tracking-wide",
-                  locale === code ? "font-semibold text-sky-700" : "text-muted-foreground"
+                  "tabular-nums tracking-wide text-foreground",
+                  locale === code && "font-semibold"
                 )}
               >
                 {LABELS[code].short}
@@ -93,7 +93,7 @@ export function LanguageSwitcher() {
                     "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors",
                     selected
                       ? "bg-sky-50 font-semibold text-sky-800"
-                      : "text-slate-700 hover:bg-sky-50/70"
+                      : "text-foreground hover:bg-sky-50/70"
                   )}
                 >
                   <span>

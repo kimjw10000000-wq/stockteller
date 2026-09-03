@@ -15,7 +15,7 @@
   --secondary: #ececf0;
   --secondary-foreground: #030213;
   --muted: #ececf0;
-  --muted-foreground: #717182;
+  --muted-foreground: #030213;
   --accent: #e9ebef;
   --accent-foreground: #030213;
   --destructive: #d4183d;
@@ -33,7 +33,7 @@ body {
   font-size: var(--font-size);
 }
 
-/* 사이트 맨 아래 레이어 — 검색창·카드·로고는 이 위에 */
+/* 페이지 전체 배경: 검색창·카드·로고보다 뒤에 */
 html {
   background-color: #b0cddb;
   background-image: url("/site-bg.jpg?v=1");
@@ -494,7 +494,7 @@ body {
   padding: 0 10px;
   border: 0;
   background: transparent;
-  color: #1e293b;
+  color: #030213;
   font-size: 15px;
   font-weight: 500;
   line-height: 1.2;
@@ -505,8 +505,8 @@ body {
 }
 
 .site-search__field::placeholder {
-  color: #64748b;
-  opacity: 0.85;
+  color: #1a1a1a;
+  opacity: 1;
 }
 
 .site-search__field::-webkit-search-decoration,
