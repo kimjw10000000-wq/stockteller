@@ -1,8 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { HeaderAuth } from "@/components/auth/HeaderAuth";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -11,7 +11,11 @@ import { SiteGnb } from "@/components/layout/SiteGnb";
 
 export function SiteHeader() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const logo =
+    locale === "en"
+      ? { src: "/logo-en.png", width: 217, height: 70 }
+      : { src: "/logo-ko.png", width: 1024, height: 352 };
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [, startTransition] = useTransition();
@@ -48,11 +52,16 @@ export function SiteHeader() {
     <header className="relative z-30 border-b border-border bg-card">
       <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
         <div className="site-header-top flex items-center gap-2 sm:gap-3">
-          <Link href="/feed" prefetch className="flex shrink-0 items-center gap-2">
-            <TrendingUp className="h-7 w-7 text-green-500 sm:h-8 sm:w-8" aria-hidden />
-            <span className="text-lg font-semibold text-foreground sm:text-xl">
-              {t("brand.name")}
-            </span>
+          <Link href="/feed" prefetch className="site-logo">
+            <Image
+              key={logo.src}
+              src={logo.src}
+              alt={t("brand.name")}
+              width={logo.width}
+              height={logo.height}
+              priority
+              className="site-logo__img"
+            />
           </Link>
 
           <div className="site-search-wrap">
