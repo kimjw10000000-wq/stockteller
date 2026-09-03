@@ -13,6 +13,8 @@ const WINDOW_MS = 60_000;
 const DEFAULT_MAX = 120;
 /** 분석·목록 덤프 등 */
 const STRICT_MAX = 40;
+/** HTML 페이지: 사람 탐색은 충분, 목록 전체 긁기는 막음 */
+const PAGE_MAX = 90;
 
 let lastSweep = 0;
 
@@ -65,10 +67,22 @@ export function consumeApiRateLimit(
   pathname: string,
   ip: string
 ): { ok: true } | { ok: false; retryAfterSec: number } {
+  const max = maxForPath(pathname);
+  return consumeLimit(`${ip}:api:${max}`, max);
+}
+
+export function consumePageRateLimit(
+  ip: string
+): { ok: true } | { ok: false; retryAfterSec: number } {
+  return consumeLimit(`${ip}:page`, PAGE_MAX);
+}
+
+function consumeLimit(
+  key: string,
+  max: number
+): { ok: true } | { ok: false; retryAfterSec: number } {
   const now = Date.now();
   sweep(now);
-  const max = maxForPath(pathname);
-  const key = `${ip}:${max}`;
   const current = buckets.get(key);
   if (!current || current.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });

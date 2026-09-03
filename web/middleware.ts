@@ -2,12 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAdminEmails, isAdminEmail, logAdminAuthDebug } from "@/lib/admin-auth";
 import {
-  isAiTrainingCrawler,
+  isForbiddenCrawler,
   isInternalAutomation,
+  isMissingBrowserUserAgent,
   isScraperLibrary,
   isSearchOrPreviewBot,
 } from "@/lib/security/crawlers";
-import { clientIp, consumeApiRateLimit, isRateLimitExemptPath } from "@/lib/security/rate-limit";
+import {
+  clientIp,
+  consumeApiRateLimit,
+  consumePageRateLimit,
+  isRateLimitExemptPath,
+} from "@/lib/security/rate-limit";
 import { applyLocaleToRequest, stampLocale } from "@/lib/i18n/request-locale";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware-client";
 
@@ -18,29 +24,36 @@ function forbidden(): NextResponse {
   });
 }
 
+function tooMany(retryAfterSec: number): NextResponse {
+  return new NextResponse("Too Many Requests", {
+    status: 429,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "retry-after": String(retryAfterSec),
+    },
+  });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const ua = request.headers.get("user-agent") ?? "";
   const automated = isInternalAutomation(request);
 
   if (!automated) {
-    if (isAiTrainingCrawler(ua) || (!isSearchOrPreviewBot(ua) && isScraperLibrary(ua))) {
+    const searchOrPreview = isSearchOrPreviewBot(ua);
+    if (isForbiddenCrawler(ua) || (!searchOrPreview && isScraperLibrary(ua))) {
       return forbidden();
     }
-    if (pathname.startsWith("/api/") && !ua.trim()) {
+    if (!searchOrPreview && isMissingBrowserUserAgent(ua)) {
       return forbidden();
     }
+    const ip = clientIp(request);
     if (pathname.startsWith("/api/") && !isRateLimitExemptPath(pathname)) {
-      const limited = consumeApiRateLimit(pathname, clientIp(request));
-      if (!limited.ok) {
-        return new NextResponse("Too Many Requests", {
-          status: 429,
-          headers: {
-            "content-type": "text/plain; charset=utf-8",
-            "retry-after": String(limited.retryAfterSec),
-          },
-        });
-      }
+      const limited = consumeApiRateLimit(pathname, ip);
+      if (!limited.ok) return tooMany(limited.retryAfterSec);
+    } else if (!pathname.startsWith("/api/") && !searchOrPreview) {
+      const limited = consumePageRateLimit(ip);
+      if (!limited.ok) return tooMany(limited.retryAfterSec);
     }
   }
 
