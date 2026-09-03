@@ -50,7 +50,7 @@ export function SiteHeader() {
 
   return (
     <header className="relative z-30 border-b border-border bg-card">
-      <div className="mx-auto max-w-7xl px-5 py-3 sm:px-8 sm:py-4 lg:px-10">
+      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
         <div className="site-header-top flex items-center gap-2 sm:gap-3">
           <Link href="/feed" prefetch className="site-logo">
             <Image

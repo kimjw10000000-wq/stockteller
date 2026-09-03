@@ -1,7 +1,7 @@
 export function AdBannerSlot() {
   return (
     <section
-      className="mx-auto flex max-w-7xl items-center justify-center border-b border-border bg-muted/40 px-5 py-10 sm:px-8 lg:px-10"
+      className="mx-auto flex max-w-7xl items-center justify-center border-b border-border bg-muted/40 px-4 py-10 sm:px-6"
       aria-label="광고 배너"
     >
       <div className="flex h-28 w-full max-w-4xl flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card text-center sm:h-32">
