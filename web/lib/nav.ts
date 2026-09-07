@@ -12,7 +12,7 @@ export const SITE_GNB_ITEMS: SiteNavItem[] = [
     href: "/similar-movers",
     labelKey: "nav.similar",
     descKey: "nav.similarDesc",
-    match: (pathname) => pathname === "/" || pathname.startsWith("/similar-movers"),
+    match: (pathname) => pathname.startsWith("/similar-movers"),
   },
   {
     href: "/feed",
@@ -27,7 +27,7 @@ export const SITE_GNB_ITEMS: SiteNavItem[] = [
     href: "/news-sec",
     labelKey: "nav.newsSec",
     descKey: "nav.newsSecDesc",
-    match: (pathname) => pathname.startsWith("/news-sec"),
+    match: (pathname) => pathname === "/" || pathname.startsWith("/news-sec"),
   },
   {
     href: "/indicators",

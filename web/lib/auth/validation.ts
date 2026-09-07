@@ -87,7 +87,7 @@ export const OTP_LENGTH = 8;
 export const OTP_PLACEHOLDER = "-".repeat(OTP_LENGTH);
 export const RECOVERY_OTP_LENGTH = 8;
 export const RECOVERY_OTP_PLACEHOLDER = "-".repeat(RECOVERY_OTP_LENGTH);
-export const AUTH_HOME = "/similar-movers";
+export const AUTH_HOME = "/news-sec";
 
 /** Open-redirect 방지. 사이트 내부 경로만 허용. */
 export function safeInternalPath(raw: string | undefined | null, fallback = AUTH_HOME): string {
