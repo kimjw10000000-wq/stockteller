@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { AlertsComingSoon } from "@/components/alerts/AlertsComingSoon";
 import { AlertsDashboard } from "@/components/alerts/AlertsDashboard";
+import { ALERTS_PUBLIC_UI } from "@/lib/alerts/public-ui";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -9,6 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default function WatchmanPage() {
+  if (!ALERTS_PUBLIC_UI) {
+    return <AlertsComingSoon />;
+  }
+
   return (
     <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 -mt-8 -mb-8 min-h-[calc(100dvh-11rem)] bg-gradient-to-b from-sky-300 via-sky-400 to-cyan-500 px-4 py-8 sm:px-6">
       <div className="mx-auto w-full max-w-7xl">
