@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async redirects() {
-    return [{ source: "/", destination: "/feed", permanent: false }];
+    return [{ source: "/", destination: "/similar-movers", permanent: false }];
   },
   async headers() {
     return [

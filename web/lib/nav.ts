@@ -9,17 +9,16 @@ export type SiteNavItem = {
 /** 검색창 아래 가로 GNB (좌측 → 우측 순서) */
 export const SITE_GNB_ITEMS: SiteNavItem[] = [
   {
-    href: "/watchman",
-    labelKey: "nav.alerts",
-    descKey: "nav.alertsDesc",
-    match: (pathname) => pathname.startsWith("/watchman"),
+    href: "/similar-movers",
+    labelKey: "nav.similar",
+    descKey: "nav.similarDesc",
+    match: (pathname) => pathname === "/" || pathname.startsWith("/similar-movers"),
   },
   {
     href: "/feed",
     labelKey: "nav.articles",
     descKey: "nav.articlesDesc",
     match: (pathname) =>
-      pathname === "/" ||
       pathname.startsWith("/feed") ||
       pathname.startsWith("/disclosure") ||
       pathname.startsWith("/news/"),
@@ -43,10 +42,10 @@ export const SITE_GNB_ITEMS: SiteNavItem[] = [
     match: (pathname) => pathname.startsWith("/halts"),
   },
   {
-    href: "/similar-movers",
-    labelKey: "nav.similar",
-    descKey: "nav.similarDesc",
-    match: (pathname) => pathname.startsWith("/similar-movers"),
+    href: "/watchman",
+    labelKey: "nav.alerts",
+    descKey: "nav.alertsDesc",
+    match: (pathname) => pathname.startsWith("/watchman"),
   },
 ];
 

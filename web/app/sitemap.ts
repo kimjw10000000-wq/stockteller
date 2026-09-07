@@ -60,8 +60,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     {
       url: `${base}/similar-movers`,
       lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.4,
+      changeFrequency: "hourly",
+      priority: 0.95,
     },
     {
       url: `${base}/about`,

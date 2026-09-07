@@ -15,8 +15,8 @@
     "indicatorsDesc": "CPI, PPI, and earnings releases",
     "halts": "TradeHalt",
     "haltsDesc": "U.S. stock trading halts and resumes",
-    "similar": "Similar movers",
-    "similarDesc": "Coming soon"
+    "similar": "Surge Index",
+    "similarDesc": "Index of surging names"
   },
   "header": {
     "searchPlaceholder": "Ticker, name, or stock code",
@@ -206,10 +206,10 @@
     "nextPage": "Next"
   },
   "similar": {
-    "kicker": "Similar movers",
-    "title": "Similar movers",
+    "kicker": "Index",
+    "title": "Surge Index",
     "pendingTitle": "Coming soon",
-    "pendingBody": "We’re building a screen that finds tickers with similar surge patterns."
+    "pendingBody": "This page will show the surge index for the runner field."
   },
   "halts": {
     "kicker": "Market · Halts",
@@ -287,7 +287,7 @@
     "toolNewsSec": "News/SEC: summaries of Newsfilter stories and SEC EDGAR filings, with bullish/bearish tone.",
     "toolIndicators": "Live releases: U.S. CPI / PPI forecasts vs. official prints, plus earnings.",
     "toolHalts": "TradeHalt: Nasdaq halt/resume and Korea VI reference data.",
-    "toolSimilar": "Similar movers: find names with similar surge patterns (coming soon).",
+    "toolSimilar": "Surge Index: a live index of surging names.",
     "ops": "How we operate",
     "p2": "Data comes from public sources such as SEC EDGAR, exchange RSS, and BLS. Automated summaries may be included; the original filing comes first. Contact {email}."
   }

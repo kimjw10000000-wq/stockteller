@@ -3,8 +3,8 @@ import { SimilarMoversContent } from "@/components/market/SimilarMoversContent";
 import { SITE_NAME_KO } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "비슷한 급등주 찾기",
-  description: `${SITE_NAME_KO} — 비슷한 급등주 찾기 (준비 중)`,
+  title: "급등주 지수",
+  description: `${SITE_NAME_KO} — 급등주 지수`,
   alternates: { canonical: "/similar-movers" },
 };
 

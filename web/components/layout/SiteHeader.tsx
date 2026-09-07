@@ -52,7 +52,7 @@ export function SiteHeader() {
     <header className="relative z-30 border-b border-border bg-transparent">
       <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
         <div className="site-header-top flex items-center gap-2 sm:gap-3">
-          <Link href="/feed" prefetch className="site-logo">
+          <Link href="/similar-movers" prefetch className="site-logo">
             <Image
               key={logo.src}
               src={logo.src}

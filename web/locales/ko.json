@@ -15,8 +15,8 @@
     "indicatorsDesc": "CPI·PPI 및 기업 실적 발표",
     "halts": "TradeHalt",
     "haltsDesc": "미국 주식 거래 정지·재개",
-    "similar": "비슷한 급등주 찾기",
-    "similarDesc": "준비 중인 기능"
+    "similar": "급등주 지수",
+    "similarDesc": "급등주 필드 지수"
   },
   "header": {
     "searchPlaceholder": "티커 · 종목명 · 종목코드",
@@ -206,10 +206,10 @@
     "nextPage": "다음"
   },
   "similar": {
-    "kicker": "Similar movers",
-    "title": "비슷한 급등주 찾기",
+    "kicker": "Index",
+    "title": "급등주 지수",
     "pendingTitle": "준비 중인 기능입니다",
-    "pendingBody": "급등 패턴이 비슷한 종목을 찾아 보여주는 화면을 준비하고 있습니다."
+    "pendingBody": "급등주 지수를 이 화면에 붙이는 작업을 준비하고 있습니다."
   },
   "halts": {
     "kicker": "Market · Halts",
@@ -287,7 +287,7 @@
     "toolNewsSec": "News/SEC: Newsfilter 기사와 SEC EDGAR 공시를 요약하고 호재·악재를 구분합니다.",
     "toolIndicators": "실시간 발표: 미국 CPI / PPI 예측치와 공식 발표치, 기업 실적 비교.",
     "toolHalts": "TradeHalt: 나스닥 Halt/Resume 및 국내 VI 참고 정보.",
-    "toolSimilar": "비슷한 급등주 찾기: 급등 패턴이 비슷한 종목을 찾는 기능(준비 중).",
+    "toolSimilar": "급등주 지수: 급등주 필드의 현재 지수를 보여 줍니다.",
     "ops": "운영",
     "p2": "데이터는 SEC EDGAR, 거래소 공개 RSS, BLS 등 공개 출처를 사용합니다. 자동화 요약이 포함될 수 있으며, 원문 공시가 우선합니다. 문의는 {email} 로 보내 주세요."
   }
