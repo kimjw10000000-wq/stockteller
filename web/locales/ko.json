@@ -41,6 +41,8 @@
   "alerts": {
     "kicker": "Alert",
     "title": "경보",
+    "comingSoon": "Coming soon",
+    "comingSoonBody": "지분희석·오퍼링 경보는 뉴스 피드 허가를 받은 뒤에 이 화면에 열 예정입니다.",
     "lead": "오퍼링·S-3/F-3 등 지분희석 공시가 나오면 알려 줍니다. 미국 동부 매일 04:00 AM에 무료 발송 횟수가 리셋됩니다.",
     "freeMeta": "무료 · 슬롯 {used}/{total} · 하루 1회",
     "proMeta": "Pro · 슬롯 {used}/{total}",

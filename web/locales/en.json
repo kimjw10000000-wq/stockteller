@@ -41,6 +41,8 @@
   "alerts": {
     "kicker": "Alert",
     "title": "Alerts",
+    "comingSoon": "Coming soon",
+    "comingSoonBody": "Dilution and offering alerts will open here after we can license the news feeds.",
     "lead": "Get notified when dilution filings such as offerings or S-3/F-3 appear. The free send quota resets daily at 04:00 AM U.S. Eastern Time.",
     "freeMeta": "Free · {used}/{total} slots · 1 send per day",
     "proMeta": "Pro · {used}/{total} slots",
