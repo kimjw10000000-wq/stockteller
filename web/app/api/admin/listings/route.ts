@@ -8,6 +8,7 @@ import {
   loadListingSnapshot,
   otcRemainingListB,
   saveListingSnapshot,
+  visibleListA,
   type ListingSnapshotPayload,
 } from "@/lib/companies/listing-admin";
 
