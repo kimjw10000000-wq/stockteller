@@ -3,17 +3,16 @@ import { isAdminEmail } from "@/lib/admin-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  diffListings,
   listingIpoInsert,
   listingRename,
   loadListingSnapshot,
   otcRemainingListB,
   saveListingSnapshot,
-  scanListingUpdate,
+  type ListingSnapshotPayload,
 } from "@/lib/companies/listing-admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
 async function requireAdmin() {
@@ -27,28 +26,26 @@ async function requireAdmin() {
   return { ok: true as const, admin: createAdminClient() };
 }
 
+function listsJson(snap: ListingSnapshotPayload | null, extra?: Record<string, unknown>) {
+  return NextResponse.json({
+    ok: true,
+    listA: snap?.listA ?? [],
+    listB: snap?.listB ?? [],
+    ...extra,
+  });
+}
+
 export async function GET() {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
   try {
     const snap = await loadListingSnapshot(gate.admin);
     if (!snap) {
-      return NextResponse.json({
-        ok: true,
-        traderCount: 0,
-        matched: 0,
-        listA: [],
-        listB: [],
-        listBPick: [],
-        aliases: [],
-        prunedAliases: [],
-        inheritedJuniors: 0,
-        pairedJuniors: [],
-        moreWork: false,
+      return listsJson(null, {
         error: "아직 저장된 목록이 없습니다. Cursor에서 목록 업데이트를 한 번 돌려 주세요.",
       });
     }
-    return NextResponse.json({ ok: true, ...snap });
+    return listsJson(snap);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
@@ -64,48 +61,46 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "잘못된 요청입니다." }, { status: 400 });
   }
-  const action = body.action ?? "scan";
+  const action = body.action ?? "";
   try {
-    if (action === "scan") {
-      const result = await scanListingUpdate(gate.admin);
-      return NextResponse.json({ ok: true, ...result });
-    }
     if (action === "ipo") {
       const ticker = String(body.ticker ?? "");
       const inserted = await listingIpoInsert(gate.admin, ticker);
       const snap = await loadListingSnapshot(gate.admin);
-      if (snap) {
-        snap.listA = snap.listA.filter((r) => r.ticker !== inserted.ticker);
-        snap.pairedJuniors = snap.pairedJuniors.filter((r) => r.parentTicker !== inserted.ticker && r.ticker !== inserted.ticker);
-        await saveListingSnapshot(gate.admin, snap);
-        return NextResponse.json({ ok: true, inserted, ...snap });
+      if (!snap) {
+        return NextResponse.json({ ok: true, inserted, listA: [], listB: [] });
       }
-      return NextResponse.json({ ok: true, inserted, ...(await diffListings(gate.admin)) });
+      snap.listA = snap.listA.filter((r) => r.ticker !== inserted.ticker);
+      snap.pairedJuniors = snap.pairedJuniors.filter(
+        (r) => r.parentTicker !== inserted.ticker && r.ticker !== inserted.ticker
+      );
+      await saveListingSnapshot(gate.admin, snap);
+      return listsJson(snap, { inserted });
     }
     if (action === "rename") {
       const from = String(body.from ?? "");
       const to = String(body.to ?? "");
       await listingRename(gate.admin, from, to);
       const snap = await loadListingSnapshot(gate.admin);
-      if (snap) {
-        snap.listA = snap.listA.filter((r) => r.ticker !== to);
-        snap.listB = snap.listB.filter((r) => r.ticker !== from);
-        snap.listBPick = (snap.listBPick ?? []).filter((r) => r.ticker !== from);
-        snap.aliases = [...snap.aliases.filter((a) => a.oldTicker !== from), { oldTicker: from, newTicker: to }];
-        await saveListingSnapshot(gate.admin, snap);
-        return NextResponse.json({ ok: true, ...snap });
+      if (!snap) {
+        return NextResponse.json({ ok: true, listA: [], listB: [] });
       }
-      return NextResponse.json({ ok: true, ...(await diffListings(gate.admin)) });
+      snap.listA = snap.listA.filter((r) => r.ticker !== to);
+      snap.listB = snap.listB.filter((r) => r.ticker !== from);
+      snap.listBPick = (snap.listBPick ?? []).filter((r) => r.ticker !== from);
+      snap.aliases = [...snap.aliases.filter((a) => a.oldTicker !== from), { oldTicker: from, newTicker: to }];
+      await saveListingSnapshot(gate.admin, snap);
+      return listsJson(snap);
     }
     if (action === "otc-remaining") {
       const deactivated = await otcRemainingListB(gate.admin);
       const snap = await loadListingSnapshot(gate.admin);
-      if (snap) {
-        snap.listB = [];
-        await saveListingSnapshot(gate.admin, snap);
-        return NextResponse.json({ ok: true, deactivated, ...snap });
+      if (!snap) {
+        return NextResponse.json({ ok: true, deactivated, listA: [], listB: [] });
       }
-      return NextResponse.json({ ok: true, deactivated, ...(await diffListings(gate.admin)) });
+      snap.listB = [];
+      await saveListingSnapshot(gate.admin, snap);
+      return listsJson(snap, { deactivated });
     }
     return NextResponse.json({ ok: false, error: "unknown action" }, { status: 400 });
   } catch (e) {

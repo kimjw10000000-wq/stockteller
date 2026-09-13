@@ -24,8 +24,8 @@ export default async function AdminListingsPage() {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold text-foreground">목록 관리</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          거래소 파일과 DB 대조는 Cursor에서 「목록 업데이트 돌려줘」라고 하면 제한 시간 없이 끝까지 돌립니다. 이
-          화면은 목록 A(신규상장 / 티커변경)용입니다. <span className="text-foreground/80">({user.email})</span>
+          이 화면에는 목록 A(거래소에만 있음)와 목록 B(DB에만 있음)만 올립니다. 전체 파일 대조는 Cursor에서
+          「목록 업데이트 돌려줘」로 돌립니다. <span className="text-foreground/80">({user.email})</span>
         </p>
       </header>
       <AdminListingsPanel />
