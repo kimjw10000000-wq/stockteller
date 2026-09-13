@@ -34,8 +34,8 @@ export function AdminListingsPanel() {
     setState({
       traderCount: json.traderCount,
       matched: json.matched ?? 0,
-      listA: json.listA,
-      listB: json.listB,
+      listA: json.listA ?? [],
+      listB: json.listB ?? [],
       listBPick: json.listBPick ?? json.listB,
       aliases: json.aliases,
       prunedAliases: json.prunedAliases ?? [],
@@ -88,10 +88,20 @@ export function AdminListingsPanel() {
     fetch("/api/admin/listings", { cache: "no-store" })
       .then(async (res) => {
         const text = await res.text();
-        const json = JSON.parse(text) as ApiJson;
+        let json: ApiJson;
+        try {
+          json = JSON.parse(text) as ApiJson;
+        } catch {
+          throw new Error(
+            res.ok
+              ? "서버가 JSON이 아닌 응답을 보냈습니다."
+              : `서버 오류 (${res.status}). 목록을 불러오는 데 시간이 너무 걸렸습니다.`
+          );
+        }
         if (!json.ok) throw new Error(json.error || "목록을 불러오지 못했습니다.");
         if (!cancelled) {
           applyJson(json);
+          if (json.error && json.listA.length === 0) setError(json.error);
           setPhase("done");
         }
       })

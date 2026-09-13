@@ -40,6 +40,69 @@ export type ListingScanResult = {
   moreWork: boolean;
 };
 
+export type ListingSnapshotPayload = ListingScanResult;
+
+const SNAPSHOT_ANALYSIS_TICKER = "__WHYUP_LISTING_SNAPSHOT__";
+
+function asSnapshot(raw: unknown): ListingSnapshotPayload | null {
+  if (!raw || typeof raw !== "object") return null;
+  const payload = raw as ListingSnapshotPayload;
+  if (!Array.isArray(payload.listA) || !Array.isArray(payload.listB)) return null;
+  return {
+    traderCount: payload.traderCount ?? 0,
+    matched: payload.matched ?? 0,
+    listA: payload.listA,
+    listB: payload.listB,
+    listBPick: Array.isArray(payload.listBPick) ? payload.listBPick : payload.listB,
+    aliases: Array.isArray(payload.aliases) ? payload.aliases : [],
+    prunedAliases: Array.isArray(payload.prunedAliases) ? payload.prunedAliases : [],
+    inheritedJuniors: payload.inheritedJuniors ?? 0,
+    pairedJuniors: Array.isArray(payload.pairedJuniors) ? payload.pairedJuniors : [],
+    moreWork: payload.moreWork ?? false,
+  };
+}
+
+export async function saveListingSnapshot(
+  admin: SupabaseClient,
+  payload: ListingSnapshotPayload
+): Promise<void> {
+  const now = new Date().toISOString();
+  const table = await admin.from("listing_admin_snapshot").upsert(
+    { id: 1, payload, updated_at: now },
+    { onConflict: "id" }
+  );
+  const fallback = await admin.from("company_analysis_results").upsert(
+    {
+      ticker: SNAPSHOT_ANALYSIS_TICKER,
+      company_name: "listing-admin-snapshot",
+      rule_5550a_status: payload,
+      last_analyzed_at: now,
+    },
+    { onConflict: "ticker" }
+  );
+  if (table.error && fallback.error) {
+    throw new Error(`listing snapshot: ${table.error.message}; ${fallback.error.message}`);
+  }
+}
+
+export async function loadListingSnapshot(
+  admin: SupabaseClient
+): Promise<ListingSnapshotPayload | null> {
+  const table = await admin.from("listing_admin_snapshot").select("payload").eq("id", 1).maybeSingle();
+  if (!table.error) {
+    const snap = asSnapshot(table.data?.payload);
+    if (snap) return snap;
+  }
+  const fallback = await admin
+    .from("company_analysis_results")
+    .select("rule_5550a_status,company_name")
+    .eq("ticker", SNAPSHOT_ANALYSIS_TICKER)
+    .maybeSingle();
+  if (fallback.error) throw new Error(fallback.error.message);
+  if (fallback.data?.company_name !== "listing-admin-snapshot") return null;
+  return asSnapshot(fallback.data.rule_5550a_status);
+}
+
 type DbCompany = {
   ticker: string;
   name: string;
@@ -87,15 +150,18 @@ export async function inheritWarrantPreferredCiks(
   db: DbCompany[],
   now: string
 ): Promise<number> {
-  const siblings = [...new Set([...trader.map((r) => r.ticker), ...db.map((r) => r.ticker)])];
   const dbBy = new Map(db.map((r) => [r.ticker, r]));
   let n = 0;
-  const pending = trader.filter((row) => isWarrantPreferredOrUnit(row.ticker, siblings));
+  const pool = parentPool(db);
+  const pending = trader.filter(
+    (row) => !dbBy.has(row.ticker) && isWarrantPreferredOrUnit(row.ticker, [row.ticker])
+  );
+  console.log(`[listings:update] junior candidates=${pending.length}`);
   for (let i = 0; i < pending.length; i += 40) {
     const chunk = pending.slice(i, i + 40);
     await Promise.all(
       chunk.map(async (row) => {
-        const parent = resolveListedIssuerParent(row.ticker, parentPool([...dbBy.values()]));
+        const parent = resolveListedIssuerParent(row.ticker, pool);
         if (!parent) return;
         const existing = dbBy.get(row.ticker);
         if (
@@ -286,12 +352,15 @@ export async function diffListings(admin: SupabaseClient): Promise<{
 }
 
 export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingScanResult> {
+  console.log("[listings:update] prune aliases");
   const prunedAliases = await pruneDeadAliases(admin);
+  console.log("[listings:update] load trader + db");
   const [trader, db, aliases] = await Promise.all([
     fetchNasdaqTraderListings(),
     loadDbCompanies(admin),
     loadTickerChangeAliases(admin),
   ]);
+  console.log(`[listings:update] trader=${trader.length} db=${db.length}`);
   const dbBy = new Map(db.map((r) => [r.ticker, r]));
   const now = new Date().toISOString();
 
@@ -304,6 +373,8 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
     return !existing.is_active || existing.exchange !== row.exchange || existing.name !== name;
   });
   const nameBatch = updates.slice(0, 750);
+  console.log(`[listings:update] name/exchange writes=${nameBatch.length}/${updates.length}`);
+  console.log("[listings:update] inherit juniors");
   for (let i = 0; i < nameBatch.length; i += 250) {
     const chunk = nameBatch.slice(i, i + 250).map((row) => {
       const existing = dbBy.get(row.ticker);
@@ -320,7 +391,9 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
     if (error) throw new Error(error.message);
   }
 
+  console.log("[listings:update] inherit juniors");
   const inheritedJuniors = await inheritWarrantPreferredCiks(admin, trader, db, now);
+  console.log(`[listings:update] inherited=${inheritedJuniors}`);
   const dbAfter = inheritedJuniors > 0 || nameBatch.length > 0 ? await loadDbCompanies(admin) : db;
   const diff = computeListingDiff(trader, dbAfter, aliases);
   return {

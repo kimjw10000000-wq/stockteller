@@ -23,6 +23,7 @@
     "engine": "tsx scripts/run-market-engine.ts",
     "sync:us-listed": "tsx scripts/sync-us-listed-companies.ts",
     "listings:update": "tsx scripts/update-listings.ts",
+    "listings:snapshot": "tsx scripts/update-listings.ts --snap-only",
     "count:us-listed": "tsx scripts/count-us-listed.ts",
     "backfill:issuer-type": "tsx scripts/backfill-issuer-type.ts",
     "backfill:registered-capacity": "tsx scripts/backfill-registered-capacity.ts"
