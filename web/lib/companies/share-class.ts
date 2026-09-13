@@ -22,6 +22,34 @@ function isAdrName(name: string): boolean {
   return ADR_NAME_RE.test(name);
 }
 
+function compactTicker(ticker: string): string {
+  return normTicker(ticker).replace(/-/g, "");
+}
+
+/**
+ * SEC company_tickers_exchange.json has no security-type flag.
+ * Same CIK lists common + warrant/right/unit as extra tickers (W, R, U).
+ * Class A/B/C suffixes stay (GOOGL, FOXA).
+ *
+ * NASDAQ 5th letter W/R/U is warrant/right/unit even when the common was renamed
+ * (LTRYW vs SEGG) or the common ticker is shorter than 4 letters (NMP vs NMPAR).
+ */
+export function isJuniorShareListing(ticker: string, siblingTickers: string[]): boolean {
+  const compact = compactTicker(ticker);
+  if (!compact) return false;
+  if (compact.length >= 5 && /[WRU]$/.test(compact)) return true;
+  for (const other of siblingTickers) {
+    const base = compactTicker(other);
+    if (!base || base === compact || !compact.startsWith(base)) continue;
+    const extra = compact.slice(base.length);
+    if (/^[ABC]$/.test(extra)) continue;
+    if (/^W(S|T|W|R)?[A-Z]?$/.test(extra)) return true;
+    if (/^[RU]$/.test(extra)) return true;
+    if (/[WRU]$/.test(extra)) return true;
+  }
+  return false;
+}
+
 /**
  * Order: ADR → Class B → Class C → Class A → Common.
  */
