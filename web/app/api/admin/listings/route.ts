@@ -13,7 +13,7 @@ import {
 } from "@/lib/companies/listing-admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 async function requireAdmin() {
@@ -66,17 +66,43 @@ export async function POST(req: Request) {
   try {
     if (action === "ipo") {
       const ticker = String(body.ticker ?? "");
-      const inserted = await listingIpoInsert(gate.admin, ticker);
-      const snap = await loadListingSnapshot(gate.admin);
-      if (!snap) {
-        return NextResponse.json({ ok: true, inserted, listA: [], listB: [] });
-      }
-      snap.listA = snap.listA.filter((r) => r.ticker !== inserted.ticker);
-      snap.pairedJuniors = snap.pairedJuniors.filter(
-        (r) => r.parentTicker !== inserted.ticker && r.ticker !== inserted.ticker
-      );
-      await saveListingSnapshot(gate.admin, snap);
-      return listsJson(snap, { inserted });
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (obj: Record<string, unknown>) => {
+            controller.enqueue(encoder.encode(`${JSON.stringify(obj)}\n`));
+          };
+          try {
+            send({ ok: true, phase: "polygon" });
+            const inserted = await listingIpoInsert(gate.admin, ticker, (p) => send({ ok: true, ...p }));
+            const snap = await loadListingSnapshot(gate.admin);
+            if (snap) {
+              snap.listA = snap.listA.filter((r) => r.ticker !== inserted.ticker);
+              snap.pairedJuniors = snap.pairedJuniors.filter(
+                (r) => r.parentTicker !== inserted.ticker && r.ticker !== inserted.ticker
+              );
+              await saveListingSnapshot(gate.admin, snap);
+            }
+            send({
+              ok: true,
+              phase: "done",
+              inserted,
+              listA: visibleListA(snap?.listA ?? []),
+              listB: snap?.listB ?? [],
+            });
+          } catch (e) {
+            send({ ok: false, error: e instanceof Error ? e.message : String(e) });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
     }
     if (action === "rename") {
       const from = String(body.from ?? "");

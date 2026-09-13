@@ -10,6 +10,8 @@ const FORMS = new Set([
   "20FR12B/A",
 ]);
 
+export const EDGAR_12B_LOOKBACK_DAYS = 120;
+
 export type Edgar12bHit = {
   cik: string;
   companyName: string;
@@ -57,18 +59,21 @@ function parseMasterIdx(text: string): Edgar12bHit[] {
   return out;
 }
 
-export async function loadRecent12bFilings(days = 45): Promise<Edgar12bHit[]> {
+async function filingsOnUtcDay(start: Date, daysAgo: number): Promise<Edgar12bHit[]> {
+  const d = new Date(start);
+  d.setUTCDate(d.getUTCDate() - daysAgo);
+  const res = await secFetch(masterUrl(d));
+  if (res.status === 404 || !res.ok) return [];
+  return parseMasterIdx(await res.text());
+}
+
+export async function loadRecent12bFilings(days = EDGAR_12B_LOOKBACK_DAYS): Promise<Edgar12bHit[]> {
   const hits: Edgar12bHit[] = [];
   const seen = new Set<string>();
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   for (let i = 0; i < days; i++) {
-    const d = new Date(start);
-    d.setUTCDate(d.getUTCDate() - i);
-    const res = await secFetch(masterUrl(d));
-    if (res.status === 404) continue;
-    if (!res.ok) continue;
-    for (const row of parseMasterIdx(await res.text())) {
+    for (const row of await filingsOnUtcDay(start, i)) {
       const key = `${row.cik}|${row.form}|${row.filed}|${row.companyName}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -90,7 +95,20 @@ export function matchIssuerNameTo12b(
   return null;
 }
 
-export async function lookupCikFromRecent12b(securityName: string): Promise<Edgar12bHit | null> {
-  const filings = await loadRecent12bFilings(45);
-  return matchIssuerNameTo12b(securityName, filings);
+export async function lookupCikFromRecent12b(
+  securityName: string,
+  options?: {
+    days?: number;
+    onProgress?: (scannedDays: number, totalDays: number) => void;
+  }
+): Promise<Edgar12bHit | null> {
+  const days = options?.days ?? EDGAR_12B_LOOKBACK_DAYS;
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  for (let i = 0; i < days; i++) {
+    const hit = matchIssuerNameTo12b(securityName, await filingsOnUtcDay(start, i));
+    options?.onProgress?.(i + 1, days);
+    if (hit) return hit;
+  }
+  return null;
 }

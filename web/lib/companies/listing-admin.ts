@@ -9,7 +9,7 @@ import {
   findIssuerParentTicker,
 } from "./listing-diff";
 import { fetchPolygonTickerCiks } from "./polygon-ticker-cik";
-import { lookupCikFromRecent12b } from "./edgar-12b-index";
+import { lookupCikFromRecent12b, EDGAR_12B_LOOKBACK_DAYS } from "./edgar-12b-index";
 
 const PAGE = 1000;
 
@@ -425,40 +425,60 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
 
 export async function listingIpoInsert(
   admin: SupabaseClient,
-  tickerRaw: string
+  tickerRaw: string,
+  onProgress?: (p: { phase: "polygon" | "edgar" | "save"; scannedDays?: number; totalDays?: number }) => void
 ): Promise<{ ticker: string; cik: string; cikSource: "parent" | "polygon" | "edgar" }> {
   const ticker = norm(tickerRaw);
-  const [trader, db] = await Promise.all([fetchNasdaqTraderListings(), loadDbCompanies(admin)]);
+  const trader = await fetchNasdaqTraderListings();
   const row = trader.find((r) => r.ticker === ticker);
   if (!row) throw new Error(`${ticker} 이 거래소 목록에 없습니다.`);
   const now = new Date().toISOString();
   const parentOnFile = findIssuerParentTicker(ticker, trader.map((r) => r.ticker));
-  if (parentOnFile && !db.some((r) => r.ticker === parentOnFile)) {
-    throw new Error(
-      `${ticker}는 ${parentOnFile}와 같이 상장된 워런트·우선주입니다. 일반주 ${parentOnFile}를 먼저 신규상장 또는 티커변경하세요.`
-    );
+  let parentRow: { ticker: string; cik: string; previous_tickers: string[] } | null = null;
+  if (parentOnFile) {
+    const { data } = await admin
+      .from("us_listed_companies")
+      .select("ticker,cik,previous_tickers")
+      .eq("ticker", parentOnFile)
+      .maybeSingle();
+    if (!data) {
+      throw new Error(
+        `${ticker}는 ${parentOnFile}와 같이 상장된 워런트·우선주입니다. 일반주 ${parentOnFile}를 먼저 신규상장 또는 티커변경하세요.`
+      );
+    }
+    parentRow = {
+      ticker: norm(String(data.ticker)),
+      cik: String(data.cik ?? "").replace(/\D/g, "").padStart(10, "0"),
+      previous_tickers: parsePreviousTickers(data.previous_tickers),
+    };
   }
-  const parent = resolveListedIssuerParent(ticker, parentPool(db));
+  const parent = parentRow ? resolveListedIssuerParent(ticker, [parentRow]) : null;
   let cik = parent?.cik ?? "";
   let name = row.name;
   let cikSource: "parent" | "polygon" | "edgar" = "parent";
   if (!cik) {
+    onProgress?.({ phase: "polygon" });
     const hits = await fetchPolygonTickerCiks([ticker]);
     cik = hits.get(ticker)?.cik ?? "";
     name = hits.get(ticker)?.name || row.name;
     if (cik && cik !== "0000000000") cikSource = "polygon";
   }
   if (!cik || cik === "0000000000") {
-    const edgar = await lookupCikFromRecent12b(row.name);
+    onProgress?.({ phase: "edgar", scannedDays: 0, totalDays: EDGAR_12B_LOOKBACK_DAYS });
+    const edgar = await lookupCikFromRecent12b(row.name, {
+      days: EDGAR_12B_LOOKBACK_DAYS,
+      onProgress: (scannedDays, totalDays) => onProgress?.({ phase: "edgar", scannedDays, totalDays }),
+    });
     if (!edgar) {
       throw new Error(
-        `${ticker}: Polygon에 없고, 최근 45일 8-A12B/10-12B/20FR12B에서 사명이 같은 제출도 없습니다.`
+        `${ticker}: Polygon에 없고, 최근 ${EDGAR_12B_LOOKBACK_DAYS}일 8-A12B/10-12B/20FR12B에서 사명이 같은 제출도 없습니다.`
       );
     }
     cik = edgar.cik;
     cikSource = "edgar";
     name = row.name;
   }
+  onProgress?.({ phase: "save" });
   const { error } = await admin.from("us_listed_companies").upsert(
     {
       ticker,
@@ -473,7 +493,7 @@ export async function listingIpoInsert(
     { onConflict: "ticker" }
   );
   if (error) throw new Error(error.message);
-  db.push({
+  const inserted: DbCompany = {
     ticker,
     name,
     cik,
@@ -481,8 +501,8 @@ export async function listingIpoInsert(
     is_active: true,
     previous_tickers: [],
     updated_at: now,
-  });
-  await inheritWarrantPreferredCiks(admin, trader, db, now);
+  };
+  await inheritWarrantPreferredCiks(admin, trader, [inserted], now);
   return { ticker, cik, cikSource };
 }
 

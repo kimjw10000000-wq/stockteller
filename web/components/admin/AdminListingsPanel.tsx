@@ -10,9 +10,33 @@ type ApiJson = {
   listA?: Row[];
   listB?: Row[];
   deactivated?: number;
+  phase?: string;
+  scannedDays?: number;
+  totalDays?: number;
 };
 
 type Lists = { listA: Row[]; listB: Row[] };
+
+type Job = {
+  ticker: string;
+  action: "ipo" | "rename" | "otc-remaining";
+  phase: string;
+  scannedDays?: number;
+  totalDays?: number;
+};
+
+function phaseLabel(job: Job): string {
+  if (job.phase === "polygon") return "polygon.io 검색 중…";
+  if (job.phase === "edgar") {
+    const n = job.scannedDays ?? 0;
+    const total = job.totalDays ?? 120;
+    return n > 0 ? `파일에서 찾는 중… (${n}/${total}일)` : "파일에서 찾는 중…";
+  }
+  if (job.phase === "save") return "저장 중…";
+  if (job.phase === "rename") return "티커 변경 중…";
+  if (job.phase === "otc") return "OTC 처리 중…";
+  return "처리 중…";
+}
 
 export function AdminListingsPanel() {
   const [busy, setBusy] = useState(false);
@@ -22,6 +46,7 @@ export function AdminListingsPanel() {
   const [pickFor, setPickFor] = useState<string | null>(null);
   const [aQuery, setAQuery] = useState("");
   const [bQuery, setBQuery] = useState("");
+  const [job, setJob] = useState<Job | null>(null);
 
   function applyJson(json: ApiJson) {
     setLists({
@@ -38,32 +63,98 @@ export function AdminListingsPanel() {
       json = JSON.parse(text) as ApiJson;
     } catch {
       throw new Error(
-        res.ok
-          ? "서버가 JSON이 아닌 응답을 보냈습니다."
-          : `서버 오류 (${res.status}). 목록을 불러오지 못했습니다.`
+        res.status === 504
+          ? "서버 시간 초과(504). 다시 눌러 주세요."
+          : res.ok
+            ? "서버가 JSON이 아닌 응답을 보냈습니다."
+            : `서버 오류 (${res.status}). 목록을 불러오지 못했습니다.`
       );
     }
     if (!json.ok) throw new Error(json.error || "요청 실패");
     return json;
   }
 
+  async function readIpoStream(res: Response): Promise<ApiJson> {
+    if (!res.body) {
+      return parseRes(res);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let last: ApiJson | null = null;
+    for (;;) {
+      const { done, value } = await reader.read();
+      buf += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const raw = line.trim();
+        if (!raw) continue;
+        let json: ApiJson;
+        try {
+          json = JSON.parse(raw) as ApiJson;
+        } catch {
+          throw new Error("서버가 JSON이 아닌 응답을 보냈습니다.");
+        }
+        last = json;
+        if (!json.ok) throw new Error(json.error || "요청 실패");
+        if (json.phase && json.phase !== "done") {
+          setJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  phase: json.phase ?? prev.phase,
+                  scannedDays: json.scannedDays,
+                  totalDays: json.totalDays,
+                }
+              : prev
+          );
+        }
+        if (json.phase === "done" || json.listA) {
+          last = json;
+        }
+      }
+      if (done) break;
+    }
+    if (!last) throw new Error("서버 응답이 비었습니다.");
+    if (!last.ok) throw new Error(last.error || "요청 실패");
+    return last;
+  }
+
   async function post(body: Record<string, string>) {
     setBusy(true);
     setError(null);
+    const action = (body.action ?? "") as Job["action"];
+    setJob({
+      ticker: body.ticker || body.to || "",
+      action,
+      phase: action === "ipo" ? "polygon" : action === "rename" ? "rename" : "otc",
+    });
+    const edgarHint =
+      action === "ipo"
+        ? window.setTimeout(() => {
+            setJob((prev) =>
+              prev?.phase === "polygon"
+                ? { ...prev, phase: "edgar", scannedDays: 0, totalDays: 120 }
+                : prev
+            );
+          }, 2500)
+        : 0;
     try {
-      applyJson(
-        await parseRes(
-          await fetch("/api/admin/listings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          })
-        )
-      );
+      const res = await fetch("/api/admin/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 504) throw new Error("서버 시간 초과(504). 다시 눌러 주세요.");
+      const json = action === "ipo" ? await readIpoStream(res) : await parseRes(res);
+      applyJson(json);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      if (edgarHint) window.clearTimeout(edgarHint);
       setBusy(false);
+      setJob(null);
     }
   }
 
@@ -101,9 +192,21 @@ export function AdminListingsPanel() {
     return lists.listB.filter((r) => r.ticker.includes(q) || r.name.toUpperCase().includes(q));
   }, [lists, bQuery]);
 
+  function actionClass(active: boolean) {
+    return active
+      ? "rounded border border-primary bg-primary px-2 py-1 text-xs text-primary-foreground"
+      : "rounded border border-border px-2 py-1 text-xs hover:bg-accent";
+  }
+
   return (
     <div className="space-y-8">
       {loading ? <p className="text-sm text-muted-foreground">목록을 불러오는 중…</p> : null}
+      {job ? (
+        <p className="text-sm font-semibold text-primary" aria-live="polite">
+          {job.ticker ? `${job.ticker} · ` : ""}
+          {phaseLabel(job)}
+        </p>
+      ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {lists ? (
@@ -128,7 +231,7 @@ export function AdminListingsPanel() {
                     type="button"
                     disabled={busy}
                     onClick={() => void post({ action: "ipo", ticker: row.ticker })}
-                    className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                    className={actionClass(job?.action === "ipo" && job.ticker === row.ticker)}
                   >
                     신규상장
                   </button>
@@ -139,7 +242,7 @@ export function AdminListingsPanel() {
                       setPickFor(row.ticker);
                       setBQuery("");
                     }}
-                    className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                    className={actionClass(pickFor === row.ticker)}
                   >
                     티커변경
                   </button>
