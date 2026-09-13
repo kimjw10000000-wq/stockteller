@@ -31,7 +31,7 @@ const NAV = [
   {
     href: "/admin/listings",
     label: "목록 관리",
-    description: "상장 티커 · CIK",
+    description: "신규상장 · 티커변경",
     icon: ListTodo,
     match: (path: string) => path.startsWith("/admin/listings"),
   },

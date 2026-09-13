@@ -24,8 +24,8 @@ export default async function AdminListingsPage() {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold text-foreground">목록 관리</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          원할 때 업데이트를 누르면 그 시점의 nasdaqlisted.txt · otherlisted.txt와 대조합니다. 워런트·우선주는
-          이미 상장된 일반주의 CIK를 받습니다. <span className="text-foreground/80">({user.email})</span>
+          거래소 파일과 DB 대조는 Cursor에서 「목록 업데이트 돌려줘」라고 하면 제한 시간 없이 끝까지 돌립니다. 이
+          화면은 목록 A(신규상장 / 티커변경)용입니다. <span className="text-foreground/80">({user.email})</span>
         </p>
       </header>
       <AdminListingsPanel />

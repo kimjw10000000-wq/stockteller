@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Row = { ticker: string; name: string; cik: string; exchange: string };
 
@@ -72,16 +72,7 @@ export function AdminListingsPanel() {
     setPhase("running");
     setError(null);
     try {
-      if (body.action === "scan") {
-        let json = await request(body);
-        applyJson(json);
-        while (json.moreWork) {
-          json = await request(body);
-          applyJson(json);
-        }
-      } else {
-        applyJson(await request(body));
-      }
+      applyJson(await request(body));
       setPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -90,6 +81,30 @@ export function AdminListingsPanel() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    setPhase("running");
+    fetch("/api/admin/listings", { cache: "no-store" })
+      .then(async (res) => {
+        const text = await res.text();
+        const json = JSON.parse(text) as ApiJson;
+        if (!json.ok) throw new Error(json.error || "목록을 불러오지 못했습니다.");
+        if (!cancelled) {
+          applyJson(json);
+          setPhase("done");
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : String(e));
+          setPhase("idle");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredA = useMemo(() => {
     const q = aQuery.trim().toUpperCase();
@@ -106,14 +121,6 @@ export function AdminListingsPanel() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void post({ action: "scan" })}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-        >
-          {busy ? "진행중…" : "업데이트"}
-        </button>
         <button
           type="button"
           disabled={
@@ -153,7 +160,7 @@ export function AdminListingsPanel() {
           {state.prunedAliases.length ? ` · 구티커 해제 ${state.prunedAliases.join(", ")}` : ""}
         </p>
       ) : (
-        <p className="text-sm text-muted-foreground">원할 때 업데이트를 누르면 가장 최근 거래소 파일과 DB를 비교합니다.</p>
+        <p className="text-sm text-muted-foreground">거래소 파일 대조는 이 화면이 아니라 Cursor에서 프로그램을 돌립니다.</p>
       )}
 
       {state && state.aliases.length > 0 ? (
