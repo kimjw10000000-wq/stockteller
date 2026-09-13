@@ -101,8 +101,7 @@ export async function inheritWarrantPreferredCiks(
           existing &&
           existing.cik === parent.cik &&
           existing.is_active &&
-          existing.exchange === row.exchange &&
-          (!row.name || existing.name === row.name)
+          existing.exchange === row.exchange
         ) {
           return;
         }
@@ -126,6 +125,7 @@ export async function inheritWarrantPreferredCiks(
         n += 1;
       })
     );
+    if (n >= 200) break;
   }
   return n;
 }
@@ -211,19 +211,18 @@ export async function pruneDeadAliases(admin: SupabaseClient): Promise<string[]>
   return removed;
 }
 
-export async function diffListings(admin: SupabaseClient): Promise<{
+function computeListingDiff(
+  trader: TraderListing[],
+  db: DbCompany[],
+  aliases: Map<string, string>
+): {
   traderCount: number;
   listA: ListingAdminRow[];
   listB: ListingAdminRow[];
   listBPick: ListingAdminRow[];
   pairedJuniors: PairedJuniorRow[];
   aliases: Array<{ oldTicker: string; newTicker: string }>;
-}> {
-  const [trader, db, aliases] = await Promise.all([
-    fetchNasdaqTraderListings(),
-    loadDbCompanies(admin),
-    loadTickerChangeAliases(admin),
-  ]);
+} {
   const traderBy = new Map(trader.map((r) => [r.ticker, r]));
   const dbBy = new Map(db.map((r) => [r.ticker, r]));
   const traderTickers = trader.map((r) => r.ticker);
@@ -269,9 +268,29 @@ export async function diffListings(admin: SupabaseClient): Promise<{
   };
 }
 
+export async function diffListings(admin: SupabaseClient): Promise<{
+  traderCount: number;
+  listA: ListingAdminRow[];
+  listB: ListingAdminRow[];
+  listBPick: ListingAdminRow[];
+  pairedJuniors: PairedJuniorRow[];
+  aliases: Array<{ oldTicker: string; newTicker: string }>;
+}> {
+  const [trader, db, aliases] = await Promise.all([
+    fetchNasdaqTraderListings(),
+    loadDbCompanies(admin),
+    loadTickerChangeAliases(admin),
+  ]);
+  return computeListingDiff(trader, db, aliases);
+}
+
 export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingScanResult> {
   const prunedAliases = await pruneDeadAliases(admin);
-  const [trader, db] = await Promise.all([fetchNasdaqTraderListings(), loadDbCompanies(admin)]);
+  const [trader, db, aliases] = await Promise.all([
+    fetchNasdaqTraderListings(),
+    loadDbCompanies(admin),
+    loadTickerChangeAliases(admin),
+  ]);
   const dbBy = new Map(db.map((r) => [r.ticker, r]));
   const now = new Date().toISOString();
 
@@ -280,12 +299,7 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
     const existing = dbBy.get(row.ticker);
     if (!existing) return false;
     matched += 1;
-    const name = row.name || existing.name;
-    return (
-      !existing.is_active ||
-      existing.exchange !== row.exchange ||
-      (row.name && existing.name !== name)
-    );
+    return !existing.is_active || existing.exchange !== row.exchange;
   });
   for (let i = 0; i < updates.length; i += 80) {
     const chunk = updates.slice(i, i + 80);
@@ -296,7 +310,6 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
         const { error } = await admin
           .from("us_listed_companies")
           .update({
-            name: row.name || existing.name,
             cik: existing.cik,
             exchange: row.exchange,
             is_active: true,
@@ -309,8 +322,8 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
   }
 
   const inheritedJuniors = await inheritWarrantPreferredCiks(admin, trader, db, now);
-
-  const diff = await diffListings(admin);
+  const dbAfter = inheritedJuniors > 0 || updates.length > 0 ? await loadDbCompanies(admin) : db;
+  const diff = computeListingDiff(trader, dbAfter, aliases);
   return {
     traderCount: diff.traderCount,
     matched,

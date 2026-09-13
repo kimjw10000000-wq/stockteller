@@ -37,7 +37,17 @@ export function AdminListingsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = (await res.json()) as ScanState & { ok: boolean; error?: string; deactivated?: number };
+      const text = await res.text();
+      let json: ScanState & { ok: boolean; error?: string; deactivated?: number };
+      try {
+        json = JSON.parse(text) as ScanState & { ok: boolean; error?: string; deactivated?: number };
+      } catch {
+        throw new Error(
+          res.ok
+            ? "서버가 JSON이 아닌 응답을 보냈습니다."
+            : `서버 오류 (${res.status}). 업데이트가 너무 오래 걸렸을 수 있습니다.`
+        );
+      }
       if (!json.ok) throw new Error(json.error || "요청 실패");
       setState({
         traderCount: json.traderCount,

@@ -11,7 +11,7 @@ import {
 } from "@/lib/companies/listing-admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 async function requireAdmin() {
