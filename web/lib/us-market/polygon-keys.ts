@@ -2,8 +2,13 @@ function readEnv(name: string): string {
   return process.env[name]?.trim() ?? "";
 }
 
-export function polygonStarterKey(): string {
+export function polygonStarterKeyOrNull(): string | null {
   const key = readEnv("POLYGON_API_KEY_STARTER") || readEnv("POLYGON_API_KEY");
+  return key || null;
+}
+
+export function polygonStarterKey(): string {
+  const key = polygonStarterKeyOrNull();
   if (!key) throw new Error("POLYGON_API_KEY_STARTER is missing");
   return key;
 }

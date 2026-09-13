@@ -1,4 +1,4 @@
-import { polygonStarterKey } from "@/lib/us-market/polygon-keys";
+import { polygonStarterKeyOrNull } from "@/lib/us-market/polygon-keys";
 import { sleep } from "@/lib/sec/edgar-client";
 
 export type PolygonTickerCik = {
@@ -58,8 +58,9 @@ async function lookupOne(ticker: string, key: string): Promise<PolygonTickerCik 
 }
 
 export async function fetchPolygonTickerCiks(tickers: string[]): Promise<Map<string, PolygonTickerCik>> {
-  const key = polygonStarterKey();
   const out = new Map<string, PolygonTickerCik>();
+  const key = polygonStarterKeyOrNull();
+  if (!key) return out;
   const total = tickers.length;
   for (let i = 0; i < tickers.length; i++) {
     const ticker = tickers[i];
