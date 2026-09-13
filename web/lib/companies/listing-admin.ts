@@ -299,26 +299,23 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
     const existing = dbBy.get(row.ticker);
     if (!existing) return false;
     matched += 1;
-    return !existing.is_active || existing.exchange !== row.exchange;
+    const name = row.name || existing.name;
+    return !existing.is_active || existing.exchange !== row.exchange || existing.name !== name;
   });
-  for (let i = 0; i < updates.length; i += 80) {
-    const chunk = updates.slice(i, i + 80);
-    await Promise.all(
-      chunk.map(async (row) => {
-        const existing = dbBy.get(row.ticker);
-        if (!existing) return;
-        const { error } = await admin
-          .from("us_listed_companies")
-          .update({
-            cik: existing.cik,
-            exchange: row.exchange,
-            is_active: true,
-            updated_at: now,
-          })
-          .eq("ticker", row.ticker);
-        if (error) matched -= 1;
-      })
-    );
+  for (let i = 0; i < updates.length; i += 250) {
+    const chunk = updates.slice(i, i + 250).map((row) => {
+      const existing = dbBy.get(row.ticker);
+      return {
+        ticker: row.ticker,
+        name: row.name || existing?.name || row.ticker,
+        cik: existing?.cik,
+        exchange: row.exchange,
+        is_active: true,
+        updated_at: now,
+      };
+    });
+    const { error } = await admin.from("us_listed_companies").upsert(chunk, { onConflict: "ticker" });
+    if (error) throw new Error(error.message);
   }
 
   const inheritedJuniors = await inheritWarrantPreferredCiks(admin, trader, db, now);
