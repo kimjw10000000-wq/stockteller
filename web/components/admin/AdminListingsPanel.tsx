@@ -16,7 +16,10 @@ type ScanState = {
   listBPick?: Row[];
   inheritedJuniors?: number;
   pairedJuniors?: Paired[];
+  moreWork?: boolean;
 };
+
+type ApiJson = ScanState & { ok: boolean; error?: string; deactivated?: number };
 
 export function AdminListingsPanel() {
   const [busy, setBusy] = useState(false);
@@ -27,40 +30,58 @@ export function AdminListingsPanel() {
   const [bQuery, setBQuery] = useState("");
   const [aQuery, setAQuery] = useState("");
 
+  function applyJson(json: ApiJson) {
+    setState({
+      traderCount: json.traderCount,
+      matched: json.matched ?? 0,
+      listA: json.listA,
+      listB: json.listB,
+      listBPick: json.listBPick ?? json.listB,
+      aliases: json.aliases,
+      prunedAliases: json.prunedAliases ?? [],
+      inheritedJuniors: json.inheritedJuniors ?? 0,
+      pairedJuniors: json.pairedJuniors ?? [],
+      moreWork: json.moreWork ?? false,
+    });
+    setPickFor(null);
+  }
+
+  async function request(body: Record<string, string>): Promise<ApiJson> {
+    const res = await fetch("/api/admin/listings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let json: ApiJson;
+    try {
+      json = JSON.parse(text) as ApiJson;
+    } catch {
+      throw new Error(
+        res.ok
+          ? "서버가 JSON이 아닌 응답을 보냈습니다."
+          : `서버 오류 (${res.status}). 업데이트가 너무 오래 걸렸을 수 있습니다.`
+      );
+    }
+    if (!json.ok) throw new Error(json.error || "요청 실패");
+    return json;
+  }
+
   async function post(body: Record<string, string>) {
     setBusy(true);
     setPhase("running");
     setError(null);
     try {
-      const res = await fetch("/api/admin/listings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const text = await res.text();
-      let json: ScanState & { ok: boolean; error?: string; deactivated?: number };
-      try {
-        json = JSON.parse(text) as ScanState & { ok: boolean; error?: string; deactivated?: number };
-      } catch {
-        throw new Error(
-          res.ok
-            ? "서버가 JSON이 아닌 응답을 보냈습니다."
-            : `서버 오류 (${res.status}). 업데이트가 너무 오래 걸렸을 수 있습니다.`
-        );
+      if (body.action === "scan") {
+        let json = await request(body);
+        applyJson(json);
+        while (json.moreWork) {
+          json = await request(body);
+          applyJson(json);
+        }
+      } else {
+        applyJson(await request(body));
       }
-      if (!json.ok) throw new Error(json.error || "요청 실패");
-      setState({
-        traderCount: json.traderCount,
-        matched: json.matched ?? 0,
-        listA: json.listA,
-        listB: json.listB,
-        listBPick: json.listBPick ?? json.listB,
-        aliases: json.aliases,
-        prunedAliases: json.prunedAliases ?? [],
-        inheritedJuniors: json.inheritedJuniors ?? 0,
-        pairedJuniors: json.pairedJuniors ?? [],
-      });
-      setPickFor(null);
       setPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

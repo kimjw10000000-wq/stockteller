@@ -30,7 +30,7 @@ export async function GET() {
   if (!gate.ok) return gate.res;
   try {
     const diff = await diffListings(gate.admin);
-    return NextResponse.json({ ok: true, ...diff, matched: 0, prunedAliases: [], inheritedJuniors: 0 });
+    return NextResponse.json({ ok: true, ...diff, matched: 0, prunedAliases: [], inheritedJuniors: 0, moreWork: false });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

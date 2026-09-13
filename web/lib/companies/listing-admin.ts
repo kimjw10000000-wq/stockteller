@@ -37,6 +37,7 @@ export type ListingScanResult = {
   prunedAliases: string[];
   inheritedJuniors: number;
   pairedJuniors: PairedJuniorRow[];
+  moreWork: boolean;
 };
 
 type DbCompany = {
@@ -302,8 +303,9 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
     const name = row.name || existing.name;
     return !existing.is_active || existing.exchange !== row.exchange || existing.name !== name;
   });
-  for (let i = 0; i < updates.length; i += 250) {
-    const chunk = updates.slice(i, i + 250).map((row) => {
+  const nameBatch = updates.slice(0, 750);
+  for (let i = 0; i < nameBatch.length; i += 250) {
+    const chunk = nameBatch.slice(i, i + 250).map((row) => {
       const existing = dbBy.get(row.ticker);
       return {
         ticker: row.ticker,
@@ -319,7 +321,7 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
   }
 
   const inheritedJuniors = await inheritWarrantPreferredCiks(admin, trader, db, now);
-  const dbAfter = inheritedJuniors > 0 || updates.length > 0 ? await loadDbCompanies(admin) : db;
+  const dbAfter = inheritedJuniors > 0 || nameBatch.length > 0 ? await loadDbCompanies(admin) : db;
   const diff = computeListingDiff(trader, dbAfter, aliases);
   return {
     traderCount: diff.traderCount,
@@ -331,6 +333,7 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
     prunedAliases,
     inheritedJuniors,
     pairedJuniors: diff.pairedJuniors,
+    moreWork: updates.length > nameBatch.length || inheritedJuniors >= 200,
   };
 }
 
