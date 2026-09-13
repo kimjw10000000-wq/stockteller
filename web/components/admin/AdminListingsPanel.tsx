@@ -27,6 +27,7 @@ type Job = {
 
 function phaseLabel(job: Job): string {
   if (job.phase === "polygon") return "polygon.io 검색 중…";
+  if (job.phase === "edgar-ticker") return "EDGAR에서 서류 목록 검색 중…";
   if (job.phase === "edgar") {
     const n = job.scannedDays ?? 0;
     const total = job.totalDays ?? 120;
@@ -135,7 +136,7 @@ export function AdminListingsPanel() {
         ? window.setTimeout(() => {
             setJob((prev) =>
               prev?.phase === "polygon"
-                ? { ...prev, phase: "edgar", scannedDays: 0, totalDays: 120 }
+                ? { ...prev, phase: "edgar-ticker" }
                 : prev
             );
           }, 2500)

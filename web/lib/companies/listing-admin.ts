@@ -9,7 +9,7 @@ import {
   findIssuerParentTicker,
 } from "./listing-diff";
 import { fetchPolygonTickerCiks } from "./polygon-ticker-cik";
-import { lookupCikFromRecent12b, EDGAR_12B_LOOKBACK_DAYS } from "./edgar-12b-index";
+import { lookupCikFromRecent12b, lookupEdgarCompanyByTicker, EDGAR_12B_LOOKBACK_DAYS } from "./edgar-12b-index";
 
 const PAGE = 1000;
 
@@ -426,7 +426,11 @@ export async function scanListingUpdate(admin: SupabaseClient): Promise<ListingS
 export async function listingIpoInsert(
   admin: SupabaseClient,
   tickerRaw: string,
-  onProgress?: (p: { phase: "polygon" | "edgar" | "save"; scannedDays?: number; totalDays?: number }) => void
+  onProgress?: (p: {
+    phase: "polygon" | "edgar-ticker" | "edgar" | "save";
+    scannedDays?: number;
+    totalDays?: number;
+  }) => void
 ): Promise<{ ticker: string; cik: string; cikSource: "parent" | "polygon" | "edgar" }> {
   const ticker = norm(tickerRaw);
   const trader = await fetchNasdaqTraderListings();
@@ -464,6 +468,15 @@ export async function listingIpoInsert(
     if (cik && cik !== "0000000000") cikSource = "polygon";
   }
   if (!cik || cik === "0000000000") {
+    onProgress?.({ phase: "edgar-ticker" });
+    const byTicker = await lookupEdgarCompanyByTicker(ticker);
+    if (byTicker?.cik && byTicker.cik !== "0000000000") {
+      cik = byTicker.cik;
+      cikSource = "edgar";
+      name = row.name;
+    }
+  }
+  if (!cik || cik === "0000000000") {
     onProgress?.({ phase: "edgar", scannedDays: 0, totalDays: EDGAR_12B_LOOKBACK_DAYS });
     const edgar = await lookupCikFromRecent12b(row.name, {
       days: EDGAR_12B_LOOKBACK_DAYS,
@@ -471,7 +484,7 @@ export async function listingIpoInsert(
     });
     if (!edgar) {
       throw new Error(
-        `${ticker}: Polygon에 없고, 최근 ${EDGAR_12B_LOOKBACK_DAYS}일 8-A12B/10-12B/20FR12B에서 사명이 같은 제출도 없습니다.`
+        `${ticker}: Polygon과 EDGAR 티커 목록에 없고, 최근 ${EDGAR_12B_LOOKBACK_DAYS}일 8-A12B/10-12B/20FR12B에서 사명이 같은 제출도 없습니다.`
       );
     }
     cik = edgar.cik;

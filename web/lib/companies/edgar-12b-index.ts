@@ -1,4 +1,4 @@
-import { secFetch } from "@/lib/sec/edgar-client";
+import { resolveTickerMeta, secFetch } from "@/lib/sec/edgar-client";
 import { issuerNamesEqual } from "./issuer-name";
 
 const FORMS = new Set([
@@ -93,6 +93,42 @@ export function matchIssuerNameTo12b(
     if (issuerNamesEqual(securityName, row.companyName)) return row;
   }
   return null;
+}
+
+export async function lookupEdgarCompanyByTicker(ticker: string): Promise<Edgar12bHit | null> {
+  const meta = await resolveTickerMeta(ticker);
+  if (!meta) return null;
+  const res = await secFetch(`https://data.sec.gov/submissions/CIK${meta.cikPadded}.json`);
+  if (!res.ok) {
+    return {
+      cik: meta.cikPadded,
+      companyName: meta.title,
+      form: "ticker-map",
+      filed: "",
+    };
+  }
+  const sub = (await res.json()) as {
+    name?: string;
+    filings?: { recent?: { form?: string[]; filingDate?: string[] } };
+  };
+  const forms = sub.filings?.recent?.form ?? [];
+  const dates = sub.filings?.recent?.filingDate ?? [];
+  let form = "submissions";
+  let filed = "";
+  const want = /^(8-A12B|10-12B|20FR12B)/i;
+  for (let i = 0; i < forms.length; i++) {
+    if (want.test(forms[i] ?? "")) {
+      form = forms[i] ?? form;
+      filed = dates[i] ?? "";
+      break;
+    }
+  }
+  return {
+    cik: meta.cikPadded,
+    companyName: sub.name?.trim() || meta.title,
+    form,
+    filed,
+  };
 }
 
 export async function lookupCikFromRecent12b(
