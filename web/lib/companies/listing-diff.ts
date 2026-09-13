@@ -99,13 +99,16 @@ function cikLookupCandidates(ticker: string): string[] {
     if (v && v !== t && !out.includes(v)) out.push(v);
   };
 
-  const dollar = /^([A-Z]+)\$(.+)$/.exec(t);
+  // NYSE preferred: ABC$A (series A) or ABC$ (no series letter).
+  const dollar = /^([A-Z]+)\$(.*)$/.exec(t);
   if (dollar) {
     const base = dollar[1] ?? "";
     const cls = (dollar[2] ?? "").replace(/[^A-Z0-9]/g, "");
-    add(`${base}-P${cls}`);
-    add(`${base}-PR${cls}`);
-    add(`${base}P${cls}`);
+    if (cls) {
+      add(`${base}-P${cls}`);
+      add(`${base}-PR${cls}`);
+      add(`${base}P${cls}`);
+    }
     add(base);
   }
 

@@ -29,7 +29,7 @@ async function requireAdmin() {
 function listsJson(snap: ListingSnapshotPayload | null, extra?: Record<string, unknown>) {
   return NextResponse.json({
     ok: true,
-    listA: snap?.listA ?? [],
+    listA: visibleListA(snap?.listA ?? []),
     listB: snap?.listB ?? [],
     ...extra,
   });

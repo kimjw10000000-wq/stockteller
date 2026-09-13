@@ -73,7 +73,12 @@ assert(plan.inserts.some((r) => r.ticker === "NEW"), "NEW insert");
 assert(plan.deactivates.includes("GONE"), "GONE deactivate");
 assert(!plan.deactivates.includes("OLD"), "OLD renamed not deactivated");
 
-assert(isPreferredShareTicker("ABR$D") === true, "ABR$D preferred");
+assert(isPreferredShareTicker("DCOM$") === true, "DCOM$ preferred");
+assert(
+  resolveListedIssuerParent("DCOM$", [{ ticker: "DCOM", cik: "0000000006" }])?.cik === "0000000006",
+  "trailing $ preferred inherits common cik"
+);
+assert(findIssuerParentTicker("DCOM$", ["DCOM", "DCOM$"]) === "DCOM", "DCOM$ waits on DCOM");
 assert(isPreferredShareTicker("CMS-PB") === true, "CMS-PB preferred");
 assert(isPreferredShareTicker("BRK-B") === false, "BRK-B is class B not preferred");
 assert(

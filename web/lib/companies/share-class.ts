@@ -37,6 +37,7 @@ function compactTicker(ticker: string): string {
 export function isJuniorShareListing(ticker: string, siblingTickers: string[]): boolean {
   const compact = compactTicker(ticker);
   if (!compact) return false;
+  if (normTicker(ticker).includes("$")) return true;
   if (compact.length >= 5 && /[WRU]$/.test(compact)) return true;
   for (const other of siblingTickers) {
     const base = compactTicker(other);

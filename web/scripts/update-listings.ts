@@ -7,7 +7,12 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 import { createAdminClient } from "../lib/supabase/admin";
-import { diffListings, saveListingSnapshot, scanListingUpdate } from "../lib/companies/listing-admin";
+import {
+  diffListings,
+  inheritPendingJuniors,
+  saveListingSnapshot,
+  scanListingUpdate,
+} from "../lib/companies/listing-admin";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -15,17 +20,19 @@ config({ path: resolve(process.cwd(), ".env") });
 async function main() {
   const admin = createAdminClient();
   if (process.argv.includes("--snap-only")) {
+    const inherited = await inheritPendingJuniors(admin);
     const diff = await diffListings(admin);
     await saveListingSnapshot(admin, {
       ...diff,
       matched: 0,
       prunedAliases: [],
-      inheritedJuniors: 0,
+      inheritedJuniors: inherited,
       moreWork: false,
     });
     console.log(
-      `[listings:update] snapshot only listA=${diff.listA.length} listB=${diff.listB.length} paired=${diff.pairedJuniors.length}`
+      `[listings:update] snapshot only inherited=${inherited} listA=${diff.listA.length} listB=${diff.listB.length} paired=${diff.pairedJuniors.length}`
     );
+    console.log(diff.listA.map((r) => r.ticker).join(", "));
     return;
   }
   let round = 0;

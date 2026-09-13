@@ -13,6 +13,13 @@ import { lookupCikFromRecent12b } from "./edgar-12b-index";
 
 const PAGE = 1000;
 
+/** Banks the operator does not want on listing A. */
+export const LIST_A_SKIP = new Set(["FRBA", "RCBC", "SSBI"]);
+
+export function visibleListA(rows: ListingAdminRow[]): ListingAdminRow[] {
+  return rows.filter((row) => !LIST_A_SKIP.has(row.ticker));
+}
+
 export type ListingAdminRow = {
   ticker: string;
   name: string;
@@ -51,7 +58,7 @@ function asSnapshot(raw: unknown): ListingSnapshotPayload | null {
   return {
     traderCount: payload.traderCount ?? 0,
     matched: payload.matched ?? 0,
-    listA: payload.listA,
+    listA: visibleListA(payload.listA),
     listB: payload.listB,
     listBPick: Array.isArray(payload.listBPick) ? payload.listBPick : payload.listB,
     aliases: Array.isArray(payload.aliases) ? payload.aliases : [],
@@ -142,6 +149,11 @@ async function upsertInheritedJunior(
     { onConflict: "ticker" }
   );
   return !error;
+}
+
+export async function inheritPendingJuniors(admin: SupabaseClient): Promise<number> {
+  const [trader, db] = await Promise.all([fetchNasdaqTraderListings(), loadDbCompanies(admin)]);
+  return inheritWarrantPreferredCiks(admin, trader, db, new Date().toISOString());
 }
 
 export async function inheritWarrantPreferredCiks(
@@ -307,6 +319,7 @@ function computeListingDiff(
       });
       continue;
     }
+    if (LIST_A_SKIP.has(row.ticker)) continue;
     listA.push({ ticker: row.ticker, name: row.name, cik: "", exchange: row.exchange });
   }
   listA.sort((a, b) => a.ticker.localeCompare(b.ticker));
