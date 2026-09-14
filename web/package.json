@@ -28,7 +28,8 @@
     "backfill:issuer-type": "tsx scripts/backfill-issuer-type.ts",
     "backfill:registered-capacity": "tsx scripts/backfill-registered-capacity.ts",
     "backfill:washout-index": "tsx scripts/backfill-washout-index.ts --days=90 --concurrency=8",
-    "poll:washout": "tsx scripts/poll-washout-live.ts"
+    "poll:washout": "tsx scripts/poll-washout-live.ts",
+    "capture:washout": "tsx scripts/capture-washout-once.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

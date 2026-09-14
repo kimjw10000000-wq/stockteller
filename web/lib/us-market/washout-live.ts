@@ -5,7 +5,7 @@ import {
   type WashoutBar,
   type WashoutPoint,
 } from "./washout-score";
-import { polygonAdvancedKeyOrNull, polygonGetWithKey } from "./polygon-keys";
+import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } from "./polygon-keys";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
   etWallMs,
@@ -474,7 +474,7 @@ function stitchCarry(
 async function computeLive(now = new Date()): Promise<LiveBundle> {
   const tapeYmd = runnerTapeDate(now);
   const empty: LiveBundle = { index: 0, series: [], tapeYmd, items: [] };
-  const key = polygonAdvancedKeyOrNull();
+  const key = polygonAdvancedKeyOrNull() || polygonStarterKeyOrNull();
   if (!key) return empty;
   const nowYmd = usEtYmd(now);
   const prev = previousEtWeekday(tapeYmd);

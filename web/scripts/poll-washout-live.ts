@@ -9,7 +9,7 @@ import { config } from "dotenv";
 import { captureWashoutLive } from "../lib/us-market/washout-live";
 import { compactOldWashoutSamples } from "../lib/us-market/washout-samples";
 import { isUsWeekday, sessionAtInstant } from "../lib/us-market/us-session";
-import { polygonAdvancedKeyOrNull } from "../lib/us-market/polygon-keys";
+import { polygonAdvancedKeyOrNull, polygonStarterKeyOrNull } from "../lib/us-market/polygon-keys";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -20,12 +20,12 @@ function sleep(ms: number): Promise<void> {
 
 function pollMs(now = new Date()): number {
   if (!isUsWeekday(now) || sessionAtInstant(now) == null) return 60_000;
-  return 15_000;
+  return 3_000;
 }
 
 async function loop(): Promise<void> {
-  if (!polygonAdvancedKeyOrNull()) {
-    throw new Error("POLYGON_API_KEY_ADVANCED is missing in .env.local");
+  if (!polygonAdvancedKeyOrNull() && !polygonStarterKeyOrNull()) {
+    throw new Error("POLYGON_API_KEY_ADVANCED or POLYGON_API_KEY is missing in .env.local");
   }
   let hour = -1;
   for (;;) {

@@ -17,7 +17,7 @@ type Payload = {
 };
 
 const POLL_MS: Record<RangeKey, number> = {
-  "1d": 5_000,
+  "1d": 3_000,
   "1w": 20_000,
   "1m": 30_000,
   "3m": 60_000,
@@ -336,7 +336,8 @@ export function SimilarMoversContent() {
   const hoverPoint =
     hoverIndex != null && hoverIndex < series.length ? series[hoverIndex] : null;
   const shown = hoverPoint?.v ?? data?.index;
-  const shownTime = hoverPoint ? hoverLabel(hoverPoint.t, range, locale) : null;
+  const lastT = hoverPoint?.t ?? series.at(-1)?.t;
+  const shownTime = lastT != null ? hoverLabel(lastT, range, locale) : null;
 
   return (
     <main className="space-y-6">

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getWashoutBoard, type WashoutRange } from "@/lib/us-market/washout-live";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -18,7 +20,11 @@ export async function GET(req: Request) {
   try {
     const result = await getWashoutBoard({ force, range });
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "no-store" },
+      headers: {
+        "Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
+        "CDN-Cache-Control": "no-store",
+        "Vercel-CDN-Cache-Control": "no-store",
+      },
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "server error";

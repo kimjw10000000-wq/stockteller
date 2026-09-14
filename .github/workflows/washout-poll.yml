@@ -1,0 +1,47 @@
+# Live dump-index capture → Supabase. whyup.net only reads the stored samples.
+#
+# Secrets:
+#   NEXT_PUBLIC_SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   POLYGON_API_KEY_ADVANCED (preferred) or POLYGON_API_KEY
+#
+# GitHub schedule can lag a few minutes; this is the always-on writer so the
+# chart does not depend on a local `npm run poll:washout` window staying open.
+
+name: washout-poll
+
+on:
+  schedule:
+    - cron: "*/2 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: washout-poll
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Capture dump index
+        working-directory: web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POLYGON_API_KEY_ADVANCED: ${{ secrets.POLYGON_API_KEY_ADVANCED }}
+          POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+          POLYGON_API_KEY_STARTER: ${{ secrets.POLYGON_API_KEY_STARTER }}
+        run: npm run capture:washout
