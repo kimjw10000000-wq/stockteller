@@ -51,8 +51,8 @@ type SnapshotRow = {
   lastQuote?: { p?: number };
 };
 
-const CACHE_MS = 5_000;
-const HIST_CACHE_MS = 30_000;
+const CACHE_MS = 0;
+const HIST_CACHE_MS = 8_000;
 const LISTED_MS = 10 * 60_000;
 const MAX_TICKERS = 80;
 /** Advanced 키는 실시간 전용. 백필은 Starter. 스냅샷+분봉이 같은 키를 나누므로 종목 병렬은 6. */
@@ -447,6 +447,30 @@ async function loadSessionHotTickers(dates: string[]): Promise<string[]> {
   }
 }
 
+function stitchCarry(
+  points: Array<{ t: number; v: number; tape_date?: string }>,
+  axisStart: number,
+  tapeYmd: string
+): Array<{ t: number; v: number; tape_date?: string }> {
+  const prev = points.filter((p) => p.t < axisStart).sort((a, b) => a.t - b.t).at(-1);
+  const tapePts = points.filter((p) => p.t >= axisStart).sort((a, b) => a.t - b.t);
+  if (!prev || !Number.isFinite(prev.v) || prev.v <= 0) return tapePts;
+  const out: Array<{ t: number; v: number; tape_date?: string }> = [];
+  let replaced = false;
+  for (const point of tapePts) {
+    if (!replaced && point.v === 0) {
+      out.push({ ...point, v: prev.v, tape_date: tapeYmd });
+      continue;
+    }
+    replaced = true;
+    out.push(point);
+  }
+  if (out.length === 0 || out[0].t > axisStart + 60_000) {
+    out.unshift({ t: axisStart, v: prev.v, tape_date: tapeYmd });
+  }
+  return out;
+}
+
 async function computeLive(now = new Date()): Promise<LiveBundle> {
   const tapeYmd = runnerTapeDate(now);
   const empty: LiveBundle = { index: 0, series: [], tapeYmd, items: [] };
@@ -582,7 +606,14 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
   }
 
   const path = washoutIndexPath(seriesList);
-  const series = path.map((point) => ({ t: point.t, v: point.score }));
+  const rawSeries = path.map((point) => ({ t: point.t, v: point.score }));
+  const axisStart = etWallMs(previousEtWeekday(tapeYmd), 16, 0);
+  const hist = await loadSamplesSince(axisStart - 8 * 60 * 60 * 1000);
+  const series = stitchCarry(
+    [...hist.map((row) => ({ t: row.t, v: row.v, tape_date: row.tape_date })), ...rawSeries],
+    axisStart,
+    tapeYmd
+  );
   await persistSamples(series, tapeYmd);
   return {
     index: washoutIndexAverage(items.map((row) => row.score)),
@@ -653,14 +684,16 @@ async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<Was
   const days = tapeDatesBack(live.tapeYmd, rangeDays(range));
   const axisStart = etWallMs(previousEtWeekday(days[0]), 16, 0);
   const axisEnd = etWallMs(days[days.length - 1], 16, 0);
-  const hist = await loadSamplesSince(axisStart);
+  const lookback = range === "1d" ? axisStart - 8 * 60 * 60 * 1000 : axisStart;
+  const hist = await loadSamplesSince(lookback);
   const byT = new Map<number, { t: number; v: number; tape_date?: string }>();
   for (const row of hist) byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date });
   for (const point of live.series) {
     byT.set(Math.floor(point.t / 60_000) * 60_000, { t: point.t, v: point.v });
   }
   const merged = [...byT.values()].sort((a, b) => a.t - b.t);
-  const points = range === "1d" ? merged : downsample(merged, range, days);
+  const points =
+    range === "1d" ? stitchCarry(merged, axisStart, live.tapeYmd) : downsample(merged, range, days);
   const series = withX(points, days, range);
   const index = series.length ? series[series.length - 1].v : live.index;
   return {

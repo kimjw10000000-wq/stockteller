@@ -254,7 +254,7 @@ export function SimilarMoversContent() {
     let cancelled = false;
     const loadDay = async () => {
       try {
-        const params = new URLSearchParams({ range: "1d" });
+        const params = new URLSearchParams({ range: "1d", _: String(Date.now()) });
         if (bootRef.current) {
           params.set("force", "1");
           bootRef.current = false;

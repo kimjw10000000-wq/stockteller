@@ -40,13 +40,13 @@ async function loop(): Promise<void> {
       } else {
         console.log(now.toISOString(), "idle");
       }
-      if (now.getUTCHours() !== hour) {
-        hour = now.getUTCHours();
+      if (hour >= 0 && now.getUTCHours() !== hour) {
         const compact = await compactOldWashoutSamples(now.getTime());
         if (compact.compacted || compact.pruned) {
           console.log(now.toISOString(), "compact", compact);
         }
       }
+      hour = now.getUTCHours();
     } catch (e) {
       console.error(now.toISOString(), e instanceof Error ? e.message : e);
     }

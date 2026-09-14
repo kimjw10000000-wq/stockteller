@@ -31,7 +31,7 @@ export function memorySamplesSince(fromMs: number): WashoutSample[] {
 
 let lastPersistedT = 0;
 let samplesQueryCache: { fromMs: number; at: number; rows: WashoutSample[] } | null = null;
-const SAMPLES_CACHE_MS = 30_000;
+const SAMPLES_CACHE_MS = 2_000;
 
 export function toTenMinuteSamples(
   points: Array<{ t: number; v: number }>
@@ -54,7 +54,7 @@ export async function persistSamples(
   if (points.length === 0) return;
   const incremental = opts?.incremental !== false;
   const fresh = incremental && lastPersistedT > 0
-    ? points.filter((p) => minuteKey(p.t) > lastPersistedT)
+    ? points.filter((p) => minuteKey(p.t) >= lastPersistedT)
     : points;
   if (fresh.length === 0) return;
   try {
