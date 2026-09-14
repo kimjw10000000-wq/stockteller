@@ -131,19 +131,90 @@ export async function loadTrackedTickers(): Promise<string[]> {
 }
 
 export async function persistTrackedTickers(tickers: string[]): Promise<void> {
+  await persistTrackedBoard(tickers.map((ticker) => ({ ticker })));
+}
+
+export async function persistTrackedBoard(
+  rows: Array<{
+    ticker: string;
+    score?: number;
+    ddPct?: number;
+    sessionElapsedMin?: number;
+    sessionQuotaMin?: number;
+  }>
+): Promise<void> {
   try {
     const admin = createAdminClient();
-    const uniq = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))];
+    const uniq = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const ticker = row.ticker.trim().toUpperCase();
+      if (ticker) uniq.set(ticker, { ...row, ticker });
+    }
     const { error: delErr } = await admin.from("washout_tracked_tickers").delete().neq("ticker", "");
     if (delErr) throw delErr;
-    if (uniq.length === 0) return;
-    const { error } = await admin.from("washout_tracked_tickers").upsert(
-      uniq.map((ticker) => ({ ticker })),
-      { onConflict: "ticker" }
-    );
-    if (error) throw error;
+    if (uniq.size === 0) return;
+    const payload = [...uniq.values()].map((row) => ({
+      ticker: row.ticker,
+      score: row.score ?? null,
+      dd_pct: row.ddPct ?? null,
+      session_elapsed_min: row.sessionElapsedMin ?? null,
+      session_quota_min: row.sessionQuotaMin ?? null,
+    }));
+    const { error } = await admin.from("washout_tracked_tickers").upsert(payload, {
+      onConflict: "ticker",
+    });
+    if (error) {
+      const { error: plainErr } = await admin.from("washout_tracked_tickers").upsert(
+        payload.map((row) => ({ ticker: row.ticker })),
+        { onConflict: "ticker" }
+      );
+      if (plainErr) throw plainErr;
+    }
   } catch {
     /* 테이블이 아직 없으면 메모리만 유지 */
+  }
+}
+
+export async function loadTrackedBoard(): Promise<
+  Array<{
+    ticker: string;
+    score: number;
+    ddPct: number;
+    sessionElapsedMin: number;
+    sessionQuotaMin: number;
+  }>
+> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("washout_tracked_tickers")
+      .select("ticker,score,dd_pct,session_elapsed_min,session_quota_min");
+    if (error || !data) {
+      const tickers = await loadTrackedTickers();
+      return tickers.map((ticker) => ({
+        ticker,
+        score: 0,
+        ddPct: 0,
+        sessionElapsedMin: 0,
+        sessionQuotaMin: 0,
+      }));
+    }
+    return data
+      .map((row) => {
+        const ticker = String(row.ticker ?? "").trim().toUpperCase();
+        if (!ticker) return null;
+        return {
+          ticker,
+          score: Number(row.score) || 0,
+          ddPct: Number(row.dd_pct) || 0,
+          sessionElapsedMin: Number(row.session_elapsed_min) || 0,
+          sessionQuotaMin: Number(row.session_quota_min) || 0,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null)
+      .sort((a, b) => b.score - a.score);
+  } catch {
+    return [];
   }
 }
 

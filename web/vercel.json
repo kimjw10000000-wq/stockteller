@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron/washout-index",
-      "schedule": "* * * * *"
+      "schedule": "20 * * * *"
     }
   ],
   "redirects": [

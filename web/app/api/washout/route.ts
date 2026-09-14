@@ -10,6 +10,7 @@ function parseRange(raw: string | null): WashoutRange {
   return "1d";
 }
 
+/** Vercel은 Polygon을 호출하지 않고 Supabase 샘플만 읽는다. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
@@ -21,18 +22,6 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "server error";
-    try {
-      const fallback = await getWashoutBoard({ force: false, range: range === "1d" ? "3m" : range });
-      if (fallback.series.length > 0) {
-        return NextResponse.json(
-          { ...fallback, range, error: undefined },
-          { headers: { "Cache-Control": "no-store" } }
-        );
-      }
-    } catch {
-      /* 아래 에러 응답 */
-    }
-    const missing = message.includes("POLYGON_API_KEY_ADVANCED");
     return NextResponse.json(
       {
         index: 0,
@@ -44,9 +33,9 @@ export async function GET(req: Request) {
         sessionDate: "",
         fetchedAt: new Date().toISOString(),
         servedFromCache: false,
-        error: missing ? "advanced_key_missing" : message,
+        error: message,
       },
-      { status: missing ? 503 : 502, headers: { "Cache-Control": "no-store" } }
+      { status: 502, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

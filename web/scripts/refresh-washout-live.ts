@@ -1,5 +1,5 @@
 /**
- * Seed live dump-index tracking from the backfill cursor, then refresh with Advanced.
+ * One-shot: seed tickers from the backfill cursor, then capture live into Supabase.
  *
  *   npx tsx scripts/refresh-washout-live.ts
  */
@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { config } from "dotenv";
 import { persistTrackedTickers } from "../lib/us-market/washout-samples";
-import { getWashoutBoard } from "../lib/us-market/washout-live";
+import { captureWashoutLive } from "../lib/us-market/washout-live";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -20,13 +20,13 @@ async function main() {
   const tickers = (raw.tickers ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean);
   await persistTrackedTickers(tickers);
   console.log(JSON.stringify({ seeded: tickers.length, lastTape: raw.lastTape ?? null }));
-  const board = await getWashoutBoard({ force: true, range: "1d" });
+  const live = await captureWashoutLive();
   console.log(
     JSON.stringify({
-      tapeYmd: board.sessionDate,
-      index: Number(board.index.toFixed(2)),
-      names: board.items.length,
-      points: board.series.length,
+      tapeYmd: live.tapeYmd,
+      index: Number(live.index.toFixed(2)),
+      names: live.items.length,
+      points: live.series.length,
     })
   );
 }

@@ -22,9 +22,10 @@ import {
 } from "./us-session";
 import {
   loadSamplesSince,
+  loadTrackedBoard,
   loadTrackedTickers,
   persistSamples,
-  persistTrackedTickers,
+  persistTrackedBoard,
 } from "./washout-samples";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchSecExchangeTickers, normalizeExchange } from "@/lib/companies/sec-exchange-tickers";
@@ -566,7 +567,18 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
     for (const ticker of failed) {
       if (wasTracked.has(ticker)) tracked.add(ticker);
     }
-    await persistTrackedTickers([...tracked]);
+    await persistTrackedBoard(
+      [...tracked].map((ticker) => {
+        const hit = items.find((row) => row.ticker === ticker);
+        return {
+          ticker,
+          score: hit?.score ?? 0,
+          ddPct: hit?.ddPct ?? 0,
+          sessionElapsedMin: hit?.sessionElapsedMin ?? 0,
+          sessionQuotaMin: hit?.sessionQuotaMin ?? 0,
+        };
+      })
+    );
   }
 
   const path = washoutIndexPath(seriesList);
@@ -602,6 +614,10 @@ async function getLive(force: boolean): Promise<LiveBundle> {
   return inflight;
 }
 
+export async function captureWashoutLive(): Promise<LiveBundle> {
+  return getLive(true);
+}
+
 export async function getWashoutBoard(opts?: {
   force?: boolean;
   range?: WashoutRange;
@@ -614,62 +630,22 @@ export async function getWashoutBoard(opts?: {
     return { ...cached.payload, servedFromCache: true };
   }
 
-  if (range !== "1d") {
-    try {
-      const live =
-        liveCache?.live ??
-        ({
-          index: 0,
-          series: [],
-          tapeYmd: runnerTapeDate(new Date()),
-          items: [],
-        } satisfies LiveBundle);
-      if (liveCache?.live) void getLive(false);
-      const payload = await assembleRange(live, range);
-      if (!liveCache?.live && payload.series.length > 0) {
-        payload.index = payload.series[payload.series.length - 1].v;
-      }
-      rangeCache.set(range, { at: Date.now(), payload });
-      return payload;
-    } catch {
-      const payload = await assembleRange(
-        {
-          index: 0,
-          series: [],
-          tapeYmd: runnerTapeDate(new Date()),
-          items: [],
-        },
-        range
-      );
-      if (payload.series.length > 0) {
-        payload.index = payload.series[payload.series.length - 1].v;
-      }
-      rangeCache.set(range, { at: Date.now(), payload });
-      return payload;
-    }
-  }
-
-  const stub: LiveBundle = liveCache?.live ?? {
+  const trackedRows = await loadTrackedBoard();
+  const live: LiveBundle = {
     index: 0,
     series: [],
     tapeYmd: runnerTapeDate(new Date()),
-    items: [],
+    items: trackedRows.map((row) => ({
+      ticker: row.ticker,
+      score: row.score,
+      ddPct: row.ddPct,
+      tracking: true,
+      sessionElapsedMin: row.sessionElapsedMin,
+      sessionQuotaMin: row.sessionQuotaMin,
+    })),
   };
-  const payload = await assembleRange(stub, range);
-  if (payload.series.length > 0 && stub.items.length === 0) {
-    payload.index = payload.series[payload.series.length - 1].v;
-  }
+  const payload = await assembleRange(live, range);
   rangeCache.set(range, { at: Date.now(), payload });
-  try {
-    void getLive(!!opts?.force)
-      .then(async (live) => {
-        const next = await assembleRange(live, "1d");
-        rangeCache.set("1d", { at: Date.now(), payload: next });
-      })
-      .catch(() => undefined);
-  } catch {
-    /* Advanced 키가 없어도 DB 차트는 반환 */
-  }
   return payload;
 }
 
@@ -686,12 +662,7 @@ async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<Was
   const merged = [...byT.values()].sort((a, b) => a.t - b.t);
   const points = range === "1d" ? merged : downsample(merged, range, days);
   const series = withX(points, days, range);
-  const index =
-    live.items.length > 0
-      ? live.index
-      : series.length
-        ? series[series.length - 1].v
-        : live.index;
+  const index = series.length ? series[series.length - 1].v : live.index;
   return {
     index,
     series,

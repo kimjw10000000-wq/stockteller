@@ -8,7 +8,7 @@
 import { resolve } from "node:path";
 import { config } from "dotenv";
 import { backfillWashoutIndex } from "../lib/us-market/washout-backfill";
-import { getWashoutBoard } from "../lib/us-market/washout-live";
+import { captureWashoutLive } from "../lib/us-market/washout-live";
 import { isPolygonHaltError } from "../lib/us-market/polygon-keys";
 
 config({ path: resolve(process.cwd(), ".env.local") });
@@ -51,14 +51,14 @@ async function main() {
   });
   console.log(JSON.stringify(result));
   if (untilLive) {
-    const board = await getWashoutBoard({ force: true, range: "1d" });
+    const live = await captureWashoutLive();
     console.log(
       JSON.stringify({
         liveHandoff: true,
-        tapeYmd: board.sessionDate,
-        index: Number(board.index.toFixed(2)),
-        names: board.items.length,
-        points: board.series.length,
+        tapeYmd: live.tapeYmd,
+        index: Number(live.index.toFixed(2)),
+        names: live.items.length,
+        points: live.series.length,
       })
     );
   }
