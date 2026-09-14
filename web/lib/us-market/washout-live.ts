@@ -22,9 +22,11 @@ import {
 } from "./us-session";
 import {
   loadSamplesSince,
+  loadTapeHighs,
   loadTrackedBoard,
   loadTrackedTickers,
   persistSamples,
+  persistTapeHighs,
   persistTrackedBoard,
 } from "./washout-samples";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -54,7 +56,8 @@ type SnapshotRow = {
 const CACHE_MS = 0;
 const HIST_CACHE_MS = 8_000;
 const LISTED_MS = 10 * 60_000;
-const MAX_TICKERS = 80;
+const MAX_TICKERS = 120;
+const PROBE_MIN_PCT = 10;
 /** Advanced 키는 실시간 전용. 백필은 Starter. 스냅샷+분봉이 같은 키를 나누므로 종목 병렬은 6. */
 const CONCURRENCY = 6;
 const tracked = new Set<string>();
@@ -247,7 +250,6 @@ function isCandidate(row: {
   changePerc: number | null;
 }): boolean {
   if (tracked.has(row.ticker)) return true;
-  if (row.changePerc != null && row.changePerc >= WASHOUT_TRACK_PCT) return true;
   return gatePct(row.high, row.prevClose) >= WASHOUT_TRACK_PCT;
 }
 
@@ -485,6 +487,11 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
   for (const ticker of await loadSessionHotTickers([nowYmd, prev, usSessionDateKey(now)])) {
     tracked.add(ticker);
   }
+  const savedHighs = await loadTapeHighs(tapeYmd);
+  if (!tapeHighCache || tapeHighCache.tapeYmd !== tapeYmd) {
+    tapeHighCache = { tapeYmd, high: new Map() };
+  }
+  for (const [ticker, high] of savedHighs) rememberTapeHigh(tapeYmd, ticker, high);
   const wasTracked = new Set(tracked);
   const rows = await loadSnapshotRows(key);
   const listed = await loadListedTickers();
@@ -522,13 +529,44 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
     .filter((x): x is NonNullable<typeof x> => x != null);
   const mappedBy = new Map<string, (typeof mappedRaw)[number]>();
   for (const row of mappedRaw) {
-    const prev = mappedBy.get(row.ticker);
-    if (!prev || rank(row) > rank(prev)) mappedBy.set(row.ticker, row);
+    const prevRow = mappedBy.get(row.ticker);
+    if (!prevRow || rank(row) > rank(prevRow)) mappedBy.set(row.ticker, row);
+  }
+  for (const ticker of tracked) {
+    if (mappedBy.has(ticker)) continue;
+    const raw = rows.find((row) => canonicalWashoutTicker(listingKey(row.ticker ?? ""), aliases) === ticker);
+    const prevClose = raw ? refClose(raw, tapeYmd, nowYmd) : null;
+    const high = tapeHighCache?.high.get(ticker) ?? 0;
+    if (prevClose == null || prevClose <= 0) continue;
+    mappedBy.set(ticker, {
+      ticker,
+      quoteTicker: listingKey(raw?.ticker ?? ticker),
+      prevClose,
+      high,
+      changePerc: raw?.todaysChangePerc ?? null,
+    });
   }
   const mapped = [...mappedBy.values()];
-  const candidates = mapped.filter(isCandidate);
-  candidates.sort((a, b) => rank(b) - rank(a));
-  const picked = candidates.slice(0, MAX_TICKERS);
+  const held = mapped.filter((row) => tracked.has(row.ticker));
+  const fresh = mapped.filter((row) => !tracked.has(row.ticker) && isCandidate(row));
+  fresh.sort((a, b) => rank(b) - rank(a));
+  const probes = mapped
+    .filter(
+      (row) =>
+        !tracked.has(row.ticker) &&
+        !isCandidate(row) &&
+        rank(row) >= PROBE_MIN_PCT
+    )
+    .sort((a, b) => rank(b) - rank(a))
+    .slice(0, 40);
+  const picked: typeof mapped = [];
+  const seenPick = new Set<string>();
+  for (const row of [...held, ...fresh, ...probes]) {
+    if (seenPick.has(row.ticker)) continue;
+    seenPick.add(row.ticker);
+    picked.push(row);
+    if (picked.length >= MAX_TICKERS) break;
+  }
 
   const snapBy = new Map<string, SnapshotRow>();
   for (const row of rows) {
@@ -550,14 +588,17 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
         ),
       ]);
       let bars = clipSessionBars(rawBars).filter((bar) => bar.t >= startMs);
-      for (const bar of bars) bar.prevClose = row.prevClose;
+      for (const bar of bars) {
+        bar.prevClose = row.prevClose;
+        rememberTapeHigh(tapeYmd, ticker, bar.high ?? bar.price);
+      }
       const snap = snapBy.get(quoteTicker) ?? snapBy.get(ticker);
       const fromSnap = snap ? livePrint(snap) : null;
       const live = lastTrade
         ? {
             t: lastTrade.t,
             price: lastTrade.p,
-            high: Math.max(lastTrade.p, snap?.min?.h ?? lastTrade.p),
+            high: Math.max(lastTrade.p, snap?.min?.h ?? lastTrade.p, snap?.day?.h ?? lastTrade.p),
           }
         : fromSnap;
       bars = mergeLiveBar(bars, live, row.prevClose, startMs);
@@ -579,6 +620,7 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
     }
   });
 
+  const pickedTickers = new Set(picked.map((row) => row.ticker));
   const items: WashoutBoardRow[] = [];
   for (const row of scored) {
     if (row) items.push(row);
@@ -586,11 +628,16 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
   items.sort((a, b) => b.score - a.score);
   const allFailed = picked.length > 0 && failed.size === picked.length && items.length === 0;
   if (!allFailed) {
-    tracked.clear();
-    for (const row of items) tracked.add(row.ticker);
+    const still = new Set<string>();
+    for (const row of items) still.add(row.ticker);
     for (const ticker of failed) {
-      if (wasTracked.has(ticker)) tracked.add(ticker);
+      if (wasTracked.has(ticker)) still.add(ticker);
     }
+    for (const ticker of wasTracked) {
+      if (!pickedTickers.has(ticker)) still.add(ticker);
+    }
+    tracked.clear();
+    for (const ticker of still) tracked.add(ticker);
     await persistTrackedBoard(
       [...tracked].map((ticker) => {
         const hit = items.find((row) => row.ticker === ticker);
@@ -603,6 +650,9 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
         };
       })
     );
+  }
+  if (tapeHighCache?.tapeYmd === tapeYmd) {
+    await persistTapeHighs(tapeYmd, tapeHighCache.high);
   }
 
   const path = washoutIndexPath(seriesList);

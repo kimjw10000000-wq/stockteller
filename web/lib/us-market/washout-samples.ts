@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runnerTapeDate, tapeDayElapsedMin } from "./us-session";
 
@@ -8,6 +10,26 @@ export type WashoutSample = {
 };
 
 const mem = new Map<number, WashoutSample>();
+const TAPE_HIGH_FILE = resolve(process.cwd(), ".washout-tape-highs.json");
+const TRACKED_FILE = resolve(process.cwd(), ".washout-tracked.json");
+
+function readJsonFile<T>(path: string): T | null {
+  try {
+    if (!existsSync(path)) return null;
+    return JSON.parse(readFileSync(path, "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+function writeJsonFile(path: string, value: unknown): void {
+  if (process.env.VERCEL) return;
+  try {
+    writeFileSync(path, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+}
 
 function minuteKey(t: number): number {
   return Math.floor(t / 60_000) * 60_000;
@@ -132,17 +154,84 @@ export async function loadTrackedTickers(): Promise<string[]> {
   try {
     const admin = createAdminClient();
     const { data, error } = await admin.from("washout_tracked_tickers").select("ticker");
-    if (error || !data) return [];
-    return data
-      .map((row) => String(row.ticker ?? "").trim().toUpperCase())
-      .filter(Boolean);
+    if (error || !data) {
+      /* file fallback */
+    } else {
+      const fromDb = data
+        .map((row) => String(row.ticker ?? "").trim().toUpperCase())
+        .filter(Boolean);
+      if (fromDb.length) return fromDb;
+    }
   } catch {
-    return [];
+    /* file fallback */
   }
+  const saved = readJsonFile<{ tickers?: string[] }>(TRACKED_FILE);
+  return (saved?.tickers ?? []).map((ticker) => ticker.trim().toUpperCase()).filter(Boolean);
 }
 
 export async function persistTrackedTickers(tickers: string[]): Promise<void> {
   await persistTrackedBoard(tickers.map((ticker) => ({ ticker })));
+}
+
+export async function loadTapeHighs(tapeDate: string): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("washout_tape_highs")
+      .select("ticker,high")
+      .eq("tape_date", tapeDate);
+    if (error || !data) {
+      /* file fallback */
+    } else {
+      for (const row of data) {
+        const ticker = String(row.ticker ?? "").trim().toUpperCase();
+        const high = Number(row.high);
+        if (ticker && Number.isFinite(high) && high > 0) out.set(ticker, high);
+      }
+    }
+  } catch {
+    /* 테이블이 없으면 파일 */
+  }
+  if (out.size === 0) {
+    const saved = readJsonFile<{ tapeDate?: string; highs?: Record<string, number> }>(TAPE_HIGH_FILE);
+    if (saved?.tapeDate === tapeDate && saved.highs) {
+      for (const [ticker, high] of Object.entries(saved.highs)) {
+        if (Number.isFinite(high) && high > 0) out.set(ticker.toUpperCase(), high);
+      }
+    }
+  }
+  return out;
+}
+
+export async function persistTapeHighs(tapeDate: string, highs: Map<string, number>): Promise<void> {
+  const rows = [...highs.entries()]
+    .filter(([, high]) => Number.isFinite(high) && high > 0)
+    .map(([ticker, high]) => ({
+      tape_date: tapeDate,
+      ticker,
+      high,
+    }));
+  if (rows.length === 0) return;
+  writeJsonFile(TAPE_HIGH_FILE, {
+    tapeDate,
+    highs: Object.fromEntries(rows.map((row) => [row.ticker, row.high])),
+  });
+  try {
+    const admin = createAdminClient();
+    const chunk = 400;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const { error } = await admin.from("washout_tape_highs").upsert(rows.slice(i, i + chunk), {
+        onConflict: "tape_date,ticker",
+      });
+      if (error) throw error;
+    }
+  } catch (e) {
+    console.error(
+      "[washout] persistTapeHighs failed",
+      e && typeof e === "object" ? JSON.stringify(e) : e
+    );
+  }
 }
 
 export async function persistTrackedBoard(
@@ -154,13 +243,14 @@ export async function persistTrackedBoard(
     sessionQuotaMin?: number;
   }>
 ): Promise<void> {
+  const uniq = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    const ticker = row.ticker.trim().toUpperCase();
+    if (ticker) uniq.set(ticker, { ...row, ticker });
+  }
+  writeJsonFile(TRACKED_FILE, { tickers: [...uniq.keys()] });
   try {
     const admin = createAdminClient();
-    const uniq = new Map<string, (typeof rows)[number]>();
-    for (const row of rows) {
-      const ticker = row.ticker.trim().toUpperCase();
-      if (ticker) uniq.set(ticker, { ...row, ticker });
-    }
     if (uniq.size === 0) {
       await admin.from("washout_tracked_tickers").delete().neq("ticker", "");
       return;
