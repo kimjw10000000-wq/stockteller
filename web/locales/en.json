@@ -15,8 +15,8 @@
     "indicatorsDesc": "CPI, PPI, and earnings releases",
     "halts": "TradeHalt",
     "haltsDesc": "U.S. stock trading halts and resumes",
-    "similar": "Rip Fade Index",
-    "similarDesc": "How hard today's runners are getting sold from the highs"
+    "similar": "Dump Index",
+    "similarDesc": "How hard today's runners are getting dumped from the highs"
   },
   "header": {
     "searchPlaceholder": "Ticker, name, or stock code",
@@ -209,10 +209,10 @@
   },
   "similar": {
     "kicker": "Index",
-    "title": "Rip Fade Index",
-    "lead": "This index measures how hard today's runners are getting sold off from their highs. 0 means those rips are holding. Higher readings mean the spikes are being faded harder and faster.",
+    "title": "Dump Index",
+    "lead": "This index measures how hard today's runners are getting dumped from their highs. 0 means those rips are holding. Higher readings mean the spikes are being sold off harder and faster.",
     "error": "Could not load scores. Please try again shortly.",
-    "indexLabel": "Rip Fade Index",
+    "indexLabel": "Dump Index",
     "tracked": "Tracking",
     "ticker": "Ticker",
     "score": "Score",
