@@ -15,8 +15,8 @@
     "indicatorsDesc": "CPI, PPI, and earnings releases",
     "halts": "TradeHalt",
     "haltsDesc": "U.S. stock trading halts and resumes",
-    "similar": "Surge Index",
-    "similarDesc": "Index of surging names"
+    "similar": "Washout Index",
+    "similarDesc": "Washout score for runners"
   },
   "header": {
     "searchPlaceholder": "Ticker, name, or stock code",
@@ -209,9 +209,19 @@
   },
   "similar": {
     "kicker": "Index",
-    "title": "Surge Index",
-    "pendingTitle": "Coming soon",
-    "pendingBody": "This page will show the surge index for the runner field."
+    "title": "Washout Index",
+    "lead": "This index shows how much washout is happening in runners. 0 means no washout. Higher readings mean larger washouts among names that are running now.",
+    "error": "Could not load scores. Please try again shortly.",
+    "indexLabel": "Washout Index",
+    "tracked": "Tracking",
+    "ticker": "Ticker",
+    "score": "Score",
+    "range": {
+      "1d": "1D",
+      "1w": "1W",
+      "1m": "1M",
+      "3m": "3M"
+    }
   },
   "halts": {
     "kicker": "Market · Halts",

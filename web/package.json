@@ -26,7 +26,8 @@
     "listings:snapshot": "tsx scripts/update-listings.ts --snap-only",
     "count:us-listed": "tsx scripts/count-us-listed.ts",
     "backfill:issuer-type": "tsx scripts/backfill-issuer-type.ts",
-    "backfill:registered-capacity": "tsx scripts/backfill-registered-capacity.ts"
+    "backfill:registered-capacity": "tsx scripts/backfill-registered-capacity.ts",
+    "backfill:washout-index": "tsx scripts/backfill-washout-index.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

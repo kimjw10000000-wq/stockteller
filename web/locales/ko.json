@@ -15,8 +15,8 @@
     "indicatorsDesc": "CPI·PPI 및 기업 실적 발표",
     "halts": "TradeHalt",
     "haltsDesc": "미국 주식 거래 정지·재개",
-    "similar": "급등주 지수",
-    "similarDesc": "급등주 필드 지수"
+    "similar": "설거지 지수",
+    "similarDesc": "급등주 설거지 점수"
   },
   "header": {
     "searchPlaceholder": "티커 · 종목명 · 종목코드",
@@ -209,9 +209,19 @@
   },
   "similar": {
     "kicker": "Index",
-    "title": "급등주 지수",
-    "pendingTitle": "준비 중인 기능입니다",
-    "pendingBody": "급등주 지수를 이 화면에 붙이는 작업을 준비하고 있습니다."
+    "title": "설거지 지수",
+    "lead": "이 지수는 급등주의 설거지 정도를 알려주는 지표입니다. 0은 설거지가 없음을 의미하고, 높을수록 현재 급등주들에서 큰 등락의 설거지가 많이 일어납니다.",
+    "error": "점수를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "indexLabel": "설거지 지수",
+    "tracked": "추적 중",
+    "ticker": "티커",
+    "score": "점수",
+    "range": {
+      "1d": "1일",
+      "1w": "1주일",
+      "1m": "1달",
+      "3m": "3달"
+    }
   },
   "halts": {
     "kicker": "Market · Halts",
