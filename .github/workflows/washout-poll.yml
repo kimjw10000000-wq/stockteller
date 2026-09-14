@@ -5,19 +5,18 @@
 #   SUPABASE_SERVICE_ROLE_KEY
 #   POLYGON_API_KEY_ADVANCED (preferred) or POLYGON_API_KEY
 #
-# GitHub schedule can lag a few minutes; this is the always-on writer so the
-# chart does not depend on a local `npm run poll:washout` window staying open.
+# GitHub schedule can lag, but this is requested as once a minute.
 
 name: washout-poll
 
 on:
   schedule:
-    - cron: "*/2 * * * *"
+    - cron: "* * * * *"
   workflow_dispatch: {}
 
 concurrency:
   group: washout-poll
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   capture:
