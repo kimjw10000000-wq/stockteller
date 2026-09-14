@@ -373,7 +373,7 @@ function xOnAxis(
   const n = days.length;
   if (n <= 0) return 0;
   const tape = (tapeHint ?? "").slice(0, 10) || runnerTapeDate(new Date(t));
-  let i = days.indexOf(tape);
+  const i = days.indexOf(tape);
   if (i < 0) {
     if (t < etWallMs(previousEtWeekday(days[0]), 16, 0)) return 0;
     if (t >= etWallMs(days[n - 1], 16, 0)) return 1;
