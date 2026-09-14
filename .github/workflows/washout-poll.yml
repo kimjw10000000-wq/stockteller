@@ -1,17 +1,16 @@
-# Live dump-index capture → Supabase. whyup.net only reads the stored samples.
+# Live dump-index capture → Supabase. After-hours ET only.
 #
-# Secrets:
-#   NEXT_PUBLIC_SUPABASE_URL
-#   SUPABASE_SERVICE_ROLE_KEY
-#   POLYGON_API_KEY_ADVANCED (preferred) or POLYGON_API_KEY
-#
-# GitHub schedule can lag, but this is requested as once a minute.
+# Secrets: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+# POLYGON_API_KEY_ADVANCED (or POLYGON_API_KEY). Optional: TOSSINVEST_* for the site calendar.
 
 name: washout-poll
 
 on:
   schedule:
-    - cron: "* * * * *"
+    # 20:00–23:59 UTC Mon–Fri covers EDT AH and most of EST AH
+    - cron: "* 20-23 * * 1-5"
+    # 00:00–00:59 UTC Tue–Sat = last hour of EST AH
+    - cron: "* 0 * * 2-6"
   workflow_dispatch: {}
 
 concurrency:
@@ -25,17 +24,46 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Skip unless US after-hours
+        id: gate
+        run: |
+          set -euo pipefail
+          export TZ=America/New_York
+          ymd=$(date +%F)
+          hour=$(date +%-H)
+          dow=$(date +%u)
+          echo "et=$ymd hour=$hour dow=$dow"
+          if [ "$dow" -ge 6 ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "weekend"
+            exit 0
+          fi
+          if [ "$hour" -lt 16 ] || [ "$hour" -ge 20 ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "not afterhours"
+            exit 0
+          fi
+          if grep -qE "\"$ymd\"" web/lib/us-market/nyse-holidays.ts; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "holiday $ymd"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v5
+        if: steps.gate.outputs.ok == 'true'
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Install
+        if: steps.gate.outputs.ok == 'true'
         working-directory: web
         run: npm ci
 
       - name: Capture dump index
+        if: steps.gate.outputs.ok == 'true'
         working-directory: web
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -43,4 +71,6 @@ jobs:
           POLYGON_API_KEY_ADVANCED: ${{ secrets.POLYGON_API_KEY_ADVANCED }}
           POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
           POLYGON_API_KEY_STARTER: ${{ secrets.POLYGON_API_KEY_STARTER }}
+          TOSSINVEST_CLIENT_ID: ${{ secrets.TOSSINVEST_CLIENT_ID }}
+          TOSSINVEST_CLIENT_SECRET: ${{ secrets.TOSSINVEST_CLIENT_SECRET }}
         run: npm run capture:washout

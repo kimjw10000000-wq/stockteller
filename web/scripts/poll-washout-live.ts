@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { config } from "dotenv";
 import { captureWashoutLive } from "../lib/us-market/washout-live";
 import { compactOldWashoutSamples } from "../lib/us-market/washout-samples";
-import { isUsWeekday, sessionAtInstant } from "../lib/us-market/us-session";
+import { washoutCaptureSkipReason } from "../lib/us-market/washout-schedule";
 import { polygonAdvancedKeyOrNull, polygonStarterKeyOrNull } from "../lib/us-market/polygon-keys";
 
 config({ path: resolve(process.cwd(), ".env.local") });
@@ -18,9 +18,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function pollMs(now = new Date()): number {
-  if (!isUsWeekday(now) || sessionAtInstant(now) == null) return 60_000;
-  return 3_000;
+function pollMs(reason: Awaited<ReturnType<typeof washoutCaptureSkipReason>>): number {
+  return reason === "ok" ? 3_000 : 60_000;
 }
 
 async function loop(): Promise<void> {
@@ -31,14 +30,15 @@ async function loop(): Promise<void> {
   for (;;) {
     const now = new Date();
     try {
-      if (isUsWeekday(now) && sessionAtInstant(now) != null) {
+      const skip = await washoutCaptureSkipReason(now);
+      if (skip === "ok") {
         const live = await captureWashoutLive();
         console.log(
           now.toISOString(),
           `tape=${live.tapeYmd} index=${live.index.toFixed(2)} names=${live.items.length} pts=${live.series.length}`
         );
       } else {
-        console.log(now.toISOString(), "idle");
+        console.log(now.toISOString(), "idle", skip);
       }
       if (hour >= 0 && now.getUTCHours() !== hour) {
         const compact = await compactOldWashoutSamples(now.getTime());
@@ -47,10 +47,12 @@ async function loop(): Promise<void> {
         }
       }
       hour = now.getUTCHours();
+      await sleep(pollMs(skip));
+      continue;
     } catch (e) {
       console.error(now.toISOString(), e instanceof Error ? e.message : e);
     }
-    await sleep(pollMs());
+    await sleep(60_000);
   }
 }
 
