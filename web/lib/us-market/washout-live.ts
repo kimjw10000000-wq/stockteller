@@ -473,7 +473,12 @@ function stitchCarry(
   return out;
 }
 
-async function computeLive(now = new Date()): Promise<LiveBundle> {
+export type CaptureWashoutOpts = {
+  persistAll?: boolean;
+  persistFromMs?: number;
+};
+
+async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise<LiveBundle> {
   const tapeYmd = runnerTapeDate(now);
   const empty: LiveBundle = { index: 0, series: [], tapeYmd, items: [] };
   const key = polygonAdvancedKeyOrNull() || polygonStarterKeyOrNull();
@@ -664,7 +669,15 @@ async function computeLive(now = new Date()): Promise<LiveBundle> {
     axisStart,
     tapeYmd
   );
-  await persistSamples(series, tapeYmd);
+  const persistFrom = opts?.persistFromMs;
+  const toStore =
+    opts?.persistAll
+      ? rawSeries.filter(
+          (point) =>
+            isInTapeDay(point.t, tapeYmd) && (persistFrom == null || point.t >= persistFrom)
+        )
+      : series;
+  await persistSamples(toStore, tapeYmd, { incremental: !opts?.persistAll });
   return {
     index: washoutIndexAverage(items.map((row) => row.score)),
     series: series.filter((point) => isInTapeDay(point.t, tapeYmd)),
@@ -680,11 +693,11 @@ function rangeTtl(range: WashoutRange): number {
   return range === "1d" ? CACHE_MS : HIST_CACHE_MS;
 }
 
-async function getLive(force: boolean): Promise<LiveBundle> {
+async function getLive(force: boolean, opts?: CaptureWashoutOpts): Promise<LiveBundle> {
   const now = Date.now();
   if (!force && liveCache && now - liveCache.at < CACHE_MS) return liveCache.live;
   if (inflight) return inflight;
-  inflight = computeLive()
+  inflight = computeLive(new Date(), opts)
     .then((live) => {
       liveCache = { at: Date.now(), live };
       return live;
@@ -695,8 +708,8 @@ async function getLive(force: boolean): Promise<LiveBundle> {
   return inflight;
 }
 
-export async function captureWashoutLive(): Promise<LiveBundle> {
-  return getLive(true);
+export async function captureWashoutLive(opts?: CaptureWashoutOpts): Promise<LiveBundle> {
+  return getLive(true, opts);
 }
 
 export async function getWashoutBoard(opts?: {

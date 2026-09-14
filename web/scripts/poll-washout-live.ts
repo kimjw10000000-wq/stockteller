@@ -30,7 +30,9 @@ async function loop(): Promise<void> {
   for (;;) {
     const now = new Date();
     try {
-      const skip = await washoutCaptureSkipReason(now);
+      const skip = process.argv.includes("--ignore-schedule")
+        ? ("ok" as const)
+        : await washoutCaptureSkipReason(now);
       if (skip === "ok") {
         const live = await captureWashoutLive();
         console.log(

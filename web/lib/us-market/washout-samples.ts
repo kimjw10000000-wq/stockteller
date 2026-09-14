@@ -67,6 +67,28 @@ export function toTenMinuteSamples(
   return [...by.values()].sort((a, b) => a.t - b.t);
 }
 
+export async function deleteSamplesFromTape(tapeDate: string, fromMs: number): Promise<number> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("washout_index_samples")
+      .delete()
+      .eq("tape_date", tapeDate)
+      .gte("t", new Date(fromMs).toISOString())
+      .select("t");
+    if (error) throw error;
+    samplesQueryCache = null;
+    lastPersistedT = 0;
+    for (const t of [...mem.keys()]) {
+      if (t >= fromMs) mem.delete(t);
+    }
+    return data?.length ?? 0;
+  } catch (e) {
+    console.error("[washout] deleteSamplesFromTape failed", e instanceof Error ? e.message : e);
+    return 0;
+  }
+}
+
 export async function persistSamples(
   points: Array<{ t: number; v: number }>,
   tapeDate: string,
