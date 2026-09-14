@@ -161,9 +161,10 @@ export async function persistTrackedBoard(
       const ticker = row.ticker.trim().toUpperCase();
       if (ticker) uniq.set(ticker, { ...row, ticker });
     }
-    const { error: delErr } = await admin.from("washout_tracked_tickers").delete().neq("ticker", "");
-    if (delErr) throw delErr;
-    if (uniq.size === 0) return;
+    if (uniq.size === 0) {
+      await admin.from("washout_tracked_tickers").delete().neq("ticker", "");
+      return;
+    }
     const payload = [...uniq.values()].map((row) => ({
       ticker: row.ticker,
       score: row.score ?? null,
@@ -181,8 +182,17 @@ export async function persistTrackedBoard(
       );
       if (plainErr) throw plainErr;
     }
-  } catch {
-    /* 테이블이 아직 없으면 메모리만 유지 */
+    const keep = [...uniq.keys()];
+    const { error: extraErr } = await admin
+      .from("washout_tracked_tickers")
+      .delete()
+      .not("ticker", "in", `(${keep.join(",")})`);
+    if (extraErr) throw extraErr;
+  } catch (e) {
+    console.error(
+      "[washout] persistTrackedBoard failed",
+      e && typeof e === "object" ? JSON.stringify(e) : e
+    );
   }
 }
 

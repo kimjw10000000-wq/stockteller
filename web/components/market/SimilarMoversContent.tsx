@@ -2,18 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/components/i18n/I18nProvider";
 
 type ChartPoint = { t: number; v: number; x: number };
 type RangeKey = "1d" | "1w" | "1m" | "3m";
 
-type TrackedRow = { ticker: string; score: number };
-
 type Payload = {
   index?: number;
   series?: ChartPoint[];
-  items?: TrackedRow[];
   range?: RangeKey;
   axisStart?: number;
   axisEnd?: number;
@@ -239,7 +235,6 @@ export function SimilarMoversContent() {
   const { t, locale } = useI18n();
   const [range, setRange] = useState<RangeKey>("1d");
   const [data, setData] = useState<Payload | null>(null);
-  const [dayItems, setDayItems] = useState<TrackedRow[]>([]);
   const [failed, setFailed] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const readyRef = useRef(false);
@@ -266,7 +261,6 @@ export function SimilarMoversContent() {
         if ((res.ok && json.error == null) || usable) {
           readyRef.current = true;
           byRangeRef.current["1d"] = json;
-          if (json.items) setDayItems(json.items);
           if (rangeRef.current === "1d") {
             setData(json);
             setFailed(false);
@@ -402,29 +396,6 @@ export function SimilarMoversContent() {
           )}
         </CardContent>
       </Card>
-      {(dayItems.length > 0 || (data?.items ?? []).length > 0) ? (
-        <Card className="border-border">
-          <CardContent className="px-6 py-5">
-            <p className="text-sm text-muted-foreground">{t("similar.tracked")}</p>
-            <div className="mt-3 flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
-              <span>{t("similar.ticker")}</span>
-              <span>{t("similar.score")}</span>
-            </div>
-            <ul className="divide-y border-border">
-              {(dayItems.length > 0 ? dayItems : (data?.items ?? [])).map((row) => (
-                <li key={row.ticker} className="flex items-center justify-between gap-3 py-2.5">
-                  <Badge variant="secondary" className="font-mono">
-                    {row.ticker}
-                  </Badge>
-                  <span className="text-sm font-medium tabular-nums text-foreground">
-                    {roundIndex(row.score)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
     </main>
   );
 }
