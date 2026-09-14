@@ -1,4 +1,4 @@
-import { polygonGetWithKey } from "./polygon-keys";
+import { isPolygonHaltError, polygonGetWithKey, type PolygonFetchOpts } from "./polygon-keys";
 import { peakResetIndices, washoutScoreSeries, type WashoutBar, type WashoutPoint } from "./washout-score";
 
 export function polygonTimeMs(t: number | undefined): number | null {
@@ -20,10 +20,15 @@ function peakCacheKey(ticker: string, minuteMs: number): string {
   return `${ticker}:${minuteMs}`;
 }
 
-export async function fetchGroupedDailyAdvanced(date: string, key: string): Promise<GroupedDayBar[]> {
+export async function fetchGroupedDailyAdvanced(
+  date: string,
+  key: string,
+  opts?: PolygonFetchOpts
+): Promise<GroupedDayBar[]> {
   const payload = (await polygonGetWithKey(
     `/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true&include_otc=false`,
-    key
+    key,
+    opts
   )) as { results?: Array<{ T?: string; h?: number; c?: number }> };
   const out: GroupedDayBar[] = [];
   for (const row of payload.results ?? []) {
@@ -40,11 +45,13 @@ export async function fetchMinuteAggs(
   ticker: string,
   from: string,
   to: string,
-  key: string
+  key: string,
+  opts?: PolygonFetchOpts
 ): Promise<WashoutBar[]> {
   const payload = (await polygonGetWithKey(
     `/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/minute/${from}/${to}?adjusted=true&sort=asc&limit=50000`,
-    key
+    key,
+    opts
   )) as { results?: Array<{ t?: number; o?: number; h?: number; c?: number }> };
   const out: WashoutBar[] = [];
   for (const row of payload.results ?? []) {
@@ -65,14 +72,16 @@ export async function fetchMinuteAggs(
 async function fetchPeakSecondTimes(
   ticker: string,
   minuteMs: number,
-  key: string
+  key: string,
+  opts?: PolygonFetchOpts
 ): Promise<{ peakAt: number; closeAt: number } | null> {
   const cached = peakSecondCache.get(peakCacheKey(ticker, minuteMs));
   if (cached) return cached;
   try {
     const payload = (await polygonGetWithKey(
       `/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/second/${minuteMs}/${minuteMs + 59_999}?adjusted=true&sort=asc&limit=50000`,
-      key
+      key,
+      opts
     )) as { results?: Array<{ t?: number; h?: number; c?: number }> };
     let peakAt = minuteMs;
     let peakHigh = -Infinity;
@@ -93,7 +102,8 @@ async function fetchPeakSecondTimes(
     const rec = { peakAt, closeAt };
     peakSecondCache.set(peakCacheKey(ticker, minuteMs), rec);
     return rec;
-  } catch {
+  } catch (e) {
+    if (isPolygonHaltError(e)) throw e;
     return null;
   }
 }
@@ -103,7 +113,8 @@ export async function scoreWithPeakSeconds(
   bars: WashoutBar[],
   prevClose: number,
   ticker: string,
-  key: string
+  key: string,
+  opts?: PolygonFetchOpts
 ): Promise<WashoutPoint[]> {
   if (bars.length === 0) return [];
   const first = washoutScoreSeries(bars, prevClose);
@@ -113,7 +124,7 @@ export async function scoreWithPeakSeconds(
     const bar = bars[i];
     if (!bar || seen.has(bar.t)) continue;
     seen.add(bar.t);
-    const rec = await fetchPeakSecondTimes(ticker, bar.t, key);
+    const rec = await fetchPeakSecondTimes(ticker, bar.t, key, opts);
     if (!rec) continue;
     bar.peakAt = rec.peakAt;
     bar.closeAt = rec.closeAt;

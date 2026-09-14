@@ -27,7 +27,7 @@ const POLL_MS: Record<RangeKey, number> = {
   "3m": 60_000,
 };
 const CHART_W = 640;
-const CHART_H = 220;
+const CHART_H = 280;
 const PAD = 16;
 const RANGES: RangeKey[] = ["1d", "1w", "1m", "3m"];
 
@@ -270,17 +270,6 @@ export function SimilarMoversContent() {
             setData(json);
             setFailed(false);
           }
-          if (!histPrefetchRef.current) {
-            histPrefetchRef.current = true;
-            for (const key of ["1w", "1m", "3m"] as RangeKey[]) {
-              void fetch(`/api/washout?range=${key}`, { cache: "no-store" })
-                .then((res) => res.json() as Promise<Payload>)
-                .then((hist) => {
-                  if (hist.error == null && hist.range) byRangeRef.current[hist.range] = hist;
-                })
-                .catch(() => undefined);
-            }
-          }
           return;
         }
         if (!readyRef.current && rangeRef.current === "1d") setFailed(true);
@@ -288,6 +277,25 @@ export function SimilarMoversContent() {
         if (!cancelled && !readyRef.current && rangeRef.current === "1d") setFailed(true);
       }
     };
+    const prefetchHist = () => {
+      if (histPrefetchRef.current) return;
+      histPrefetchRef.current = true;
+      for (const key of ["1w", "1m", "3m"] as RangeKey[]) {
+        void fetch(`/api/washout?range=${key}`, { cache: "no-store" })
+          .then((res) => res.json() as Promise<Payload>)
+          .then((hist) => {
+            if (hist.error == null && hist.range) {
+              byRangeRef.current[hist.range] = hist;
+              if (rangeRef.current === hist.range) {
+                setData(hist);
+                setFailed(false);
+              }
+            }
+          })
+          .catch(() => undefined);
+      }
+    };
+    prefetchHist();
     void loadDay();
     const id = window.setInterval(loadDay, POLL_MS["1d"]);
     return () => {

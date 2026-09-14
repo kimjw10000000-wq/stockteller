@@ -54,6 +54,7 @@ const CACHE_MS = 5_000;
 const HIST_CACHE_MS = 30_000;
 const LISTED_MS = 10 * 60_000;
 const MAX_TICKERS = 80;
+/** Advanced 키는 실시간 전용. 백필은 Starter. 스냅샷+분봉이 같은 키를 나누므로 종목 병렬은 6. */
 const CONCURRENCY = 6;
 const tracked = new Set<string>();
 let tapeHighCache: { tapeYmd: string; high: Map<string, number> } | null = null;
@@ -338,43 +339,60 @@ function rangeDays(range: WashoutRange): number {
   return 90;
 }
 
-function downsample(points: Array<{ t: number; v: number }>, range: WashoutRange, days: string[]): Array<{ t: number; v: number }> {
+function downsample(
+  points: Array<{ t: number; v: number; tape_date?: string }>,
+  range: WashoutRange,
+  days: string[]
+): Array<{ t: number; v: number; tape?: string }> {
   if (range === "1d" || points.length === 0) return points;
   const ordered = [...points].sort((a, b) => a.t - b.t);
-  const by = new Map<string, { t: number; v: number }>();
+  const by = new Map<string, { t: number; v: number; tape: string }>();
   for (const point of ordered) {
-    const tape = runnerTapeDate(new Date(point.t));
+    const tape =
+      (point.tape_date ?? "").slice(0, 10) || runnerTapeDate(new Date(point.t));
     const i = days.indexOf(tape);
     if (i < 0) continue;
     let key: string;
     if (range === "1w") {
       key = `${tape}:${Math.floor(tapeDayElapsedMin(point.t, tape) / 10)}`;
-    } else if (range === "1m" || range === "3m") {
-      key = tape;
     } else {
-      key = String(Math.floor(i / 5));
+      key = tape;
     }
-    by.set(key, point);
+    by.set(key, { t: point.t, v: point.v, tape });
   }
   return [...by.values()].sort((a, b) => a.t - b.t);
 }
 
-function xOnAxis(t: number, days: string[]): number {
-  const total = days.length * TAPE_DAY_SESSION_MIN;
-  if (total <= 0) return 0;
-  const tape = runnerTapeDate(new Date(t));
-  const i = days.indexOf(tape);
-  if (i < 0) return t < etWallMs(previousEtWeekday(days[0]), 16, 0) ? 0 : 1;
+function xOnAxis(
+  t: number,
+  days: string[],
+  range: WashoutRange,
+  tapeHint?: string
+): number {
+  const n = days.length;
+  if (n <= 0) return 0;
+  const tape = (tapeHint ?? "").slice(0, 10) || runnerTapeDate(new Date(t));
+  let i = days.indexOf(tape);
+  if (i < 0) {
+    if (t < etWallMs(previousEtWeekday(days[0]), 16, 0)) return 0;
+    if (t >= etWallMs(days[n - 1], 16, 0)) return 1;
+    return -1;
+  }
+  if (range === "1m" || range === "3m") {
+    return n === 1 ? 1 : i / (n - 1);
+  }
+  const total = n * TAPE_DAY_SESSION_MIN;
   return (i * TAPE_DAY_SESSION_MIN + tapeDayElapsedMin(t, tape)) / total;
 }
 
 function withX(
-  points: Array<{ t: number; v: number }>,
-  days: string[]
+  points: Array<{ t: number; v: number; tape?: string; tape_date?: string }>,
+  days: string[],
+  range: WashoutRange
 ): WashoutChartPoint[] {
   const out: WashoutChartPoint[] = [];
   for (const point of points) {
-    const x = xOnAxis(point.t, days);
+    const x = xOnAxis(point.t, days, range, point.tape ?? point.tape_date);
     if (x < 0 || x > 1) continue;
     out.push({ t: point.t, v: point.v, x });
   }
@@ -595,26 +613,57 @@ export async function getWashoutBoard(opts?: {
   }
 
   if (range !== "1d") {
-    const live =
-      liveCache?.live ??
-      ({
-        index: 0,
-        series: [],
-        tapeYmd: runnerTapeDate(new Date()),
-        items: [],
-      } satisfies LiveBundle);
-    if (liveCache?.live) void getLive(false);
-    const payload = await assembleRange(live, range);
-    if (!liveCache?.live && payload.series.length > 0) {
-      payload.index = payload.series[payload.series.length - 1].v;
+    try {
+      const live =
+        liveCache?.live ??
+        ({
+          index: 0,
+          series: [],
+          tapeYmd: runnerTapeDate(new Date()),
+          items: [],
+        } satisfies LiveBundle);
+      if (liveCache?.live) void getLive(false);
+      const payload = await assembleRange(live, range);
+      if (!liveCache?.live && payload.series.length > 0) {
+        payload.index = payload.series[payload.series.length - 1].v;
+      }
+      rangeCache.set(range, { at: Date.now(), payload });
+      return payload;
+    } catch {
+      const payload = await assembleRange(
+        {
+          index: 0,
+          series: [],
+          tapeYmd: runnerTapeDate(new Date()),
+          items: [],
+        },
+        range
+      );
+      if (payload.series.length > 0) {
+        payload.index = payload.series[payload.series.length - 1].v;
+      }
+      rangeCache.set(range, { at: Date.now(), payload });
+      return payload;
     }
-    rangeCache.set(range, { at: Date.now(), payload });
-    return payload;
   }
 
-  const live = await getLive(!!opts?.force);
-  const payload = await assembleRange(live, range);
+  const stub: LiveBundle = liveCache?.live ?? {
+    index: 0,
+    series: [],
+    tapeYmd: runnerTapeDate(new Date()),
+    items: [],
+  };
+  const payload = await assembleRange(stub, range);
+  if (payload.series.length > 0 && stub.items.length === 0) {
+    payload.index = payload.series[payload.series.length - 1].v;
+  }
   rangeCache.set(range, { at: Date.now(), payload });
+  void getLive(!!opts?.force)
+    .then(async (live) => {
+      const next = await assembleRange(live, "1d");
+      rangeCache.set("1d", { at: Date.now(), payload: next });
+    })
+    .catch(() => undefined);
   return payload;
 }
 
@@ -622,17 +671,24 @@ async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<Was
   const days = tapeDatesBack(live.tapeYmd, rangeDays(range));
   const axisStart = etWallMs(previousEtWeekday(days[0]), 16, 0);
   const axisEnd = etWallMs(days[days.length - 1], 16, 0);
-  let points = live.series;
-  if (range !== "1d") {
-    const hist = await loadSamplesSince(axisStart);
-    const byT = new Map<number, { t: number; v: number }>();
-    for (const row of hist) byT.set(row.t, { t: row.t, v: row.v });
-    for (const point of live.series) byT.set(Math.floor(point.t / 60_000) * 60_000, point);
-    points = downsample([...byT.values()], range, days);
+  const hist = await loadSamplesSince(axisStart);
+  const byT = new Map<number, { t: number; v: number; tape_date?: string }>();
+  for (const row of hist) byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date });
+  for (const point of live.series) {
+    byT.set(Math.floor(point.t / 60_000) * 60_000, { t: point.t, v: point.v });
   }
+  const merged = [...byT.values()].sort((a, b) => a.t - b.t);
+  const points = range === "1d" ? merged : downsample(merged, range, days);
+  const series = withX(points, days, range);
+  const index =
+    live.items.length > 0
+      ? live.index
+      : series.length
+        ? series[series.length - 1].v
+        : live.index;
   return {
-    index: live.index,
-    series: withX(points, days),
+    index,
+    series,
     items: live.items,
     range,
     axisStart,

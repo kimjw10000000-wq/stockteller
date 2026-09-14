@@ -147,6 +147,32 @@ export async function persistTrackedTickers(tickers: string[]): Promise<void> {
   }
 }
 
+export async function loadTapeSampleBounds(tapeDate: string): Promise<{ minT: number; maxT: number } | null> {
+  try {
+    const admin = createAdminClient();
+    const { data: first, error: a } = await admin
+      .from("washout_index_samples")
+      .select("t")
+      .eq("tape_date", tapeDate)
+      .order("t", { ascending: true })
+      .limit(1);
+    if (a || !first?.length) return null;
+    const { data: last, error: b } = await admin
+      .from("washout_index_samples")
+      .select("t")
+      .eq("tape_date", tapeDate)
+      .order("t", { ascending: false })
+      .limit(1);
+    if (b || !last?.length) return null;
+    const minT = Date.parse(String(first[0].t));
+    const maxT = Date.parse(String(last[0].t));
+    if (!Number.isFinite(minT) || !Number.isFinite(maxT)) return null;
+    return { minT, maxT };
+  } catch {
+    return null;
+  }
+}
+
 export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]> {
   const now = Date.now();
   if (

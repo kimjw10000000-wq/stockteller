@@ -28,6 +28,10 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# local research dumps
+/scripts/_runner-index/
+.washout-backfill-cursor.json
+
 # vercel
 .vercel
 
