@@ -199,7 +199,6 @@ function nextState(prev: WashoutState, bar: WashoutBar): WashoutState {
     peakPrice,
     score,
     tracking,
-    prevPrice,
     grid,
     prevClose,
     sessionElapsedMin,
@@ -207,6 +206,7 @@ function nextState(prev: WashoutState, bar: WashoutBar): WashoutState {
     wasAboveGate,
     recaptureArmed,
   } = prev;
+  const prevPrice = prev.prevPrice;
 
   const pc = bar.prevClose ?? prevClose;
   if (pc !== prevClose) {
@@ -337,8 +337,18 @@ export function washoutScoreSeries(
   const out: WashoutPoint[] = [];
   for (const bar of bars) {
     state = nextState(state, bar);
-    const { prevPrice: _p, grid: _g, prevClose: _c, wasAboveGate: _w, recaptureArmed: _r, ...point } = state;
-    out.push(point);
+    out.push({
+      t: state.t,
+      price: state.price,
+      peakPrice: state.peakPrice,
+      ddPct: state.ddPct,
+      minuteChange: state.minuteChange,
+      minuteScore: state.minuteScore,
+      score: state.score,
+      tracking: state.tracking,
+      sessionElapsedMin: state.sessionElapsedMin,
+      sessionQuotaMin: state.sessionQuotaMin,
+    });
   }
   return out;
 }
