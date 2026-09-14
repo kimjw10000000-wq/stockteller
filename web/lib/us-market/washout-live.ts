@@ -5,7 +5,7 @@ import {
   type WashoutBar,
   type WashoutPoint,
 } from "./washout-score";
-import { polygonAdvancedKey, polygonGetWithKey } from "./polygon-keys";
+import { polygonAdvancedKeyOrNull, polygonGetWithKey } from "./polygon-keys";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
   etWallMs,
@@ -447,8 +447,10 @@ async function loadSessionHotTickers(dates: string[]): Promise<string[]> {
 }
 
 async function computeLive(now = new Date()): Promise<LiveBundle> {
-  const key = polygonAdvancedKey();
   const tapeYmd = runnerTapeDate(now);
+  const empty: LiveBundle = { index: 0, series: [], tapeYmd, items: [] };
+  const key = polygonAdvancedKeyOrNull();
+  if (!key) return empty;
   const nowYmd = usEtYmd(now);
   const prev = previousEtWeekday(tapeYmd);
   const from = prev;
@@ -658,12 +660,16 @@ export async function getWashoutBoard(opts?: {
     payload.index = payload.series[payload.series.length - 1].v;
   }
   rangeCache.set(range, { at: Date.now(), payload });
-  void getLive(!!opts?.force)
-    .then(async (live) => {
-      const next = await assembleRange(live, "1d");
-      rangeCache.set("1d", { at: Date.now(), payload: next });
-    })
-    .catch(() => undefined);
+  try {
+    void getLive(!!opts?.force)
+      .then(async (live) => {
+        const next = await assembleRange(live, "1d");
+        rangeCache.set("1d", { at: Date.now(), payload: next });
+      })
+      .catch(() => undefined);
+  } catch {
+    /* Advanced 키가 없어도 DB 차트는 반환 */
+  }
   return payload;
 }
 

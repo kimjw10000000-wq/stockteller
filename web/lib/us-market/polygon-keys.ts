@@ -31,8 +31,13 @@ export function polygonStarterKey(): string {
   return key;
 }
 
-export function polygonAdvancedKey(): string {
+export function polygonAdvancedKeyOrNull(): string | null {
   const key = readEnv("POLYGON_API_KEY_ADVANCED");
+  return key || null;
+}
+
+export function polygonAdvancedKey(): string {
+  const key = polygonAdvancedKeyOrNull();
   if (!key) throw new Error("POLYGON_API_KEY_ADVANCED is missing");
   return key;
 }

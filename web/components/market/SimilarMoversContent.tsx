@@ -262,7 +262,8 @@ export function SimilarMoversContent() {
         const res = await fetch(`/api/washout?${params.toString()}`, { cache: "no-store" });
         const json = (await res.json()) as Payload;
         if (cancelled) return;
-        if (res.ok && json.error == null) {
+        const usable = json.series && json.series.length > 0;
+        if ((res.ok && json.error == null) || usable) {
           readyRef.current = true;
           byRangeRef.current["1d"] = json;
           if (json.items) setDayItems(json.items);
@@ -274,7 +275,9 @@ export function SimilarMoversContent() {
         }
         if (!readyRef.current && rangeRef.current === "1d") setFailed(true);
       } catch {
-        if (!cancelled && !readyRef.current && rangeRef.current === "1d") setFailed(true);
+        if (!cancelled && !readyRef.current && rangeRef.current === "1d" && !byRangeRef.current["3m"]?.series?.length) {
+          setFailed(true);
+        }
       }
     };
     const prefetchHist = () => {

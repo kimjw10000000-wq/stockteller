@@ -21,6 +21,17 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "server error";
+    try {
+      const fallback = await getWashoutBoard({ force: false, range: range === "1d" ? "3m" : range });
+      if (fallback.series.length > 0) {
+        return NextResponse.json(
+          { ...fallback, range, error: undefined },
+          { headers: { "Cache-Control": "no-store" } }
+        );
+      }
+    } catch {
+      /* 아래 에러 응답 */
+    }
     const missing = message.includes("POLYGON_API_KEY_ADVANCED");
     return NextResponse.json(
       {
