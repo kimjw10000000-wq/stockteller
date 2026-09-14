@@ -53,13 +53,21 @@ export async function persistSamples(
   rememberSamples(points, tapeDate);
   if (points.length === 0) return;
   const incremental = opts?.incremental !== false;
-  const fresh = incremental && lastPersistedT > 0
-    ? points.filter((p) => minuteKey(p.t) >= lastPersistedT)
-    : points;
-  if (fresh.length === 0) return;
+  const sorted = [...points].sort((a, b) => a.t - b.t);
+  const lastT = minuteKey(sorted[sorted.length - 1].t);
+  const fromT = incremental
+    ? lastPersistedT > 0
+      ? lastPersistedT
+      : lastT - 2 * 60_000
+    : 0;
+  const fresh = incremental ? sorted.filter((p) => minuteKey(p.t) >= fromT) : sorted;
+  const byMinute = new Map<number, { t: number; v: number }>();
+  for (const point of fresh) byMinute.set(minuteKey(point.t), point);
+  const unique = [...byMinute.values()].sort((a, b) => a.t - b.t);
+  if (unique.length === 0) return;
   try {
     const admin = createAdminClient();
-    const rows = fresh.map((point) => ({
+    const rows = unique.map((point) => ({
       t: new Date(minuteKey(point.t)).toISOString(),
       v: point.v,
       tape_date: runnerTapeDate(new Date(point.t)) || tapeDate,
@@ -71,11 +79,14 @@ export async function persistSamples(
       });
       if (error) throw error;
     }
-    lastPersistedT = Math.max(lastPersistedT, ...fresh.map((p) => minuteKey(p.t)));
+    lastPersistedT = Math.max(lastPersistedT, ...unique.map((p) => minuteKey(p.t)));
     samplesQueryCache = null;
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error("[washout] persistSamples failed", message);
+    const extra =
+      e && typeof e === "object"
+        ? JSON.stringify(e)
+        : String(e);
+    console.error("[washout] persistSamples failed", extra);
   }
 }
 
