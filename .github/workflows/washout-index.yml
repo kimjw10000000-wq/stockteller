@@ -1,43 +1,17 @@
-# Persist washout index samples so 1w/1m/3m charts do not depend on page views.
-#
-# Recommended GitHub secret:
-#   CRON_SECRET — same value as Vercel env CRON_SECRET
-# Optional:
-#   WASHOUT_CRON_URL — default https://whyup.net/api/cron/washout-index
+# Dump-index samples are written by the operator PC poller, not GitHub.
+# Keep this file for a manual run only.
 
 name: washout-index
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch: {}
-
-concurrency:
-  group: washout-index
-  cancel-in-progress: false
 
 jobs:
   sample:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
-      - name: Record washout index
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          WASHOUT_CRON_URL: ${{ secrets.WASHOUT_CRON_URL }}
+      - name: Disabled
         run: |
-          set -euo pipefail
-          if [ -z "${CRON_SECRET:-}" ]; then
-            echo "CRON_SECRET not set"
-            exit 1
-          fi
-          URL="${WASHOUT_CRON_URL:-https://whyup.net/api/cron/washout-index}"
-          code=$(curl -sS -o /tmp/washout-body.json -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            -H "Accept: application/json" \
-            --max-time 90 \
-            "$URL")
-          echo "HTTP $code"
-          cat /tmp/washout-body.json
-          test "$code" = "200"
+          echo "Washout index capture runs on the operator PC, not GitHub Actions."
+          exit 0
