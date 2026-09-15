@@ -1,6 +1,6 @@
 /**
- * 로컬/VPS: Polygon Advanced로 설거지 지수를 계산해 Supabase에 넣는다.
- * whyup.net(Vercel)은 DB만 읽으므로 키를 Vercel에 넣지 않는다.
+ * 이 컴퓨터에서 Polygon Advanced로 설거지 지수를 계산해 Supabase에 넣는다.
+ * 프리·본장·애프터, 매분 55초에 스냅샷. GitHub Actions는 쓰지 않는다.
  *
  *   npm run poll:washout
  */
@@ -14,12 +14,24 @@ import { polygonAdvancedKeyOrNull, polygonStarterKeyOrNull } from "../lib/us-mar
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
+/** 스냅샷 `min.h`가 그 분 고점에 가깝게, 매분 이 초에 요청한다. */
+const SNAPSHOT_AT_SECOND = 55;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function pollMs(reason: Awaited<ReturnType<typeof washoutCaptureSkipReason>>): number {
-  return reason === "ok" ? 3_000 : 60_000;
+function msUntilUtcSecond(sec: number): number {
+  const now = Date.now();
+  const elapsed = now % 60_000;
+  const target = sec * 1000;
+  const wait = target - elapsed;
+  if (wait <= 200) return wait + 60_000;
+  return wait;
+}
+
+async function sleepUntilSnapshotSecond(): Promise<void> {
+  await sleep(msUntilUtcSecond(SNAPSHOT_AT_SECOND));
 }
 
 async function loop(): Promise<void> {
@@ -28,15 +40,14 @@ async function loop(): Promise<void> {
   }
   let hour = -1;
   for (;;) {
+    await sleepUntilSnapshotSecond();
     const now = new Date();
     try {
-      const skip = process.argv.includes("--ignore-schedule")
-        ? ("ok" as const)
-        : await washoutCaptureSkipReason(now);
+      const skip = await washoutCaptureSkipReason(now);
       if (skip === "ok") {
         const live = await captureWashoutLive();
         console.log(
-          now.toISOString(),
+          new Date().toISOString(),
           `tape=${live.tapeYmd} index=${live.index.toFixed(2)} names=${live.items.length} pts=${live.series.length}`
         );
       } else {
@@ -49,12 +60,11 @@ async function loop(): Promise<void> {
         }
       }
       hour = now.getUTCHours();
-      await sleep(pollMs(skip));
       continue;
     } catch (e) {
       console.error(now.toISOString(), e instanceof Error ? e.message : e);
     }
-    await sleep(60_000);
+    await sleep(5_000);
   }
 }
 
