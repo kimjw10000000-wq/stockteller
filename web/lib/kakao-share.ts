@@ -19,6 +19,8 @@ export type KakaoShareInput = {
   description: string;
   imageUrl: string | null;
   buttonTitle?: string;
+  /** 카카오 카드 상단 프로필 줄 (티커 · 회사명) */
+  profileText?: string | null;
 };
 
 export function getSharePageUrl(path: string): string {
@@ -27,11 +29,36 @@ export function getSharePageUrl(path: string): string {
 }
 
 export function getNewsShareUrl(newsId: string): string {
-  return getSharePageUrl(`/news/${newsId}`);
+  return getSharePageUrl(`/news/${encodeURIComponent(newsId)}`);
 }
 
 export function getWireNewsShareUrl(id: string): string {
-  return getSharePageUrl(`/news-sec/${id}`);
+  return getSharePageUrl(`/news-sec/${encodeURIComponent(id)}`);
+}
+
+export function newsShareIdentity(ticker: string | null | undefined, companyName: string | null | undefined): {
+  ticker: string;
+  company: string;
+  line: string;
+} {
+  const code = (ticker ?? "").trim().toUpperCase();
+  const company = (companyName ?? "").trim();
+  const line = code && company ? `${code} · ${company}` : code || company;
+  return { ticker: code, company, line };
+}
+
+/** 카드 제목: 티커 · 회사명. 설명이 실제 뉴스 제목. */
+export function buildNewsShareCardTitle(ticker: string | null | undefined, companyName: string | null | undefined, headline: string): string {
+  const { line } = newsShareIdentity(ticker, companyName);
+  if (line) return truncateShareText(line, 80);
+  return truncateShareText(headline, 80);
+}
+
+export function buildNewsShareCardDescription(headline: string, summary: string | null | undefined): string {
+  const head = headline.trim();
+  const rest = summary?.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 2).join(" ") ?? "";
+  if (rest && rest !== head) return truncateShareText(`${head} — ${rest}`, 200);
+  return truncateShareText(head || rest, 200);
 }
 
 export function getDefaultShareImageUrl(): string {
@@ -58,6 +85,7 @@ export function buildShareDescription(summary: string | null | undefined, title:
 export function buildKakaoSharePayload(input: KakaoShareInput) {
   const link = input.pageUrl;
   const imageUrl = resolveShareImageUrl(input.imageUrl);
+  const profileText = input.profileText?.trim();
 
   return {
     objectType: "feed" as const,
@@ -70,6 +98,14 @@ export function buildKakaoSharePayload(input: KakaoShareInput) {
         webUrl: link,
       },
     },
+    ...(profileText
+      ? {
+          itemContent: {
+            profileText: truncateShareText(profileText, 40),
+            titleImageCategory: "News/SEC",
+          },
+        }
+      : {}),
     buttons: [
       {
         title: input.buttonTitle ?? "뉴스 보기",

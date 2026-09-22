@@ -3,7 +3,14 @@ import type { WireNewsRow } from "@/lib/gnw/types";
 import type { DisclosureWithStock } from "@/lib/types";
 import { getCoverImageUrl, previewSummaryFromBody } from "@/lib/manual-post";
 import { disclosureStockLabel } from "@/lib/news-display";
-import { DEFAULT_SHARE_IMAGE_PATH } from "@/lib/kakao-share";
+import {
+  buildNewsShareCardDescription,
+  buildNewsShareCardTitle,
+  DEFAULT_SHARE_IMAGE_PATH,
+  getNewsShareUrl,
+  getWireNewsShareUrl,
+  newsShareIdentity,
+} from "@/lib/kakao-share";
 import { getSiteUrl, SITE_NAME_KO } from "@/lib/site";
 
 const META_DESCRIPTION_MAX = 160;
@@ -100,26 +107,27 @@ export function buildNewsDetailMetadata(
   const title = row.title?.trim() || "뉴스";
   const description = buildReportDescription(row);
   const cover = getCoverImageUrl(row) || DEFAULT_SHARE_IMAGE_PATH;
-  const canonicalPath = `/news/${id}`;
-  const { name } = disclosureStockLabel(row);
-  const ogTitle = `${name} — ${title}`;
+  const canonicalUrl = getNewsShareUrl(id);
+  const { stock, name } = disclosureStockLabel(row);
+  const ogTitle = buildNewsShareCardTitle(stock, name, title);
+  const ogDescription = buildNewsShareCardDescription(title, description);
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalPath },
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       type: "article",
       title: ogTitle,
-      description,
-      url: canonicalPath,
+      description: ogDescription,
+      url: canonicalUrl,
       publishedTime: row.created_at,
       images: [{ url: cover, width: 1200, height: 630, alt: buildReportImageAlt(title) }],
     },
     twitter: {
       card: "summary_large_image",
       title: ogTitle,
-      description,
+      description: ogDescription,
       images: [cover],
     },
   };
@@ -127,20 +135,21 @@ export function buildNewsDetailMetadata(
 
 export function buildWireNewsDetailMetadata(item: WireNewsRow): Metadata {
   const title = item.title?.trim() || "News/SEC";
-  const description = truncateMetaDescription(item.teaser || item.summary || title);
-  const canonicalPath = `/news-sec/${item.id}`;
+  const canonicalUrl = getWireNewsShareUrl(item.id);
   const ticker = item.primary_ticker || item.tickers?.[0] || "";
-  const ogTitle = ticker ? `${ticker} — ${title}` : title;
+  const { line } = newsShareIdentity(ticker, item.company_name);
+  const ogTitle = buildNewsShareCardTitle(ticker, item.company_name, title);
+  const ogDescription = buildNewsShareCardDescription(title, item.teaser || item.summary);
 
   return {
-    title,
-    description,
-    alternates: { canonical: canonicalPath },
+    title: line ? `${line} · ${title}` : title,
+    description: ogDescription,
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       type: "article",
       title: ogTitle,
-      description,
-      url: canonicalPath,
+      description: ogDescription,
+      url: canonicalUrl,
       siteName: SITE_NAME_KO,
       locale: "ko_KR",
       publishedTime: item.published_at || item.created_at || undefined,
@@ -156,7 +165,7 @@ export function buildWireNewsDetailMetadata(item: WireNewsRow): Metadata {
     twitter: {
       card: "summary_large_image",
       title: ogTitle,
-      description,
+      description: ogDescription,
       images: [DEFAULT_SHARE_IMAGE_PATH],
     },
   };

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { NewsShareModal } from "@/components/news/NewsShareModal";
 import { QuoteChangePct } from "@/components/news/QuoteChangePct";
-import { buildShareDescription, getWireNewsShareUrl } from "@/lib/kakao-share";
+import { buildNewsShareCardDescription, buildNewsShareCardTitle, getWireNewsShareUrl, newsShareIdentity } from "@/lib/kakao-share";
 import { wireNewsAffiliation, type WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
 import { resolveNewsWireLabel, summaryHasNewswireAttribution } from "@/lib/sec/listed-newswires";
@@ -32,6 +32,9 @@ export function WireNewsDetailView({
   quote?: TickerQuote | null;
 }) {
   const ticker = wireNewsTicker(item);
+  const shareId = newsShareIdentity(ticker === "—" ? "" : ticker, item.company_name);
+  const shareTitle = buildNewsShareCardTitle(shareId.ticker, shareId.company, item.title);
+  const shareDescription = buildNewsShareCardDescription(item.title, item.teaser || item.summary);
   const sentiment = SENTIMENTS.includes(item.sentiment as Sentiment)
     ? (item.sentiment as Sentiment)
     : null;
@@ -56,8 +59,9 @@ export function WireNewsDetailView({
           </Button>
           <NewsShareModal
             url={getWireNewsShareUrl(item.id)}
-            title={item.title}
-            description={buildShareDescription(item.teaser || item.summary, item.title)}
+            title={shareTitle}
+            description={shareDescription}
+            profileText={shareId.line || null}
           />
         </div>
 

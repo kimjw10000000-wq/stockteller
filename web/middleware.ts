@@ -4,6 +4,7 @@ import { getAdminEmails, isAdminEmail, logAdminAuthDebug } from "@/lib/admin-aut
 import {
   isForbiddenCrawler,
   isInternalAutomation,
+  isKakaoLinkScraper,
   isMissingBrowserUserAgent,
   isScraperLibrary,
   isSearchOrPreviewBot,
@@ -40,7 +41,10 @@ export async function middleware(request: NextRequest) {
   const automated = isInternalAutomation(request);
 
   if (!automated) {
-    const searchOrPreview = isSearchOrPreviewBot(ua);
+    const newsSharePath =
+      pathname.startsWith("/news/") || pathname.startsWith("/news-sec/");
+    const searchOrPreview =
+      isSearchOrPreviewBot(ua) || (newsSharePath && isKakaoLinkScraper(ua));
     if (isForbiddenCrawler(ua) || (!searchOrPreview && isScraperLibrary(ua))) {
       return forbidden();
     }

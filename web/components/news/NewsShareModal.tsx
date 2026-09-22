@@ -24,6 +24,7 @@ type NewsShareModalProps = {
   description: string;
   imageUrl?: string | null;
   variant?: "button" | "icon";
+  profileText?: string | null;
 };
 
 export function NewsShareModal({
@@ -32,6 +33,7 @@ export function NewsShareModal({
   description,
   imageUrl = null,
   variant = "button",
+  profileText = null,
 }: NewsShareModalProps) {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
@@ -53,13 +55,13 @@ export function NewsShareModal({
     }
     try {
       window.Kakao.Share.sendDefault(
-        buildKakaoSharePayload({ pageUrl: url, title, description, imageUrl })
+        buildKakaoSharePayload({ pageUrl: url, title, description, imageUrl, profileText })
       );
     } catch (err) {
       console.error("[share] Kakao sendDefault failed", err, { url, title });
       showToast(t("news.shareKakaoFailed"));
     }
-  }, [url, title, description, imageUrl, showToast, t]);
+  }, [url, title, description, imageUrl, profileText, showToast, t]);
 
   const handleFacebookShare = useCallback(() => {
     openSharePopup(getFacebookShareUrl(url));

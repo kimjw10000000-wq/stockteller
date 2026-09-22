@@ -125,6 +125,7 @@ export const SEARCH_OR_PREVIEW_UA_PATTERNS: RegExp[] = [
   /\bkakaostory\b/i,
   /\bkakaolink\b/i,
   /\bkakaoinsight\b/i,
+  /\bkakao\b/i,
   /\bdevtalk\.kakao\.com\b/i,
   /\bpinterest\b/i,
   /\bredditbot\b/i,
@@ -154,6 +155,13 @@ export function isForbiddenCrawler(userAgent: string): boolean {
 export function isSearchOrPreviewBot(userAgent: string): boolean {
   if (isForbiddenCrawler(userAgent)) return false;
   return SEARCH_OR_PREVIEW_UA_PATTERNS.some((re) => re.test(userAgent));
+}
+
+/** 카카오 링크 OG 스크래퍼는 종종 Java/Apache-HttpClient 만 보낸다. */
+export function isKakaoLinkScraper(userAgent: string): boolean {
+  if (isForbiddenCrawler(userAgent)) return false;
+  if (SEARCH_OR_PREVIEW_UA_PATTERNS.some((re) => re.test(userAgent))) return true;
+  return /\bapache-httpclient\b/i.test(userAgent) || /\bjava\/\d/i.test(userAgent);
 }
 
 /** 빈 UA·툴 기본값 — 브라우저는 이보다 깁니다. */
