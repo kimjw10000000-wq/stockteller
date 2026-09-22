@@ -1,5 +1,3 @@
-import { PRODUCTION_SITE_ORIGIN } from "@/lib/site";
-
 /** 카카오 개발자 센터 JavaScript 키 */
 export const KAKAO_JAVASCRIPT_KEY = "32475a3b053ee93e162ff7667e8d0fd2";
 
@@ -8,8 +6,12 @@ export const KAKAO_SDK_URL =
 export const KAKAO_SDK_INTEGRITY =
   "sha384-JpLApTkB8lPskhVMhT+m5Ln8aHlnS0bsIexhaak0jOhAkMYedQoVghPfSpjNi9K1";
 
-/** www는 apex로 301 되므로 공유·OG는 공개 도메인을 쓴다. */
-export const SHARE_ORIGIN = PRODUCTION_SITE_ORIGIN;
+/**
+ * 카카오 제품 링크에 등록된 웹 도메인은 www다.
+ * apex(whyup.net)로 보내면 카카오가 경로를 지우고 https://www.whyup.net 만 남긴다.
+ * www는 같은 경로로 apex에 308 된다.
+ */
+export const SHARE_ORIGIN = "https://www.whyup.net";
 export const DEFAULT_SHARE_IMAGE_PATH = "/og-share.jpg";
 const DEFAULT_SHARE_IMAGE = `${SHARE_ORIGIN}${DEFAULT_SHARE_IMAGE_PATH}`;
 
