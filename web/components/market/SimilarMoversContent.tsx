@@ -6,6 +6,14 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 
 type ChartPoint = { t: number; v: number; x: number };
 type RangeKey = "1d" | "1w" | "1m" | "3m";
+type OverlayKey = "yesterday" | "avg5" | "avg20";
+
+type Compare = {
+  yesterday?: number | null;
+  avg5?: number | null;
+  avg20?: number | null;
+  paths?: Partial<Record<OverlayKey, ChartPoint[]>>;
+};
 
 type Payload = {
   index?: number;
@@ -13,6 +21,7 @@ type Payload = {
   range?: RangeKey;
   axisStart?: number;
   axisEnd?: number;
+  compare?: Compare;
   error?: string;
 };
 
@@ -26,9 +35,15 @@ const CHART_W = 640;
 const CHART_H = 280;
 const PAD = 16;
 const RANGES: RangeKey[] = ["1d", "1w", "1m", "3m"];
+const OVERLAYS: Array<{ key: OverlayKey; color: string }> = [
+  { key: "yesterday", color: "#2563eb" },
+  { key: "avg5", color: "#7c3aed" },
+  { key: "avg20", color: "#d97706" },
+];
 
 function roundIndex(n: number): string {
   if (!Number.isFinite(n)) return "0.00";
+  if (n === 0) return "0.00";
   return (Math.round(n * 100) / 100).toFixed(2);
 }
 
@@ -94,6 +109,15 @@ function nearestIndex(series: ChartPoint[], x: number): number {
   return best;
 }
 
+function nearestValue(series: ChartPoint[], x: number): number | null {
+  if (series.length === 0) return null;
+  return series[nearestIndex(series, x)]?.v ?? null;
+}
+
+function linePathOf(pts: Array<{ x: number; y: number }>): string {
+  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+}
+
 function WashoutLineChart({
   series,
   range,
@@ -101,6 +125,7 @@ function WashoutLineChart({
   axisEnd,
   hoverIndex,
   onHoverIndex,
+  overlays,
 }: {
   series: ChartPoint[];
   range: RangeKey;
@@ -108,35 +133,61 @@ function WashoutLineChart({
   axisEnd: number;
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
+  overlays: Array<{ key: OverlayKey; color: string; label: string; points: ChartPoint[]; level: number | null }>;
 }) {
   const { locale } = useI18n();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { line, area, up, pts } = useMemo(() => {
-    if (series.length === 0) {
-      return { line: "", area: "", up: true, pts: [] as Array<{ x: number; y: number }> };
+  const { line, area, sinking, pts, overlayDrawn } = useMemo(() => {
+    const overlayPts = overlays.flatMap((o) => o.points.map((p) => p.v));
+    const overlayLevels = overlays.map((o) => o.level).filter((v): v is number => v != null);
+    const vals = [...series.map((p) => p.v), ...overlayPts, ...overlayLevels];
+    if (series.length === 0 && overlayPts.length === 0) {
+      return {
+        line: "",
+        area: "",
+        sinking: false,
+        pts: [] as Array<{ x: number; y: number }>,
+        overlayDrawn: [] as Array<{ key: OverlayKey; color: string; line: string; y: number | null }>,
+      };
     }
-    const vals = series.map((p) => p.v);
-    const minV = Math.min(...vals);
-    const maxV = Math.max(...vals);
+    const maxV = Math.max(0, ...vals);
+    const minV = Math.min(0, ...vals);
     const span = maxV - minV || 1;
     const inner = CHART_W - PAD * 2;
-    const nextPts = series.map((p) => {
-      const x = PAD + p.x * inner;
-      const y = PAD + ((maxV - p.v) / span) * (CHART_H - PAD * 2);
-      return { x, y };
-    });
-    const linePath = nextPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+    const plotH = CHART_H - PAD * 2;
+    const toY = (v: number) => PAD + ((maxV - v) / span) * plotH;
+    const nextPts = series.map((p) => ({
+      x: PAD + p.x * inner,
+      y: toY(p.v),
+    }));
+    const linePath = nextPts.length ? linePathOf(nextPts) : "";
+    const first = nextPts[0];
     const last = nextPts[nextPts.length - 1];
-    const areaPath = `${linePath} L ${last.x} ${CHART_H - PAD} L ${nextPts[0].x} ${CHART_H - PAD} Z`;
-    const lastV = series[series.length - 1].v;
-    const firstV = series[0].v;
+    const topY = toY(0);
+    const areaPath =
+      nextPts.length > 0
+        ? `M ${first.x} ${topY} ${nextPts.map((p) => `L ${p.x} ${p.y}`).join(" ")} L ${last.x} ${topY} Z`
+        : "";
+    const lastV = series.at(-1)?.v ?? 0;
+    const firstV = series[0]?.v ?? 0;
     return {
       line: linePath,
       area: areaPath,
-      up: lastV >= firstV,
+      sinking: lastV < firstV,
       pts: nextPts,
+      overlayDrawn: overlays.map((o) => {
+        const pathOk = (range === "1d" || range === "1w") && o.points.length >= 2;
+        return {
+          key: o.key,
+          color: o.color,
+          line: pathOk
+            ? linePathOf(o.points.map((p) => ({ x: PAD + p.x * inner, y: toY(p.v) })))
+            : "",
+          y: !pathOk && o.level != null ? toY(o.level) : null,
+        };
+      }),
     };
-  }, [series]);
+  }, [overlays, range, series]);
 
   const pick = useCallback(
     (clientX: number) => {
@@ -147,8 +198,8 @@ function WashoutLineChart({
     [onHoverIndex, series]
   );
 
-  const stroke = up ? "#22c55e" : "#ef4444";
-  const fill = up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)";
+  const stroke = sinking ? "#ef4444" : "#22c55e";
+  const fill = sinking ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)";
   const hoverPt =
     hoverIndex != null && pts[hoverIndex] && series[hoverIndex]
       ? { ...pts[hoverIndex], point: series[hoverIndex] }
@@ -178,6 +229,29 @@ function WashoutLineChart({
         >
           <rect width={CHART_W} height={CHART_H} fill="transparent" />
           {area ? <path d={area} fill={fill} /> : null}
+          {overlayDrawn.map((o) =>
+            o.line ? (
+              <path
+                key={o.key}
+                d={o.line}
+                fill="none"
+                stroke={o.color}
+                strokeWidth="1.75"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ) : o.y != null ? (
+              <line
+                key={o.key}
+                x1={PAD}
+                x2={CHART_W - PAD}
+                y1={o.y}
+                y2={o.y}
+                stroke={o.color}
+                strokeWidth="1.5"
+              />
+            ) : null
+          )}
           {line ? (
             <path
               d={line}
@@ -216,6 +290,15 @@ function WashoutLineChart({
             <p className="text-sm font-semibold tabular-nums text-foreground">
               {roundIndex(hoverPt.point.v)}
             </p>
+            {overlays.map((o) => {
+              const v = nearestValue(o.points, hoverPt.point.x) ?? o.level;
+              if (v == null) return null;
+              return (
+                <p key={o.key} className="text-[11px] tabular-nums" style={{ color: o.color }}>
+                  {o.label} {roundIndex(v)}
+                </p>
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -237,6 +320,11 @@ export function SimilarMoversContent() {
   const [data, setData] = useState<Payload | null>(null);
   const [failed, setFailed] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [on, setOn] = useState<Record<OverlayKey, boolean>>({
+    yesterday: false,
+    avg5: false,
+    avg20: false,
+  });
   const readyRef = useRef(false);
   const bootRef = useRef(true);
   const byRangeRef = useRef<Partial<Record<RangeKey, Payload>>>({});
@@ -338,6 +426,32 @@ export function SimilarMoversContent() {
   const shown = hoverPoint?.v ?? data?.index;
   const lastT = hoverPoint?.t ?? series.at(-1)?.t;
   const shownTime = lastT != null ? hoverLabel(lastT, range, locale) : null;
+  const compare = data?.compare;
+  const overlayRows = useMemo(
+    () =>
+      OVERLAYS.map((row) => ({
+        ...row,
+        label: t(
+          row.key === "yesterday"
+            ? "similar.compareYesterday"
+            : row.key === "avg5"
+              ? "similar.compareAvg5"
+              : "similar.compareAvg20"
+        ),
+        value: compare?.[row.key] ?? null,
+        points: (compare?.paths?.[row.key] ?? []).filter((p) => Number.isFinite(p.x)),
+      })),
+    [compare, t]
+  );
+  const activeOverlays = overlayRows
+    .filter((row) => on[row.key])
+    .map((row) => ({
+      key: row.key,
+      color: row.color,
+      label: row.label,
+      points: row.points,
+      level: row.value,
+    }));
 
   return (
     <main className="space-y-6">
@@ -365,6 +479,30 @@ export function SimilarMoversContent() {
                 <p className="mt-1 h-5 text-sm tabular-nums text-muted-foreground">
                   {shownTime ?? "\u00a0"}
                 </p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {overlayRows.map((row) => {
+                    const active = on[row.key];
+                    return (
+                      <button
+                        key={row.key}
+                        type="button"
+                        onClick={() => setOn((prev) => ({ ...prev, [row.key]: !prev[row.key] }))}
+                        className={`rounded-lg border px-2 py-2 text-left ${
+                          active ? "bg-input-background" : "border-border hover:bg-input-background/70"
+                        }`}
+                        style={active ? { borderColor: row.color } : undefined}
+                      >
+                        <span className="block text-[11px] text-muted-foreground">{row.label}</span>
+                        <span
+                          className="mt-0.5 block text-sm font-medium tabular-nums"
+                          style={{ color: active ? row.color : undefined }}
+                        >
+                          {row.value == null ? "—" : roundIndex(row.value)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <WashoutLineChart
                 series={series}
@@ -373,6 +511,7 @@ export function SimilarMoversContent() {
                 axisEnd={chart?.axisEnd ?? 0}
                 hoverIndex={hoverIndex}
                 onHoverIndex={setHoverIndex}
+                overlays={activeOverlays}
               />
               <div className="grid grid-cols-4 gap-1 text-center text-sm">
                 {RANGES.map((key) => {

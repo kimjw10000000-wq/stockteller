@@ -1,5 +1,15 @@
 import { isPolygonHaltError, polygonGetWithKey, type PolygonFetchOpts } from "./polygon-keys";
-import { peakResetIndices, washoutScoreSeries, type WashoutBar, type WashoutPoint } from "./washout-score";
+import {
+  applySavedPeakAt,
+  applySeedPeak,
+  minuteBarEnd,
+  peakResetIndices,
+  washoutScoreRun,
+  type WashoutBar,
+  type WashoutEngineState,
+  type WashoutPoint,
+  type WashoutScoreOpts,
+} from "./washout-score";
 
 export function polygonTimeMs(t: number | undefined): number | null {
   if (t == null || !Number.isFinite(t)) return null;
@@ -52,7 +62,7 @@ export async function fetchMinuteAggs(
     `/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/minute/${from}/${to}?adjusted=true&sort=asc&limit=50000`,
     key,
     opts
-  )) as { results?: Array<{ t?: number; o?: number; h?: number; c?: number }> };
+  )) as { results?: Array<{ t?: number; o?: number; h?: number; l?: number; c?: number; v?: number; vw?: number }> };
   const out: WashoutBar[] = [];
   for (const row of payload.results ?? []) {
     const t = polygonTimeMs(row.t) ?? (row.t != null && Number.isFinite(row.t) ? row.t : null);
@@ -62,6 +72,9 @@ export async function fetchMinuteAggs(
       price: row.c,
       open: row.o,
       high: row.h,
+      low: row.l,
+      volume: row.v,
+      vwap: row.vw,
       peakAt: t,
       closeAt: t + 60_000,
     });
@@ -108,26 +121,29 @@ async function fetchPeakSecondTimes(
   }
 }
 
-/** 고점이 난 분봉만 초봉을 붙여 dt를 계산한다. 나머지 분은 분봉 그대로. */
+/** 고점이 난 분봉만 고점 초를 붙인다. dt는 그 초부터 분봉 끝까지. */
 export async function scoreWithPeakSeconds(
   bars: WashoutBar[],
   prevClose: number,
   ticker: string,
   key: string,
-  opts?: PolygonFetchOpts
-): Promise<WashoutPoint[]> {
-  if (bars.length === 0) return [];
-  const first = washoutScoreSeries(bars, prevClose);
+  opts?: PolygonFetchOpts & WashoutScoreOpts
+): Promise<{ series: WashoutPoint[]; state: WashoutEngineState }> {
+  if (bars.length === 0) {
+    return { series: [], state: washoutScoreRun([], prevClose, opts).state };
+  }
+  const seeded = applySavedPeakAt(applySeedPeak(bars, opts?.seedPeak ?? 0), opts?.savedPeakAt ?? 0);
+  const first = washoutScoreRun(seeded, prevClose, opts).points;
   const indices = peakResetIndices(first);
   const seen = new Set<number>();
   for (const i of indices) {
-    const bar = bars[i];
+    const bar = seeded[i];
     if (!bar || seen.has(bar.t)) continue;
     seen.add(bar.t);
     const rec = await fetchPeakSecondTimes(ticker, bar.t, key, opts);
-    if (!rec) continue;
-    bar.peakAt = rec.peakAt;
-    bar.closeAt = rec.closeAt;
+    bar.peakAt = rec?.peakAt ?? bar.peakAt ?? bar.t;
+    bar.closeAt = minuteBarEnd(bar.t);
   }
-  return washoutScoreSeries(bars, prevClose);
+  const run = washoutScoreRun(seeded, prevClose, opts);
+  return { series: run.points, state: run.state };
 }

@@ -12,6 +12,7 @@ export type WashoutSample = {
 const mem = new Map<number, WashoutSample>();
 const TAPE_HIGH_FILE = resolve(process.cwd(), ".washout-tape-highs.json");
 const TRACKED_FILE = resolve(process.cwd(), ".washout-tracked.json");
+const GRANTS_FILE = resolve(process.cwd(), ".washout-grants.json");
 
 function readJsonFile<T>(path: string): T | null {
   try {
@@ -172,6 +173,106 @@ export async function compactOldWashoutSamples(now = Date.now()): Promise<{
   }
 }
 
+export async function loadTrackedOrigins(): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("washout_tracked_tickers").select("ticker,track_from");
+    if (!error && data) {
+      for (const row of data) {
+        const ticker = String(row.ticker ?? "").trim().toUpperCase();
+        const at = row.track_from != null ? Date.parse(String(row.track_from)) : NaN;
+        if (ticker && Number.isFinite(at) && at > 0) out.set(ticker, at);
+      }
+    }
+  } catch {
+    /* 컬럼 없으면 파일 */
+  }
+  const saved = readJsonFile<{ trackFrom?: Record<string, number> }>(TRACKED_FILE);
+  for (const [ticker, at] of Object.entries(saved?.trackFrom ?? {})) {
+    if (out.has(ticker.toUpperCase())) continue;
+    if (Number.isFinite(at) && at > 0) out.set(ticker.toUpperCase(), at);
+  }
+  return out;
+}
+
+export async function loadTrackGrants(grantDate: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("washout_track_grants")
+      .select("ticker")
+      .eq("grant_date", grantDate);
+    if (!error && data) {
+      for (const row of data) {
+        const ticker = String(row.ticker ?? "").trim().toUpperCase();
+        if (ticker) out.add(ticker);
+      }
+    }
+  } catch {
+    /* 테이블 없으면 파일 */
+  }
+  const saved = readJsonFile<{ date?: string; tickers?: string[] }>(GRANTS_FILE);
+  if (saved?.date === grantDate) {
+    for (const ticker of saved.tickers ?? []) {
+      const t = ticker.trim().toUpperCase();
+      if (t) out.add(t);
+    }
+  }
+  return out;
+}
+
+export async function persistTrackGrants(grantDate: string, tickers: Iterable<string>): Promise<void> {
+  const uniq = [...new Set([...tickers].map((t) => t.trim().toUpperCase()).filter(Boolean))];
+  writeJsonFile(GRANTS_FILE, { date: grantDate, tickers: uniq });
+  if (uniq.length === 0) return;
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from("washout_track_grants").upsert(
+      uniq.map((ticker) => ({ ticker, grant_date: grantDate })),
+      { onConflict: "ticker,grant_date" }
+    );
+    if (error) throw error;
+  } catch (e) {
+    console.error(
+      "[washout] persistTrackGrants failed",
+      e && typeof e === "object" ? JSON.stringify(e) : e
+    );
+  }
+}
+
+export async function loadTrackedPeaks(tapeDate: string): Promise<
+  Map<string, { price: number; at: number }>
+> {
+  const out = new Map<string, { price: number; at: number }>();
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("washout_tracked_tickers")
+      .select("ticker,peak_price,peak_at,tape_date");
+    const rows =
+      error || !data
+        ? (
+            await admin
+              .from("washout_tracked_tickers")
+              .select("ticker,peak_price,tape_date")
+          ).data
+        : data;
+    if (!rows) return out;
+    for (const row of rows) {
+      const ticker = String(row.ticker ?? "").trim().toUpperCase();
+      const peak = Number(row.peak_price);
+      if (!ticker || !Number.isFinite(peak) || peak <= 0) continue;
+      const atRaw = "peak_at" in row && row.peak_at != null ? Date.parse(String(row.peak_at)) : NaN;
+      out.set(ticker, { price: peak, at: Number.isFinite(atRaw) ? atRaw : 0 });
+    }
+  } catch {
+    /* 컬럼 없으면 빈 맵 */
+  }
+  return out;
+}
+
 export async function loadTrackedTickers(): Promise<string[]> {
   try {
     const admin = createAdminClient();
@@ -263,6 +364,14 @@ export async function persistTrackedBoard(
     ddPct?: number;
     sessionElapsedMin?: number;
     sessionQuotaMin?: number;
+    peakPrice?: number;
+    peakAt?: number;
+    trackFrom?: number;
+    lastPrice?: number;
+    lastBarT?: number;
+    prevClose?: number;
+    grid?: Record<string, number>;
+    tapeDate?: string;
   }>
 ): Promise<void> {
   const uniq = new Map<string, (typeof rows)[number]>();
@@ -270,7 +379,11 @@ export async function persistTrackedBoard(
     const ticker = row.ticker.trim().toUpperCase();
     if (ticker) uniq.set(ticker, { ...row, ticker });
   }
-  writeJsonFile(TRACKED_FILE, { tickers: [...uniq.keys()] });
+  const trackFrom: Record<string, number> = {};
+  for (const row of uniq.values()) {
+    if (row.trackFrom != null && row.trackFrom > 0) trackFrom[row.ticker] = row.trackFrom;
+  }
+  writeJsonFile(TRACKED_FILE, { tickers: [...uniq.keys()], trackFrom });
   try {
     const admin = createAdminClient();
     if (uniq.size === 0) {
@@ -283,13 +396,27 @@ export async function persistTrackedBoard(
       dd_pct: row.ddPct ?? null,
       session_elapsed_min: row.sessionElapsedMin ?? null,
       session_quota_min: row.sessionQuotaMin ?? null,
+      peak_price: row.peakPrice ?? null,
+      peak_at: row.peakAt != null && row.peakAt > 0 ? new Date(row.peakAt).toISOString() : null,
+      track_from: row.trackFrom != null && row.trackFrom > 0 ? new Date(row.trackFrom).toISOString() : null,
+      last_price: row.lastPrice ?? null,
+      last_bar_t: row.lastBarT != null ? new Date(row.lastBarT).toISOString() : null,
+      prev_close: row.prevClose ?? null,
+      grid: row.grid ?? {},
+      tape_date: row.tapeDate ?? null,
     }));
     const { error } = await admin.from("washout_tracked_tickers").upsert(payload, {
       onConflict: "ticker",
     });
     if (error) {
       const { error: plainErr } = await admin.from("washout_tracked_tickers").upsert(
-        payload.map((row) => ({ ticker: row.ticker })),
+        payload.map((row) => ({
+          ticker: row.ticker,
+          score: row.score,
+          dd_pct: row.dd_pct,
+          session_elapsed_min: row.session_elapsed_min,
+          session_quota_min: row.session_quota_min,
+        })),
         { onConflict: "ticker" }
       );
       if (plainErr) throw plainErr;

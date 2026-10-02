@@ -39,6 +39,15 @@ export async function GET(req: Request) {
         sessionDate: "",
         fetchedAt: new Date().toISOString(),
         servedFromCache: false,
+        compare: {
+          session: null,
+          yesterday: null,
+          avg5: null,
+          avg20: null,
+          days5: 0,
+          days20: 0,
+          paths: { yesterday: [], avg5: [], avg20: [] },
+        },
         error: message,
       },
       { status: 502, headers: { "Cache-Control": "no-store" } }

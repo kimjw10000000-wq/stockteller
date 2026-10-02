@@ -1,10 +1,14 @@
 import {
+  dumpGrid,
   washoutIndexAverage,
   washoutIndexPath,
+  trackingOriginMs,
+  specialTickersAfterRth,
   WASHOUT_TRACK_PCT,
   type WashoutBar,
   type WashoutPoint,
 } from "./washout-score";
+import { washoutCompareAt, washoutComparePaths, type WashoutCompare } from "./washout-compare";
 import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } from "./polygon-keys";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
@@ -18,15 +22,18 @@ import {
   tapeDayElapsedMin,
   TAPE_DAY_SESSION_MIN,
   usEtYmd,
-  usSessionDateKey,
 } from "./us-session";
 import {
   loadSamplesSince,
   loadTapeHighs,
   loadTrackedBoard,
+  loadTrackGrants,
+  loadTrackedOrigins,
+  loadTrackedPeaks,
   loadTrackedTickers,
   persistSamples,
   persistTapeHighs,
+  persistTrackGrants,
   persistTrackedBoard,
 } from "./washout-samples";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,6 +48,15 @@ export type WashoutBoardRow = {
   tracking: boolean;
   sessionElapsedMin: number;
   sessionQuotaMin: number;
+  peakPrice?: number;
+  peakAt?: number;
+  captureAt?: number;
+  peakElapsedMin?: number;
+  trackFrom?: number;
+  lastPrice?: number;
+  lastBarT?: number;
+  prevClose?: number;
+  grid?: Record<string, number>;
 };
 
 type SnapshotRow = {
@@ -57,7 +73,6 @@ const CACHE_MS = 0;
 const HIST_CACHE_MS = 8_000;
 const LISTED_MS = 10 * 60_000;
 const MAX_TICKERS = 120;
-const PROBE_MIN_PCT = 10;
 /** Advanced 키는 실시간 전용. 백필은 Starter. 스냅샷+분봉이 같은 키를 나누므로 종목 병렬은 6. */
 const CONCURRENCY = 6;
 const tracked = new Set<string>();
@@ -165,8 +180,14 @@ export type WashoutBoardPayload = {
   sessionDate: string;
   fetchedAt: string;
   servedFromCache: boolean;
+  compare?: WashoutCompare;
   error?: string;
 };
+
+function asDump(v: number): number {
+  if (!Number.isFinite(v) || v === 0) return 0;
+  return -Math.abs(v);
+}
 
 function gatePct(high: number, prevClose: number): number {
   if (prevClose <= 0) return 0;
@@ -243,13 +264,21 @@ function rememberTapeHigh(tapeYmd: string, ticker: string, print: number | null)
   return high;
 }
 
-function isCandidate(row: {
-  ticker: string;
-  prevClose: number;
-  high: number;
-  changePerc: number | null;
-}): boolean {
+function snapshotMinuteHigh(raw: SnapshotRow): number | null {
+  return maxNum(raw.min?.h, raw.min?.c);
+}
+
+function isCandidate(
+  row: {
+    ticker: string;
+    prevClose: number;
+    high: number;
+    changePerc: number | null;
+  },
+  granted: Set<string>
+): boolean {
   if (tracked.has(row.ticker)) return true;
+  if (granted.has(row.ticker)) return false;
   return gatePct(row.high, row.prevClose) >= WASHOUT_TRACK_PCT;
 }
 
@@ -423,30 +452,29 @@ function rank(row: { high: number; prevClose: number; changePerc: number | null 
   return Math.max(gatePct(row.high, row.prevClose), row.changePerc ?? 0);
 }
 
-function refClose(raw: SnapshotRow, tapeYmd: string, nowYmd: string): number | null {
-  if (tapeYmd === nowYmd) {
-    const close = raw.prevDay?.c;
-    return close != null && Number.isFinite(close) && close > 0 ? close : null;
-  }
-  const close = raw.day?.c ?? raw.prevDay?.c;
-  return close != null && Number.isFinite(close) && close > 0 ? close : null;
+function barPrevClose(
+  t: number,
+  nowYmd: string,
+  priorClose: number,
+  todayClose: number | null
+): number {
+  const todayRthEnd = etWallMs(nowYmd, 16, 0);
+  if (todayClose != null && todayClose > 0 && t >= todayRthEnd) return todayClose;
+  return priorClose;
 }
 
-async function loadSessionHotTickers(dates: string[]): Promise<string[]> {
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("session_gainers")
-      .select("ticker,peak_change_pct")
-      .in("session_date", dates)
-      .gte("peak_change_pct", WASHOUT_TRACK_PCT);
-    if (error || !data) return [];
-    return data
-      .map((row) => listingKey(String(row.ticker ?? "")))
-      .filter(Boolean);
-  } catch {
-    return [];
+function refClose(raw: SnapshotRow, now: Date): number | null {
+  const dayC = raw.day?.c;
+  if (
+    sessionAtInstant(now) === "afterhours" &&
+    dayC != null &&
+    Number.isFinite(dayC) &&
+    dayC > 0
+  ) {
+    return dayC;
   }
+  const close = raw.prevDay?.c;
+  return close != null && Number.isFinite(close) && close > 0 ? close : null;
 }
 
 function stitchCarry(
@@ -484,19 +512,19 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
   const key = polygonAdvancedKeyOrNull() || polygonStarterKeyOrNull();
   if (!key) return empty;
   const nowYmd = usEtYmd(now);
-  const prev = previousEtWeekday(tapeYmd);
-  const from = prev;
-  const startMs = etWallMs(prev, 16, 0);
-  const to = tapeYmd < nowYmd ? nowYmd : tapeYmd > nowYmd ? nowYmd : tapeYmd;
+  const from = previousEtWeekday(nowYmd);
+  const startMs = etWallMs(from, 4, 0);
+  const to = nowYmd;
   for (const ticker of await loadTrackedTickers()) tracked.add(ticker);
-  for (const ticker of await loadSessionHotTickers([nowYmd, prev, usSessionDateKey(now)])) {
-    tracked.add(ticker);
-  }
   const savedHighs = await loadTapeHighs(tapeYmd);
   if (!tapeHighCache || tapeHighCache.tapeYmd !== tapeYmd) {
     tapeHighCache = { tapeYmd, high: new Map() };
   }
   for (const [ticker, high] of savedHighs) rememberTapeHigh(tapeYmd, ticker, high);
+  const savedPeaks = await loadTrackedPeaks(tapeYmd);
+  const savedOrigins = await loadTrackedOrigins();
+  const trackGrants = await loadTrackGrants(tapeYmd);
+  for (const [ticker, peak] of savedPeaks) rememberTapeHigh(tapeYmd, ticker, peak.price);
   const wasTracked = new Set(tracked);
   const rows = await loadSnapshotRows(key);
   const listed = await loadListedTickers();
@@ -514,22 +542,35 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       const quoteTicker = listingKey(raw.ticker ?? "");
       const ticker = canonicalWashoutTicker(quoteTicker, aliases);
       if (!ticker || !listed.has(ticker)) return null;
-      const prevClose = refClose(raw, tapeYmd, nowYmd);
-      const print = maxNum(
-        raw.day?.h,
-        raw.day?.c,
-        raw.min?.h,
-        raw.min?.c,
-        raw.lastTrade?.p,
-        raw.lastQuote?.p
-      );
-      const high = rememberTapeHigh(tapeYmd, ticker, print);
-      if (!ticker || prevClose == null || high == null) return null;
+      const priorClose = raw.prevDay?.c;
+      const todayClose = raw.day?.c ?? null;
+      const prevClose = refClose(raw, now);
+      const minuteHigh = snapshotMinuteHigh(raw);
+      if (minuteHigh != null) rememberTapeHigh(tapeYmd, ticker, minuteHigh);
+      if (
+        !ticker ||
+        prevClose == null ||
+        minuteHigh == null ||
+        priorClose == null ||
+        !Number.isFinite(priorClose) ||
+        priorClose <= 0
+      ) {
+        return null;
+      }
       const changePerc =
         raw.todaysChangePerc != null && Number.isFinite(raw.todaysChangePerc)
           ? raw.todaysChangePerc
           : null;
-      return { ticker, quoteTicker, prevClose, high, changePerc };
+      return {
+        ticker,
+        quoteTicker,
+        prevClose,
+        priorClose,
+        todayClose:
+          todayClose != null && Number.isFinite(todayClose) && todayClose > 0 ? todayClose : null,
+        high: minuteHigh,
+        changePerc,
+      };
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
   const mappedBy = new Map<string, (typeof mappedRaw)[number]>();
@@ -540,33 +581,38 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
   for (const ticker of tracked) {
     if (mappedBy.has(ticker)) continue;
     const raw = rows.find((row) => canonicalWashoutTicker(listingKey(row.ticker ?? ""), aliases) === ticker);
-    const prevClose = raw ? refClose(raw, tapeYmd, nowYmd) : null;
+    const prevClose = raw ? refClose(raw, now) : null;
+    const priorClose = raw?.prevDay?.c;
+    const todayClose = raw?.day?.c ?? null;
     const high = tapeHighCache?.high.get(ticker) ?? 0;
     if (prevClose == null || prevClose <= 0) continue;
+    if (priorClose == null || !Number.isFinite(priorClose) || priorClose <= 0) continue;
     mappedBy.set(ticker, {
       ticker,
       quoteTicker: listingKey(raw?.ticker ?? ticker),
       prevClose,
+      priorClose,
+      todayClose:
+        todayClose != null && Number.isFinite(todayClose) && todayClose > 0 ? todayClose : null,
       high,
       changePerc: raw?.todaysChangePerc ?? null,
     });
   }
   const mapped = [...mappedBy.values()];
+  const specialNow = specialTickersAfterRth(
+    mapped.map((row) => ({
+      ticker: row.ticker,
+      high: row.high,
+      close: row.todayClose ?? row.high,
+      prevClose: row.priorClose,
+    }))
+  );
   const held = mapped.filter((row) => tracked.has(row.ticker));
-  const fresh = mapped.filter((row) => !tracked.has(row.ticker) && isCandidate(row));
+  const fresh = mapped.filter((row) => !tracked.has(row.ticker) && isCandidate(row, trackGrants));
   fresh.sort((a, b) => rank(b) - rank(a));
-  const probes = mapped
-    .filter(
-      (row) =>
-        !tracked.has(row.ticker) &&
-        !isCandidate(row) &&
-        rank(row) >= PROBE_MIN_PCT
-    )
-    .sort((a, b) => rank(b) - rank(a))
-    .slice(0, 40);
   const picked: typeof mapped = [];
   const seenPick = new Set<string>();
-  for (const row of [...held, ...fresh, ...probes]) {
+  for (const row of [...held, ...mapped.filter((r) => specialNow.has(r.ticker)), ...fresh]) {
     if (seenPick.has(row.ticker)) continue;
     seenPick.add(row.ticker);
     picked.push(row);
@@ -594,7 +640,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       ]);
       let bars = clipSessionBars(rawBars).filter((bar) => bar.t >= startMs);
       for (const bar of bars) {
-        bar.prevClose = row.prevClose;
+        bar.prevClose = barPrevClose(bar.t, nowYmd, row.priorClose, row.todayClose);
         rememberTapeHigh(tapeYmd, ticker, bar.high ?? bar.price);
       }
       const snap = snapBy.get(quoteTicker) ?? snapBy.get(ticker);
@@ -603,14 +649,29 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         ? {
             t: lastTrade.t,
             price: lastTrade.p,
-            high: Math.max(lastTrade.p, snap?.min?.h ?? lastTrade.p, snap?.day?.h ?? lastTrade.p),
+            high: Math.max(lastTrade.p, snap?.min?.h ?? lastTrade.p),
           }
         : fromSnap;
-      bars = mergeLiveBar(bars, live, row.prevClose, startMs);
-      const series = await scoreWithPeakSeconds(bars, row.prevClose, row.ticker, key);
-      const last = series.length ? series[series.length - 1] : null;
+      const livePc = live ? barPrevClose(live.t, nowYmd, row.priorClose, row.todayClose) : row.prevClose;
+      bars = mergeLiveBar(bars, live, livePc, startMs);
+      const origin = savedOrigins.get(ticker);
+      const clipFrom =
+        origin != null && origin > 0
+          ? Math.floor(origin / 60_000) * 60_000
+          : wasTracked.has(ticker)
+            ? startMs
+            : minuteStart(now.getTime()) - 60_000;
+      bars = bars.filter((bar) => bar.t >= clipFrom);
+      const firstPc = bars[0]?.prevClose ?? row.prevClose;
+      const out = await scoreWithPeakSeconds(bars, firstPc, row.ticker, key, {
+        seedPeak: savedPeaks.get(ticker)?.price ?? 0,
+        savedPeakAt: savedPeaks.get(ticker)?.at ?? 0,
+        specialAhYmds: specialNow.has(ticker) ? [nowYmd] : undefined,
+      });
+      const last = out.series.length ? out.series[out.series.length - 1] : null;
       if (!last?.tracking) return null;
-      seriesList.push(series);
+      const firstTrack = out.series.find((point) => point.tracking);
+      seriesList.push(out.series);
       return {
         ticker: row.ticker,
         score: last.score,
@@ -618,7 +679,16 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         tracking: last.tracking,
         sessionElapsedMin: last.sessionElapsedMin,
         sessionQuotaMin: last.sessionQuotaMin,
-      } satisfies WashoutBoardRow;
+        peakPrice: out.state.peakPrice,
+        peakAt: out.state.peakAt,
+        captureAt: last.captureAt,
+        peakElapsedMin: last.peakElapsedMin,
+        trackFrom: origin ?? (firstTrack?.peakAt ? trackingOriginMs(firstTrack.peakAt) : undefined),
+        lastPrice: out.state.price,
+        lastBarT: out.state.t,
+        prevClose: out.state.prevClose,
+        grid: dumpGrid(out.state.grid),
+      };
     } catch {
       failed.add(row.ticker);
       return null;
@@ -652,9 +722,22 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
           ddPct: hit?.ddPct ?? 0,
           sessionElapsedMin: hit?.sessionElapsedMin ?? 0,
           sessionQuotaMin: hit?.sessionQuotaMin ?? 0,
+          peakPrice: hit?.peakPrice,
+          peakAt: hit?.peakAt,
+          captureAt: hit?.captureAt,
+          trackFrom: hit?.trackFrom ?? savedOrigins.get(ticker),
+          lastPrice: hit?.lastPrice,
+          lastBarT: hit?.lastBarT,
+          prevClose: hit?.prevClose,
+          grid: hit?.grid,
+          tapeDate: tapeYmd,
         };
       })
     );
+    const granted = new Set(trackGrants);
+    for (const ticker of wasTracked) granted.add(ticker);
+    for (const row of items) granted.add(row.ticker);
+    await persistTrackGrants(tapeYmd, granted);
   }
   if (tapeHighCache?.tapeYmd === tapeYmd) {
     await persistTapeHighs(tapeYmd, tapeHighCache.high);
@@ -679,7 +762,14 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       : series;
   await persistSamples(toStore, tapeYmd, { incremental: !opts?.persistAll });
   return {
-    index: washoutIndexAverage(items.map((row) => row.score)),
+    index: washoutIndexAverage(
+      items.map((row) => ({
+        score: row.score,
+        captureAt: row.captureAt,
+        peakAt: row.peakAt,
+        peakElapsedMin: row.peakElapsedMin,
+      }))
+    ),
     series: series.filter((point) => isInTapeDay(point.t, tapeYmd)),
     tapeYmd,
     items,
@@ -745,23 +835,47 @@ export async function getWashoutBoard(opts?: {
 
 async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<WashoutBoardPayload> {
   const days = tapeDatesBack(live.tapeYmd, rangeDays(range));
+  const compareDays = tapeDatesBack(live.tapeYmd, 21);
   const axisStart = etWallMs(previousEtWeekday(days[0]), 16, 0);
   const axisEnd = etWallMs(days[days.length - 1], 16, 0);
-  const lookback = range === "1d" ? axisStart - 8 * 60 * 60 * 1000 : axisStart;
+  const compareStart = etWallMs(previousEtWeekday(compareDays[0]), 16, 0);
+  const chartLookback = range === "1d" ? axisStart - 8 * 60 * 60 * 1000 : axisStart;
+  const lookback = Math.min(chartLookback, compareStart);
   const hist = await loadSamplesSince(lookback);
   const byT = new Map<number, { t: number; v: number; tape_date?: string }>();
   for (const row of hist) byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date });
   for (const point of live.series) {
-    byT.set(Math.floor(point.t / 60_000) * 60_000, { t: point.t, v: point.v });
+    byT.set(Math.floor(point.t / 60_000) * 60_000, {
+      t: point.t,
+      v: point.v,
+      tape_date: live.tapeYmd,
+    });
   }
   const merged = [...byT.values()].sort((a, b) => a.t - b.t);
   const points =
     range === "1d" ? stitchCarry(merged, axisStart, live.tapeYmd) : downsample(merged, range, days);
   const series = withX(points, days, range);
   const index = series.length ? series[series.length - 1].v : live.index;
+  const rowTape = (row: { t: number; tape_date?: string }) =>
+    (row.tape_date ?? "").slice(0, 10) || runnerTapeDate(new Date(row.t));
+  const latestTape = [...merged]
+    .reverse()
+    .find((row) => rowTape(row) === live.tapeYmd);
+  const atMs = latestTape?.t ?? series.at(-1)?.t ?? Date.now();
+  const tagged = merged.map((row) => ({ ...row, tape_date: rowTape(row) }));
+  const compare = washoutCompareAt(tagged, atMs, live.tapeYmd);
+  const rawPaths = washoutComparePaths(tagged, live.tapeYmd, points);
+  compare.paths = {
+    yesterday: withX(rawPaths.yesterday, days, range).map((p) => ({ ...p, v: asDump(p.v) })),
+    avg5: withX(rawPaths.avg5, days, range).map((p) => ({ ...p, v: asDump(p.v) })),
+    avg20: withX(rawPaths.avg20, days, range).map((p) => ({ ...p, v: asDump(p.v) })),
+  };
+  compare.yesterday = compare.yesterday == null ? null : asDump(compare.yesterday);
+  compare.avg5 = compare.avg5 == null ? null : asDump(compare.avg5);
+  compare.avg20 = compare.avg20 == null ? null : asDump(compare.avg20);
   return {
-    index,
-    series,
+    index: asDump(index),
+    series: series.map((p) => ({ ...p, v: asDump(p.v) })),
     items: live.items,
     range,
     axisStart,
@@ -769,5 +883,6 @@ async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<Was
     sessionDate: live.tapeYmd,
     fetchedAt: new Date().toISOString(),
     servedFromCache: false,
+    compare,
   };
 }

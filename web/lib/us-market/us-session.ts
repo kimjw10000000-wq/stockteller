@@ -154,3 +154,62 @@ export function tapeSessionAt(
   if (ymd === tapeYmd && session === "regular") return "regular";
   return null;
 }
+
+function isEtWeekendYmd(ymd: string): boolean {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return wd === 0 || wd === 6;
+}
+
+/** 프리 04:00–09:30 / 본장 09:30–16:00 / 애프터 16:00–20:00. 주말·20:00–04:00 공백은 세지 않는다. */
+const SESSION_WINDOWS: Array<[number, number, number, number]> = [
+  [4, 0, 9, 30],
+  [9, 30, 16, 0],
+  [16, 0, 20, 0],
+];
+
+/** `fromMs` 이상 `toMs` 미만의 거래 가능 분. */
+export function sessionMinutesBetween(fromMs: number, toMs: number): number {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return 0;
+  let ymd = etYmd(new Date(fromMs));
+  const endYmd = etYmd(new Date(toMs));
+  let totalMs = 0;
+  let guard = 0;
+  while (ymd <= endYmd && guard++ < 400) {
+    if (!isEtWeekendYmd(ymd)) {
+      for (const [h0, m0, h1, m1] of SESSION_WINDOWS) {
+        const a = etWallMs(ymd, h0, m0);
+        const b = etWallMs(ymd, h1, m1);
+        const lo = Math.max(fromMs, a);
+        const hi = Math.min(toMs, b);
+        if (hi > lo) totalMs += hi - lo;
+      }
+    }
+    if (ymd === endYmd) break;
+    ymd = addEtDays(ymd, 1);
+  }
+  return totalMs / 60_000;
+}
+
+/** `fromMs`부터 거래 가능 분 `minutes`가 지난 시각. */
+export function addSessionMinutes(fromMs: number, minutes: number): number {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(minutes) || minutes <= 0) return fromMs;
+  let remain = minutes * 60_000;
+  let ymd = etYmd(new Date(fromMs));
+  let guard = 0;
+  while (remain > 0 && guard++ < 400) {
+    if (!isEtWeekendYmd(ymd)) {
+      for (const [h0, m0, h1, m1] of SESSION_WINDOWS) {
+        const a = etWallMs(ymd, h0, m0);
+        const b = etWallMs(ymd, h1, m1);
+        const lo = Math.max(fromMs, a);
+        if (b <= lo) continue;
+        const span = b - lo;
+        if (remain <= span) return lo + remain;
+        remain -= span;
+      }
+    }
+    ymd = addEtDays(ymd, 1);
+  }
+  return fromMs;
+}
