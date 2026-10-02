@@ -451,10 +451,10 @@ export function SimilarMoversContent() {
     }));
 
   return (
-    <main className="space-y-6">
+    <main className="mx-auto w-full max-w-lg space-y-4">
       <header>
         <p className="text-sm font-medium text-muted-foreground">{t("similar.kicker")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-foreground sm:text-3xl">
+        <h1 className="mt-1 text-2xl font-semibold text-foreground">
           {t("similar.title")}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -463,7 +463,7 @@ export function SimilarMoversContent() {
       </header>
 
       <Card className="border-border">
-        <CardContent className="px-6 py-6">
+        <CardContent className="px-4 py-4">
           {failed && !data ? (
             <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
           ) : (
@@ -471,7 +471,7 @@ export function SimilarMoversContent() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm text-muted-foreground">{t("similar.indexLabel")}</p>
-                  <p className="mt-1 text-4xl font-semibold tabular-nums text-foreground sm:text-5xl">
+                  <p className="mt-1 text-3xl font-semibold tabular-nums text-foreground">
                     {shown == null ? "—" : roundIndex(shown)}
                   </p>
                   <p className="mt-1 h-5 text-sm tabular-nums text-muted-foreground">
