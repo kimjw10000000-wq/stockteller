@@ -194,8 +194,8 @@ function tapeLink(prevT: number, t: number): TapeLink {
 export function washoutPointInSessionIndex(
   point: WashoutPoint | null | undefined,
   atMs: number
-): boolean {
-  if (!stillTrackingAt(point, atMs)) return false;
+): point is WashoutPoint {
+  if (!point || !stillTrackingAt(point, atMs)) return false;
   const started = point.sessionCaptureAt || 0;
   if (!(started > 0)) return true;
   if (runnerTapeDate(new Date(started)) !== runnerTapeDate(new Date(atMs))) return false;

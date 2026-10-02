@@ -332,7 +332,11 @@ export async function backfillWashoutIndex(opts?: {
               bar.prevClose = pc;
             }
             barsByTicker.set(row.ticker, bars);
-            const series = await scoreWithPeakSeconds(bars, row.prevClose, row.symbol, key, polyOpts);
+            const scored = await scoreWithPeakSeconds(bars, row.prevClose, row.symbol, key, {
+              ...polyOpts,
+              seedPeak: row.high,
+            });
+            const series = scored.series;
             const last = series.length ? series[series.length - 1] : null;
             if (!last?.tracking) {
               barsByTicker.delete(row.ticker);
