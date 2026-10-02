@@ -113,19 +113,6 @@ export type WashoutScoreOpts = {
   specialAhYmds?: Set<string> | string[];
 };
 
-function specialAhDays(opts?: WashoutScoreOpts): Set<string> | null {
-  if (!opts?.specialAhYmds) return null;
-  return opts.specialAhYmds instanceof Set ? opts.specialAhYmds : new Set(opts.specialAhYmds);
-}
-
-function ahQuotaForGrant(barT: number, opts?: WashoutScoreOpts): number {
-  const days = specialAhDays(opts);
-  if (!days) return WASHOUT_TRACK_SESSION_MIN;
-  if (sessionAtInstant(new Date(barT)) !== "afterhours") return WASHOUT_TRACK_SESSION_MIN;
-  if (!days.has(usEtYmd(new Date(barT)))) return WASHOUT_TRACK_SESSION_MIN;
-  return WASHOUT_TRACK_SESSION_MIN + remainingAfterhoursMinutes(barT);
-}
-
 export type WashoutPoint = {
   t: number;
   price: number;

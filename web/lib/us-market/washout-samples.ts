@@ -242,7 +242,7 @@ export async function persistTrackGrants(grantDate: string, tickers: Iterable<st
   }
 }
 
-export async function loadTrackedPeaks(tapeDate: string): Promise<
+export async function loadTrackedPeaks(): Promise<
   Map<string, { price: number; at: number }>
 > {
   const out = new Map<string, { price: number; at: number }>();

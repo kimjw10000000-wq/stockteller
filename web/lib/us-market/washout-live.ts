@@ -521,7 +521,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
     tapeHighCache = { tapeYmd, high: new Map() };
   }
   for (const [ticker, high] of savedHighs) rememberTapeHigh(tapeYmd, ticker, high);
-  const savedPeaks = await loadTrackedPeaks(tapeYmd);
+  const savedPeaks = await loadTrackedPeaks();
   const savedOrigins = await loadTrackedOrigins();
   const trackGrants = await loadTrackGrants(tapeYmd);
   for (const [ticker, peak] of savedPeaks) rememberTapeHigh(tapeYmd, ticker, peak.price);
