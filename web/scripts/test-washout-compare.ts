@@ -35,6 +35,16 @@ const open = washoutCompareAt(
 );
 expect(open.yesterday === 80, `open slack ${open.yesterday}`);
 
+const asOf = washoutCompareAt(
+  [
+    { t: etWallMs(previousEtWeekday(tape), 12, 0), v: 40, tape_date: previousEtWeekday(tape) },
+    { t: etWallMs(previousEtWeekday(tape), 12, 6), v: 90, tape_date: previousEtWeekday(tape) },
+  ],
+  etWallMs(tape, 12, 5),
+  tape
+);
+expect(asOf.yesterday === 40, `as-of keeps 12:00 not 12:06 ${asOf.yesterday}`);
+
 const pre = washoutCompareAt(rows, etWallMs(tape, 8, 0), tape);
 expect(pre.session === "premarket", `pre session ${pre.session}`);
 expect(pre.yesterday == null, "pre has no yesterday match");

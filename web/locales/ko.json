@@ -222,6 +222,7 @@
       "1m": "1달",
       "3m": "3달"
     },
+    "sameTime": "같은 시각",
     "compareYesterday": "어제",
     "compareAvg5": "5일 평균",
     "compareAvg20": "20일 평균",

@@ -14,6 +14,7 @@ type Compare = {
   yesterday?: number | null;
   avg5?: number | null;
   avg20?: number | null;
+  at?: number;
   paths?: Partial<Record<OverlayKey, ChartPoint[]>>;
 };
 
@@ -499,6 +500,9 @@ export function SimilarMoversContent() {
                 </div>
               </div>
               <div>
+                <p className="mb-2 text-[11px] text-muted-foreground">
+                  {compare?.at ? `${localClock(compare.at, locale)} ${t("similar.sameTime")}` : "\u00a0"}
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {overlayRows.map((row) => {
                     const active = on[row.key];

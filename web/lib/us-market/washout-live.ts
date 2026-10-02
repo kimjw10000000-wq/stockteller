@@ -872,11 +872,17 @@ async function assembleRange(
   const series = withX(points, days, range, session);
   const index = series.length ? series[series.length - 1].v : live.index;
   const tagged = merged.map((row) => ({ ...row, tape_date: rowTape(row) }));
+  const bounds = sessionBounds(live.tapeYmd, session);
+  const nowMs = Date.now();
   const latestTape = [...tagged]
     .reverse()
     .find((row) => row.tape_date === live.tapeYmd && tapeSessionAtMs(row.t, live.tapeYmd) === session);
-  const atMs = latestTape?.t ?? sessionBounds(live.tapeYmd, session).start;
+  const atMs =
+    nowMs >= bounds.start && nowMs < bounds.end
+      ? nowMs
+      : (latestTape?.t ?? bounds.start);
   const compare = washoutCompareAt(tagged, atMs, live.tapeYmd);
+  compare.at = atMs;
   const rawPaths = washoutComparePaths(tagged, live.tapeYmd, points);
   compare.paths = {
     yesterday: withX(rawPaths.yesterday, days, range, session).map((p) => ({ ...p, v: asDump(p.v) })),

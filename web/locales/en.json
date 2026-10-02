@@ -222,6 +222,7 @@
       "1m": "1M",
       "3m": "3M"
     },
+    "sameTime": "Same time",
     "compareYesterday": "Yesterday",
     "compareAvg5": "5-day avg",
     "compareAvg20": "20-day avg",

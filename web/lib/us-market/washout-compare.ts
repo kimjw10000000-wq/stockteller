@@ -27,6 +27,8 @@ export type WashoutCompare = {
   avg20: number | null;
   days5: number;
   days20: number;
+  /** 비교에 쓴 시각. 지금이 그 세션 안이면 현재 시각. */
+  at?: number;
   paths: WashoutComparePath;
 };
 
@@ -76,18 +78,21 @@ export function valueAtSessionElapsed(
 ): number | null {
   const { start, end } = sessionBounds(tapeYmd, session);
   const target = start + elapsedMin * 60_000;
-  let best: { t: number; v: number; dt: number } | null = null;
+  let before: { t: number; v: number } | null = null;
+  let after: { t: number; v: number; dt: number } | null = null;
   for (const row of samples) {
     if (sampleTape(row) !== tapeYmd) continue;
     if (row.t < start || row.t >= end) continue;
     if (!Number.isFinite(row.v)) continue;
     const dt = Math.abs(row.t - target);
     if (dt > MATCH_SLACK_MS) continue;
-    if (!best || dt < best.dt || (dt === best.dt && row.t <= target)) {
-      best = { t: row.t, v: row.v, dt };
+    if (row.t <= target) {
+      if (!before || row.t > before.t) before = { t: row.t, v: row.v };
+    } else if (!after || dt < after.dt) {
+      after = { t: row.t, v: row.v, dt };
     }
   }
-  return best?.v ?? null;
+  return (before ?? after)?.v ?? null;
 }
 
 function resolveAnchor(
