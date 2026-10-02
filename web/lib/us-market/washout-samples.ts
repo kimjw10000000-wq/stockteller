@@ -135,7 +135,8 @@ export async function persistSamples(
   }
 }
 
-const KEEP_MINUTE_MS = 14 * 24 * 60 * 60 * 1000;
+/** 20거래일 비교선이 1분 점으로 남도록, 달력 45일까지는 1분을 유지한다. */
+const KEEP_MINUTE_MS = 45 * 24 * 60 * 60 * 1000;
 const KEEP_HISTORY_MS = 400 * 24 * 60 * 60 * 1000;
 
 export async function compactOldWashoutSamples(now = Date.now()): Promise<{
