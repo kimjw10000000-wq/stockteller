@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWashoutBoard, type WashoutRange } from "@/lib/us-market/washout-live";
+import type { UsTradingSession } from "@/lib/us-market/us-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,13 +13,19 @@ function parseRange(raw: string | null): WashoutRange {
   return "1d";
 }
 
+function parseSession(raw: string | null): UsTradingSession | undefined {
+  if (raw === "premarket" || raw === "regular" || raw === "afterhours") return raw;
+  return undefined;
+}
+
 /** Vercel은 Polygon을 호출하지 않고 Supabase 샘플만 읽는다. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
   const range = parseRange(url.searchParams.get("range"));
+  const session = parseSession(url.searchParams.get("session"));
   try {
-    const result = await getWashoutBoard({ force, range });
+    const result = await getWashoutBoard({ force, range, session });
     return NextResponse.json(result, {
       headers: {
         "Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
@@ -34,6 +41,7 @@ export async function GET(req: Request) {
         series: [],
         items: [],
         range,
+        session: session ?? "regular",
         axisStart: 0,
         axisEnd: 0,
         sessionDate: "",

@@ -8,20 +8,27 @@ import {
   type WashoutBar,
   type WashoutPoint,
 } from "./washout-score";
-import { washoutCompareAt, washoutComparePaths, type WashoutCompare } from "./washout-compare";
+import {
+  sessionSlotX,
+  tapeSessionAtMs,
+  washoutCompareAt,
+  washoutComparePaths,
+  type WashoutCompare,
+} from "./washout-compare";
 import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } from "./polygon-keys";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
+  activeTapeSession,
   etWallMs,
   isInTapeDay,
   isUsWeekday,
   previousEtWeekday,
   runnerTapeDate,
   sessionAtInstant,
+  sessionBounds,
   tapeDatesBack,
-  tapeDayElapsedMin,
-  TAPE_DAY_SESSION_MIN,
   usEtYmd,
+  type UsTradingSession,
 } from "./us-session";
 import {
   loadSamplesSince,
@@ -175,6 +182,7 @@ export type WashoutBoardPayload = {
   series: WashoutChartPoint[];
   items: WashoutBoardRow[];
   range: WashoutRange;
+  session: UsTradingSession;
   axisStart: number;
   axisEnd: number;
   sessionDate: string;
@@ -367,14 +375,15 @@ function clipSessionBars(bars: WashoutBar[]): WashoutBar[] {
 function rangeDays(range: WashoutRange): number {
   if (range === "1d") return 1;
   if (range === "1w") return 5;
-  if (range === "1m") return 22;
+  if (range === "1m") return 30;
   return 90;
 }
 
 function downsample(
   points: Array<{ t: number; v: number; tape_date?: string }>,
   range: WashoutRange,
-  days: string[]
+  days: string[],
+  session: UsTradingSession
 ): Array<{ t: number; v: number; tape?: string }> {
   if (range === "1d" || points.length === 0) return points;
   const ordered = [...points].sort((a, b) => a.t - b.t);
@@ -383,13 +392,10 @@ function downsample(
     const tape =
       (point.tape_date ?? "").slice(0, 10) || runnerTapeDate(new Date(point.t));
     const i = days.indexOf(tape);
-    if (i < 0) continue;
-    let key: string;
-    if (range === "1w") {
-      key = `${tape}:${Math.floor(tapeDayElapsedMin(point.t, tape) / 10)}`;
-    } else {
-      key = tape;
-    }
+    if (i < 0 || tapeSessionAtMs(point.t, tape) !== session) continue;
+    const { start } = sessionBounds(tape, session);
+    const key =
+      range === "1w" ? `${tape}:${Math.floor((point.t - start) / 60_000 / 10)}` : tape;
     by.set(key, { t: point.t, v: point.v, tape });
   }
   return [...by.values()].sort((a, b) => a.t - b.t);
@@ -399,32 +405,29 @@ function xOnAxis(
   t: number,
   days: string[],
   range: WashoutRange,
+  session: UsTradingSession,
   tapeHint?: string
 ): number {
-  const n = days.length;
-  if (n <= 0) return 0;
   const tape = (tapeHint ?? "").slice(0, 10) || runnerTapeDate(new Date(t));
-  const i = days.indexOf(tape);
-  if (i < 0) {
-    if (t < etWallMs(previousEtWeekday(days[0]), 16, 0)) return 0;
-    if (t >= etWallMs(days[n - 1], 16, 0)) return 1;
-    return -1;
-  }
-  if (range === "1m" || range === "3m") {
-    return n === 1 ? 1 : i / (n - 1);
-  }
-  const total = n * TAPE_DAY_SESSION_MIN;
-  return (i * TAPE_DAY_SESSION_MIN + tapeDayElapsedMin(t, tape)) / total;
+  return sessionSlotX(
+    t,
+    tape,
+    days.indexOf(tape),
+    days.length,
+    session,
+    range === "1m" || range === "3m"
+  );
 }
 
 function withX(
   points: Array<{ t: number; v: number; tape?: string; tape_date?: string }>,
   days: string[],
-  range: WashoutRange
+  range: WashoutRange,
+  session: UsTradingSession
 ): WashoutChartPoint[] {
   const out: WashoutChartPoint[] = [];
   for (const point of points) {
-    const x = xOnAxis(point.t, days, range, point.tape ?? point.tape_date);
+    const x = xOnAxis(point.t, days, range, session, point.tape ?? point.tape_date);
     if (x < 0 || x > 1) continue;
     out.push({ t: point.t, v: point.v, x });
   }
@@ -776,7 +779,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
   };
 }
 
-const rangeCache = new Map<WashoutRange, { at: number; payload: WashoutBoardPayload }>();
+const rangeCache = new Map<string, { at: number; payload: WashoutBoardPayload }>();
 let liveCache: { at: number; live: LiveBundle } | null = null;
 
 function rangeTtl(range: WashoutRange): number {
@@ -805,10 +808,13 @@ export async function captureWashoutLive(opts?: CaptureWashoutOpts): Promise<Liv
 export async function getWashoutBoard(opts?: {
   force?: boolean;
   range?: WashoutRange;
+  session?: UsTradingSession;
 }): Promise<WashoutBoardPayload> {
   const range: WashoutRange = opts?.range ?? "1d";
+  const session = opts?.session ?? activeTapeSession();
+  const cacheKey = `${range}:${session}`;
   const now = Date.now();
-  const cached = rangeCache.get(range);
+  const cached = rangeCache.get(cacheKey);
   const ttl = rangeTtl(range);
   if (!opts?.force && cached && now - cached.at < ttl) {
     return { ...cached.payload, servedFromCache: true };
@@ -828,19 +834,21 @@ export async function getWashoutBoard(opts?: {
       sessionQuotaMin: row.sessionQuotaMin,
     })),
   };
-  const payload = await assembleRange(live, range);
-  rangeCache.set(range, { at: Date.now(), payload });
+  const payload = await assembleRange(live, range, session);
+  rangeCache.set(cacheKey, { at: Date.now(), payload });
   return payload;
 }
 
-async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<WashoutBoardPayload> {
+async function assembleRange(
+  live: LiveBundle,
+  range: WashoutRange,
+  session: UsTradingSession
+): Promise<WashoutBoardPayload> {
   const days = tapeDatesBack(live.tapeYmd, rangeDays(range));
   const compareDays = tapeDatesBack(live.tapeYmd, 21);
-  const axisStart = etWallMs(previousEtWeekday(days[0]), 16, 0);
-  const axisEnd = etWallMs(days[days.length - 1], 16, 0);
-  const compareStart = etWallMs(previousEtWeekday(compareDays[0]), 16, 0);
-  const chartLookback = range === "1d" ? axisStart - 8 * 60 * 60 * 1000 : axisStart;
-  const lookback = Math.min(chartLookback, compareStart);
+  const axisStart = sessionBounds(days[0], session).start;
+  const axisEnd = sessionBounds(days[days.length - 1], session).end;
+  const lookback = etWallMs(previousEtWeekday(compareDays[0]), 16, 0);
   const hist = await loadSamplesSince(lookback);
   const byT = new Map<number, { t: number; v: number; tape_date?: string }>();
   for (const row of hist) byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date });
@@ -852,32 +860,38 @@ async function assembleRange(live: LiveBundle, range: WashoutRange): Promise<Was
     });
   }
   const merged = [...byT.values()].sort((a, b) => a.t - b.t);
-  const points =
-    range === "1d" ? stitchCarry(merged, axisStart, live.tapeYmd) : downsample(merged, range, days);
-  const series = withX(points, days, range);
-  const index = series.length ? series[series.length - 1].v : live.index;
   const rowTape = (row: { t: number; tape_date?: string }) =>
     (row.tape_date ?? "").slice(0, 10) || runnerTapeDate(new Date(row.t));
-  const latestTape = [...merged]
-    .reverse()
-    .find((row) => rowTape(row) === live.tapeYmd);
-  const atMs = latestTape?.t ?? series.at(-1)?.t ?? Date.now();
+  const points =
+    range === "1d"
+      ? merged.filter((point) => {
+          const tape = rowTape(point);
+          return days.includes(tape) && tapeSessionAtMs(point.t, tape) === session;
+        })
+      : downsample(merged, range, days, session);
+  const series = withX(points, days, range, session);
+  const index = series.length ? series[series.length - 1].v : live.index;
   const tagged = merged.map((row) => ({ ...row, tape_date: rowTape(row) }));
+  const latestTape = [...tagged]
+    .reverse()
+    .find((row) => row.tape_date === live.tapeYmd && tapeSessionAtMs(row.t, live.tapeYmd) === session);
+  const atMs = latestTape?.t ?? sessionBounds(live.tapeYmd, session).start;
   const compare = washoutCompareAt(tagged, atMs, live.tapeYmd);
   const rawPaths = washoutComparePaths(tagged, live.tapeYmd, points);
   compare.paths = {
-    yesterday: withX(rawPaths.yesterday, days, range).map((p) => ({ ...p, v: asDump(p.v) })),
-    avg5: withX(rawPaths.avg5, days, range).map((p) => ({ ...p, v: asDump(p.v) })),
-    avg20: withX(rawPaths.avg20, days, range).map((p) => ({ ...p, v: asDump(p.v) })),
+    yesterday: withX(rawPaths.yesterday, days, range, session).map((p) => ({ ...p, v: asDump(p.v) })),
+    avg5: withX(rawPaths.avg5, days, range, session).map((p) => ({ ...p, v: asDump(p.v) })),
+    avg20: withX(rawPaths.avg20, days, range, session).map((p) => ({ ...p, v: asDump(p.v) })),
   };
   compare.yesterday = compare.yesterday == null ? null : asDump(compare.yesterday);
   compare.avg5 = compare.avg5 == null ? null : asDump(compare.avg5);
   compare.avg20 = compare.avg20 == null ? null : asDump(compare.avg20);
   return {
-    index: asDump(index),
+    index: series.length ? asDump(index) : 0,
     series: series.map((p) => ({ ...p, v: asDump(p.v) })),
     items: live.items,
     range,
+    session,
     axisStart,
     axisEnd,
     sessionDate: live.tapeYmd,

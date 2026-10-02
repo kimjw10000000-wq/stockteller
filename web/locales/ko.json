@@ -225,6 +225,11 @@
     "compareYesterday": "어제",
     "compareAvg5": "5일 평균",
     "compareAvg20": "20일 평균",
+    "session": {
+      "afterhours": "앱장",
+      "premarket": "프리장",
+      "regular": "본장"
+    },
     "compareSession": {
       "afterhours": "앱장 같은 시각",
       "premarket": "프장 같은 시각",

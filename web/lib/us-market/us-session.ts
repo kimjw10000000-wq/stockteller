@@ -155,6 +155,40 @@ export function tapeSessionAt(
   return null;
 }
 
+/** 프리 04:00–09:30 / 본장 09:30–16:00 / 애프터 16:00–20:00. 애프터는 전 거래일. */
+export function sessionBounds(
+  tapeYmd: string,
+  session: UsTradingSession
+): { start: number; end: number } {
+  if (session === "afterhours") {
+    const prev = previousEtWeekday(tapeYmd);
+    return { start: etWallMs(prev, 16, 0), end: etWallMs(prev, 20, 0) };
+  }
+  if (session === "premarket") {
+    return { start: etWallMs(tapeYmd, 4, 0), end: etWallMs(tapeYmd, 9, 30) };
+  }
+  return { start: etWallMs(tapeYmd, 9, 30), end: etWallMs(tapeYmd, 16, 0) };
+}
+
+export function sessionLengthMin(session: UsTradingSession): number {
+  if (session === "afterhours") return 4 * 60;
+  if (session === "premarket") return 5.5 * 60;
+  return 6.5 * 60;
+}
+
+/** 지금 테이프에서 열려 있는 세션. 장이 닫혀 있으면 이미 시작한 마지막 세션. */
+export function activeTapeSession(now = new Date()): UsTradingSession {
+  const tapeYmd = runnerTapeDate(now);
+  const prev = previousEtWeekday(tapeYmd);
+  const live = tapeSessionAt(now, tapeYmd, prev);
+  if (live) return live;
+  const nowMs = now.getTime();
+  for (const session of ["regular", "premarket", "afterhours"] as UsTradingSession[]) {
+    if (nowMs >= sessionBounds(tapeYmd, session).start) return session;
+  }
+  return "afterhours";
+}
+
 function isEtWeekendYmd(ymd: string): boolean {
   const [y, m, d] = ymd.split("-").map(Number);
   const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();

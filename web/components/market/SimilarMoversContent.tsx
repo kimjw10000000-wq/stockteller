@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { activeTapeSession, type UsTradingSession } from "@/lib/us-market/us-session";
 
 type ChartPoint = { t: number; v: number; x: number };
 type RangeKey = "1d" | "1w" | "1m" | "3m";
+type SessionKey = UsTradingSession;
 type OverlayKey = "yesterday" | "avg5" | "avg20";
 
 type Compare = {
@@ -19,6 +21,7 @@ type Payload = {
   index?: number;
   series?: ChartPoint[];
   range?: RangeKey;
+  session?: SessionKey;
   axisStart?: number;
   axisEnd?: number;
   compare?: Compare;
@@ -35,6 +38,11 @@ const CHART_W = 640;
 const CHART_H = 280;
 const PAD = 16;
 const RANGES: RangeKey[] = ["1d", "1w", "1m", "3m"];
+const SESSIONS: SessionKey[] = ["afterhours", "premarket", "regular"];
+
+function boardKey(range: RangeKey, session: SessionKey): string {
+  return `${range}:${session}`;
+}
 const OVERLAYS: Array<{ key: OverlayKey; color: string }> = [
   { key: "yesterday", color: "#2563eb" },
   { key: "avg5", color: "#7c3aed" },
@@ -317,6 +325,7 @@ function WashoutLineChart({
 export function SimilarMoversContent() {
   const { t, locale } = useI18n();
   const [range, setRange] = useState<RangeKey>("1d");
+  const [session, setSession] = useState<SessionKey>(() => activeTapeSession());
   const [data, setData] = useState<Payload | null>(null);
   const [failed, setFailed] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -327,103 +336,90 @@ export function SimilarMoversContent() {
   });
   const readyRef = useRef(false);
   const bootRef = useRef(true);
-  const byRangeRef = useRef<Partial<Record<RangeKey, Payload>>>({});
-  const histPrefetchRef = useRef(false);
+  const byBoardRef = useRef<Partial<Record<string, Payload>>>({});
+  const prefetchedRef = useRef<SessionKey | null>(null);
 
   const rangeRef = useRef<RangeKey>(range);
+  const sessionRef = useRef<SessionKey>(session);
   rangeRef.current = range;
+  sessionRef.current = session;
 
   useEffect(() => {
+    setHoverIndex(null);
     let cancelled = false;
-    const loadDay = async () => {
+    const key = boardKey(range, session);
+    const cached = byBoardRef.current[key];
+    if (cached) setData(cached);
+
+    const load = async (force = false) => {
       try {
-        const params = new URLSearchParams({ range: "1d", _: String(Date.now()) });
-        if (bootRef.current) {
-          params.set("force", "1");
-          bootRef.current = false;
-        }
+        const params = new URLSearchParams({
+          range,
+          session,
+          _: String(Date.now()),
+        });
+        if (force) params.set("force", "1");
         const res = await fetch(`/api/washout?${params.toString()}`, { cache: "no-store" });
         const json = (await res.json()) as Payload;
         if (cancelled) return;
-        const usable = json.series && json.series.length > 0;
+        const usable = Boolean(json.series && json.series.length > 0);
         if ((res.ok && json.error == null) || usable) {
           readyRef.current = true;
-          byRangeRef.current["1d"] = json;
-          if (rangeRef.current === "1d") {
+          byBoardRef.current[key] = json;
+          if (rangeRef.current === range && sessionRef.current === session) {
             setData(json);
             setFailed(false);
           }
           return;
         }
-        if (!readyRef.current && rangeRef.current === "1d") setFailed(true);
+        if (!readyRef.current && rangeRef.current === range && sessionRef.current === session) {
+          setFailed(true);
+        }
       } catch {
-        if (!cancelled && !readyRef.current && rangeRef.current === "1d" && !byRangeRef.current["3m"]?.series?.length) {
+        if (
+          !cancelled &&
+          !readyRef.current &&
+          rangeRef.current === range &&
+          sessionRef.current === session
+        ) {
           setFailed(true);
         }
       }
     };
-    const prefetchHist = () => {
-      if (histPrefetchRef.current) return;
-      histPrefetchRef.current = true;
-      for (const key of ["1w", "1m", "3m"] as RangeKey[]) {
-        void fetch(`/api/washout?range=${key}`, { cache: "no-store" })
+
+    if (prefetchedRef.current !== session) {
+      prefetchedRef.current = session;
+      for (const other of RANGES) {
+        if (other === range) continue;
+        const otherKey = boardKey(other, session);
+        void fetch(`/api/washout?range=${other}&session=${session}`, { cache: "no-store" })
           .then((res) => res.json() as Promise<Payload>)
           .then((hist) => {
-            if (hist.error == null && hist.range) {
-              byRangeRef.current[hist.range] = hist;
-              if (rangeRef.current === hist.range) {
-                setData(hist);
-                setFailed(false);
-              }
+            if (hist.error != null || hist.range !== other || hist.session !== session) return;
+            byBoardRef.current[otherKey] = hist;
+            if (rangeRef.current === other && sessionRef.current === session) {
+              setData(hist);
+              setFailed(false);
             }
           })
           .catch(() => undefined);
       }
-    };
-    prefetchHist();
-    void loadDay();
-    const id = window.setInterval(loadDay, POLL_MS["1d"]);
+    }
+
+    void load(bootRef.current);
+    bootRef.current = false;
+    const id = window.setInterval(() => void load(false), POLL_MS[range]);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [range, session]);
 
-  useEffect(() => {
-    setHoverIndex(null);
-    const cached = byRangeRef.current[range];
-    if (cached) setData(cached);
-    if (range === "1d") return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await fetch(`/api/washout?range=${range}`, { cache: "no-store" });
-        const json = (await res.json()) as Payload;
-        if (cancelled) return;
-        if (res.ok && json.error == null) {
-          if (json.range) byRangeRef.current[json.range] = json;
-          if (rangeRef.current === range) {
-            setData(json);
-            setFailed(false);
-          }
-        }
-      } catch {
-        /* 1일 폴이 살아 있으면 화면은 유지 */
-      }
-    };
-    void load();
-    const id = window.setInterval(load, POLL_MS[range]);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [range]);
-
-  const chart = data?.range === range ? data : null;
+  const chart = data?.range === range && data?.session === session ? data : null;
   const series = (chart?.series ?? []).filter((p) => Number.isFinite(p.x));
   const hoverPoint =
     hoverIndex != null && hoverIndex < series.length ? series[hoverIndex] : null;
-  const shown = hoverPoint?.v ?? data?.index;
+  const shown = hoverPoint?.v ?? series.at(-1)?.v ?? null;
   const lastT = hoverPoint?.t ?? series.at(-1)?.t;
   const shownTime = lastT != null ? hoverLabel(lastT, range, locale) : null;
   const compare = data?.compare;
@@ -471,15 +467,39 @@ export function SimilarMoversContent() {
             <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
           ) : (
             <div className="space-y-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">{t("similar.indexLabel")}</p>
+                  <p className="mt-1 text-4xl font-semibold tabular-nums text-foreground sm:text-5xl">
+                    {shown == null ? "—" : roundIndex(shown)}
+                  </p>
+                  <p className="mt-1 h-5 text-sm tabular-nums text-muted-foreground">
+                    {shownTime ?? "\u00a0"}
+                  </p>
+                </div>
+                <div className="flex shrink-0 rounded-lg border border-border p-0.5" role="group">
+                  {SESSIONS.map((key) => {
+                    const active = session === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setSession(key)}
+                        className={`rounded-md px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm ${
+                          active
+                            ? "bg-[#030213] font-semibold text-white shadow-sm"
+                            : "text-muted-foreground hover:bg-black/5"
+                        }`}
+                      >
+                        {t(`similar.session.${key}`)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t("similar.indexLabel")}</p>
-                <p className="mt-1 text-4xl font-semibold tabular-nums text-foreground sm:text-5xl">
-                  {shown == null ? "—" : roundIndex(shown)}
-                </p>
-                <p className="mt-1 h-5 text-sm tabular-nums text-muted-foreground">
-                  {shownTime ?? "\u00a0"}
-                </p>
-                <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {overlayRows.map((row) => {
                     const active = on[row.key];
                     return (

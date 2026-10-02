@@ -1,5 +1,5 @@
-import { etWallMs, previousEtWeekday } from "../lib/us-market/us-session";
-import { washoutCompareAt, washoutComparePaths } from "../lib/us-market/washout-compare";
+import { activeTapeSession, etWallMs, previousEtWeekday } from "../lib/us-market/us-session";
+import { sessionSlotX, washoutCompareAt, washoutComparePaths } from "../lib/us-market/washout-compare";
 
 function expect(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
@@ -42,5 +42,17 @@ expect(pre.yesterday == null, "pre has no yesterday match");
 const paths = washoutComparePaths(rows, tape, [{ t: at }]);
 expect(paths.yesterday[0]?.v === 110, `path yesterday ${paths.yesterday[0]?.v}`);
 expect(Math.round(paths.avg5[0]?.v ?? 0) === 130, `path avg5 ${paths.avg5[0]?.v}`);
+
+const rthOpen = etWallMs(tape, 9, 30);
+const rthMid = etWallMs(tape, 12, 45);
+expect(sessionSlotX(rthOpen, tape, 0, 1, "regular", false) === 0, "rth open sits at the left");
+const midX = sessionSlotX(rthMid, tape, 0, 1, "regular", false);
+expect(Math.abs(midX - 0.5) < 0.002, `rth midpoint fills half the cell ${midX}`);
+expect(sessionSlotX(etWallMs(tape, 8, 0), tape, 0, 1, "regular", false) < 0, "premarket is outside the rth cell");
+const secondOpen = sessionSlotX(rthOpen, tape, 1, 2, "regular", false);
+expect(Math.abs(secondOpen - 0.5) < 1e-9, `next day rth starts at half ${secondOpen}`);
+expect(activeTapeSession(new Date(etWallMs(tape, 12, 0))) === "regular", "noon defaults to rth");
+expect(activeTapeSession(new Date(etWallMs(tape, 7, 0))) === "premarket", "7am defaults to premarket");
+expect(activeTapeSession(new Date(etWallMs(tape, 18, 0))) === "afterhours", "6pm defaults to after hours");
 
 console.log("washout-compare ok");

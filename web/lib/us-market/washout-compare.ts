@@ -1,10 +1,12 @@
 import {
-  etWallMs,
-  previousEtWeekday,
   runnerTapeDate,
+  sessionBounds,
+  sessionLengthMin,
   tapeDatesBack,
   type UsTradingSession,
 } from "./us-session";
+
+export { sessionBounds };
 
 export type WashoutCompareSample = {
   t: number;
@@ -30,26 +32,30 @@ export type WashoutCompare = {
 
 const MATCH_SLACK_MS = 15 * 60_000;
 
-export function sessionBounds(
-  tapeYmd: string,
-  session: UsTradingSession
-): { start: number; end: number } {
-  if (session === "afterhours") {
-    const prev = previousEtWeekday(tapeYmd);
-    return { start: etWallMs(prev, 16, 0), end: etWallMs(prev, 20, 0) };
-  }
-  if (session === "premarket") {
-    return { start: etWallMs(tapeYmd, 4, 0), end: etWallMs(tapeYmd, 9, 30) };
-  }
-  return { start: etWallMs(tapeYmd, 9, 30), end: etWallMs(tapeYmd, 16, 0) };
-}
-
 export function tapeSessionAtMs(t: number, tapeYmd: string): UsTradingSession | null {
   for (const session of ["afterhours", "premarket", "regular"] as UsTradingSession[]) {
     const { start, end } = sessionBounds(tapeYmd, session);
     if (t >= start && t < end) return session;
   }
   return null;
+}
+
+/** 한 칸의 가로를 그 세션 길이로 채운다. 다른 세션 시각은 -1. */
+export function sessionSlotX(
+  t: number,
+  tapeYmd: string,
+  dayIndex: number,
+  dayCount: number,
+  session: UsTradingSession,
+  byDay: boolean
+): number {
+  if (dayCount <= 0 || dayIndex < 0 || dayIndex >= dayCount) return -1;
+  if (tapeSessionAtMs(t, tapeYmd) !== session) return -1;
+  if (byDay) return dayCount === 1 ? 1 : dayIndex / (dayCount - 1);
+  const span = sessionLengthMin(session);
+  const { start } = sessionBounds(tapeYmd, session);
+  const elapsed = Math.min(span, Math.max(0, (t - start) / 60_000));
+  return (dayIndex * span + elapsed) / (dayCount * span);
 }
 
 function sampleTape(row: WashoutCompareSample): string {

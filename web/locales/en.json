@@ -225,6 +225,11 @@
     "compareYesterday": "Yesterday",
     "compareAvg5": "5-day avg",
     "compareAvg20": "20-day avg",
+    "session": {
+      "afterhours": "AH",
+      "premarket": "Pre",
+      "regular": "RTH"
+    },
     "compareSession": {
       "afterhours": "Same time in after hours",
       "premarket": "Same time in premarket",
