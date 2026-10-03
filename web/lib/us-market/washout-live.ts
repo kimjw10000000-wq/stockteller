@@ -32,6 +32,7 @@ import {
   type UsTradingSession,
 } from "./us-session";
 import {
+  loadSamplesForTapeDates,
   loadSamplesSince,
   loadTapeHighs,
   loadTrackedBoard,
@@ -846,16 +847,14 @@ const PUBLISHED_SESSIONS: UsTradingSession[] = ["afterhours", "premarket", "regu
 /** 방문자 수와 무관하게, 한 번 만든 점수표를 그대로 나눠 준다. */
 export async function getWashoutCatalog(): Promise<Record<string, WashoutBoardPayload>> {
   const now = new Date();
-  let lookback = now.getTime();
   const tapes = new Map<UsTradingSession, string>();
+  const tapeSet = new Set<string>();
   for (const session of PUBLISHED_SESSIONS) {
     const tape = boardTapeYmd(now, session);
     tapes.set(session, tape);
-    const oldest = tapeDatesBack(tape, 21)[0];
-    const from = etWallMs(previousEtWeekday(oldest), 16, 0);
-    if (from < lookback) lookback = from;
+    for (const day of tapeDatesBack(tape, 21)) tapeSet.add(day);
   }
-  const samples = await loadSamplesSince(lookback);
+  const samples = await loadSamplesForTapeDates([...tapeSet]);
   const boards: Record<string, WashoutBoardPayload> = {};
   for (const session of PUBLISHED_SESSIONS) {
     const live: LiveBundle = {

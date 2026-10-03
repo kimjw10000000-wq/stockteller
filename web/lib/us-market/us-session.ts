@@ -85,9 +85,16 @@ export function nextEtWeekday(ymd: string): string {
   return cur;
 }
 
+const etWallCache = new Map<string, number>();
+
 export function etWallMs(ymd: string, hour: number, minute = 0): number {
+  const key = `${ymd}|${hour}|${minute}`;
+  const hit = etWallCache.get(key);
+  if (hit != null) return hit;
   const [y, m, d] = ymd.split("-").map(Number);
-  return zonedWallTimeToUtc(y, m, d, hour, minute, 0, EASTERN_TIME_ZONE).getTime();
+  const ms = zonedWallTimeToUtc(y, m, d, hour, minute, 0, EASTERN_TIME_ZONE).getTime();
+  etWallCache.set(key, ms);
+  return ms;
 }
 
 /** 전날 애프터 4h + 오늘 프리 5.5h + 오늘 본장 6.5h */

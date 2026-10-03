@@ -525,15 +525,15 @@ export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]>
     const byT = new Map<number, WashoutSample>();
     for (const row of fromMem) byT.set(row.t, row);
     const page = 1000;
-    let offset = 0;
+    let cursor = new Date(fromMs).toISOString();
     for (let n = 0; n < 400; n++) {
       const { data, error } = await admin
         .from("washout_index_samples")
         .select("t,v,tape_date")
-        .gte("t", new Date(fromMs).toISOString())
+        .gte("t", cursor)
         .order("t", { ascending: true })
-        .range(offset, offset + page - 1);
-      if (error || !data) break;
+        .limit(page);
+      if (error || !data?.length) break;
       for (const row of data) {
         const t = Date.parse(String(row.t));
         if (!Number.isFinite(t)) continue;
@@ -543,13 +543,62 @@ export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]>
           tape_date: String(row.tape_date),
         });
       }
-      offset += data.length;
       if (data.length < page) break;
+      const last = Date.parse(String(data[data.length - 1].t));
+      if (!Number.isFinite(last)) break;
+      cursor = new Date(last + 1).toISOString();
     }
     const rows = [...byT.values()].sort((a, b) => a.t - b.t);
     samplesQueryCache = { fromMs, at: now, rows };
     return rows;
   } catch {
     return fromMem;
+  }
+}
+
+/** 테이프 날짜 색인으로 필요한 날만 읽는다. 하루는 960분 이하라 날짜당 한 번이면 된다. */
+export async function loadSamplesForTapeDates(tapes: string[]): Promise<WashoutSample[]> {
+  const unique = [...new Set(tapes.map((tape) => tape.slice(0, 10)).filter(Boolean))];
+  if (!unique.length) return [];
+  try {
+    const admin = createAdminClient();
+    const pages = await Promise.all(
+      unique.map(async (tape) => {
+        const rows: Array<{ t: string; v: number; tape_date: string }> = [];
+        let cursor: string | null = null;
+        for (let n = 0; n < 5; n++) {
+          let query = admin
+            .from("washout_index_samples")
+            .select("t,v,tape_date")
+            .eq("tape_date", tape)
+            .order("t", { ascending: true })
+            .limit(1000);
+          if (cursor) query = query.gt("t", cursor);
+          const { data, error } = await query;
+          if (error || !data?.length) break;
+          for (const row of data) {
+            rows.push({
+              t: String(row.t),
+              v: Number(row.v),
+              tape_date: String(row.tape_date),
+            });
+          }
+          if (data.length < 1000) break;
+          cursor = String(data[data.length - 1].t);
+        }
+        return rows;
+      })
+    );
+    const byT = new Map<number, WashoutSample>();
+    for (const page of pages) {
+      for (const row of page) {
+        const t = Date.parse(row.t);
+        if (!Number.isFinite(t)) continue;
+        byT.set(minuteKey(t), { t: minuteKey(t), v: row.v, tape_date: row.tape_date });
+      }
+    }
+    return [...byT.values()].sort((a, b) => a.t - b.t);
+  } catch {
+    return [];
   }
 }

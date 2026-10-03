@@ -70,29 +70,59 @@ function mean(values: number[]): number | null {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
+type MinuteBucket = { t: number; v: number };
+
+/** tape·세션·경과분 → 그 분의 점수. 같은 시각 비교가 전체 기록을 다시 훑지 않게 한다. */
+function indexByElapsedMinute(samples: WashoutCompareSample[]): Map<string, MinuteBucket> {
+  const index = new Map<string, MinuteBucket>();
+  for (const row of samples) {
+    if (!Number.isFinite(row.v)) continue;
+    const tape = sampleTape(row);
+    const session = tapeSessionAtMs(row.t, tape);
+    if (!session) continue;
+    const { start } = sessionBounds(tape, session);
+    const minute = Math.floor((row.t - start) / 60_000);
+    const key = `${tape}\0${session}\0${minute}`;
+    const prev = index.get(key);
+    if (!prev || row.t >= prev.t) index.set(key, { t: row.t, v: row.v });
+  }
+  return index;
+}
+
+function valueFromIndex(
+  index: Map<string, MinuteBucket>,
+  tapeYmd: string,
+  session: UsTradingSession,
+  elapsedMin: number
+): number | null {
+  const { start } = sessionBounds(tapeYmd, session);
+  const target = start + elapsedMin * 60_000;
+  const center = Math.floor(elapsedMin);
+  const slackMin = MATCH_SLACK_MS / 60_000;
+  let before: MinuteBucket | null = null;
+  let after: { t: number; v: number; dt: number } | null = null;
+  for (let minute = center - slackMin; minute <= center + slackMin + 1; minute++) {
+    if (minute < 0) continue;
+    const row = index.get(`${tapeYmd}\0${session}\0${minute}`);
+    if (!row) continue;
+    const dt = Math.abs(row.t - target);
+    if (dt > MATCH_SLACK_MS) continue;
+    if (row.t <= target) {
+      if (!before || row.t > before.t) before = row;
+    } else if (!after || dt < after.dt) {
+      after = { t: row.t, v: row.v, dt };
+    }
+  }
+  return (before ?? after)?.v ?? null;
+}
+
 export function valueAtSessionElapsed(
   samples: WashoutCompareSample[],
   tapeYmd: string,
   session: UsTradingSession,
   elapsedMin: number
 ): number | null {
-  const { start, end } = sessionBounds(tapeYmd, session);
-  const target = start + elapsedMin * 60_000;
-  let before: { t: number; v: number } | null = null;
-  let after: { t: number; v: number; dt: number } | null = null;
-  for (const row of samples) {
-    if (sampleTape(row) !== tapeYmd) continue;
-    if (row.t < start || row.t >= end) continue;
-    if (!Number.isFinite(row.v)) continue;
-    const dt = Math.abs(row.t - target);
-    if (dt > MATCH_SLACK_MS) continue;
-    if (row.t <= target) {
-      if (!before || row.t > before.t) before = { t: row.t, v: row.v };
-    } else if (!after || dt < after.dt) {
-      after = { t: row.t, v: row.v, dt };
-    }
-  }
-  return (before ?? after)?.v ?? null;
+  return valueFromIndex(indexByElapsedMinute(samples), tapeYmd, session, elapsedMin);
 }
 
 function resolveAnchor(
@@ -136,10 +166,11 @@ export function washoutCompareAt(
   };
   const anchor = resolveAnchor(samples, atMs, tapeYmd);
   if (!anchor) return empty;
+  const index = indexByElapsedMinute(samples);
   const prior = tapeDatesBack(tapeYmd, 21).slice(0, -1);
   const pick = (days: string[]) =>
     days
-      .map((day) => valueAtSessionElapsed(samples, day, anchor.session, anchor.elapsedMin))
+      .map((day) => valueFromIndex(index, day, anchor.session, anchor.elapsedMin))
       .filter((v): v is number => v != null);
   const last5 = pick(prior.slice(-5));
   const last20 = pick(prior.slice(-20));
@@ -164,6 +195,7 @@ export function washoutComparePaths(
   const yDay = prior.at(-1);
   const last5 = prior.slice(-5);
   const last20 = prior.slice(-20);
+  const index = indexByElapsedMinute(samples);
   const yesterday: Array<{ t: number; v: number }> = [];
   const avg5: Array<{ t: number; v: number }> = [];
   const avg20: Array<{ t: number; v: number }> = [];
@@ -172,18 +204,18 @@ export function washoutComparePaths(
     if (!session) continue;
     const elapsedMin = (point.t - sessionBounds(tapeYmd, session).start) / 60_000;
     if (yDay) {
-      const v = valueAtSessionElapsed(samples, yDay, session, elapsedMin);
+      const v = valueFromIndex(index, yDay, session, elapsedMin);
       if (v != null) yesterday.push({ t: point.t, v });
     }
     const a5 = mean(
       last5
-        .map((day) => valueAtSessionElapsed(samples, day, session, elapsedMin))
+        .map((day) => valueFromIndex(index, day, session, elapsedMin))
         .filter((v): v is number => v != null)
     );
     if (a5 != null) avg5.push({ t: point.t, v: a5 });
     const a20 = mean(
       last20
-        .map((day) => valueAtSessionElapsed(samples, day, session, elapsedMin))
+        .map((day) => valueFromIndex(index, day, session, elapsedMin))
         .filter((v): v is number => v != null)
     );
     if (a20 != null) avg20.push({ t: point.t, v: a20 });
