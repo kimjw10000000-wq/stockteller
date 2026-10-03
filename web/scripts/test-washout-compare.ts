@@ -1,4 +1,10 @@
-import { activeTapeSession, etWallMs, previousEtWeekday } from "../lib/us-market/us-session";
+import {
+  activeTapeSession,
+  boardTapeYmd,
+  etWallMs,
+  previousEtWeekday,
+  weekendReplayFriday,
+} from "../lib/us-market/us-session";
 import { sessionSlotX, washoutCompareAt, washoutComparePaths } from "../lib/us-market/washout-compare";
 
 function expect(cond: boolean, msg: string) {
@@ -64,5 +70,19 @@ expect(Math.abs(secondOpen - 0.5) < 1e-9, `next day rth starts at half ${secondO
 expect(activeTapeSession(new Date(etWallMs(tape, 12, 0))) === "regular", "noon defaults to rth");
 expect(activeTapeSession(new Date(etWallMs(tape, 7, 0))) === "premarket", "7am defaults to premarket");
 expect(activeTapeSession(new Date(etWallMs(tape, 18, 0))) === "afterhours", "6pm defaults to after hours");
+
+const friday = "2026-10-02";
+const saturdayNoon = new Date(etWallMs("2026-10-03", 12, 0));
+const fridayNight = new Date(etWallMs(friday, 21, 0));
+const mondayEarly = new Date(etWallMs("2026-10-05", 3, 0));
+const mondayOpen = new Date(etWallMs("2026-10-05", 4, 0));
+expect(weekendReplayFriday(saturdayNoon) === friday, "saturday replays friday");
+expect(weekendReplayFriday(fridayNight) === friday, "friday after 20:00 replays friday");
+expect(weekendReplayFriday(mondayEarly) === friday, "monday before 04:00 replays friday");
+expect(weekendReplayFriday(mondayOpen) == null, "monday premarket is live");
+expect(activeTapeSession(saturdayNoon) === "afterhours", "weekend defaults to friday after hours");
+expect(boardTapeYmd(saturdayNoon, "afterhours") === "2026-10-05", "weekend ah is monday tape");
+expect(boardTapeYmd(saturdayNoon, "premarket") === friday, "weekend pre is friday");
+expect(boardTapeYmd(saturdayNoon, "regular") === friday, "weekend rth is friday");
 
 console.log("washout-compare ok");

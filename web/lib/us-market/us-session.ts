@@ -176,8 +176,44 @@ export function sessionLengthMin(session: UsTradingSession): number {
   return 6.5 * 60;
 }
 
-/** 지금 테이프에서 열려 있는 세션. 장이 닫혀 있으면 이미 시작한 마지막 세션. */
+function etWeekdayShort(now: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: EASTERN_TIME_ZONE,
+    weekday: "short",
+  }).format(now);
+}
+
+/**
+ * 금요일 20:00 ET 이후부터 월요일 04:00 ET 전.
+ * 이 구간에는 새 테이프가 없으므로 금요일 세션을 다시 보여 준다.
+ * 반환값은 그 금요일 날짜.
+ */
+export function weekendReplayFriday(now = new Date()): string | null {
+  const ymd = etYmd(now);
+  const wd = etWeekdayShort(now);
+  const p = getZonedParts(now, EASTERN_TIME_ZONE);
+  const minutes = p.hour * 60 + p.minute;
+  if (wd === "Sat" || wd === "Sun") return previousEtWeekday(ymd);
+  if (wd === "Fri" && minutes >= AFT_END) return ymd;
+  if (wd === "Mon" && minutes < PRE_START) return previousEtWeekday(ymd);
+  return null;
+}
+
+/**
+ * 화면에 그릴 테이프 날짜.
+ * 주말 공백의 앱장은 금요일 16:00–20:00이라 다음 거래일(월요일) 테이프에 있다.
+ * 프리장·본장은 금요일 테이프에 있다.
+ */
+export function boardTapeYmd(now: Date, session: UsTradingSession): string {
+  const friday = weekendReplayFriday(now);
+  if (!friday) return runnerTapeDate(now);
+  if (session === "afterhours") return nextEtWeekday(friday);
+  return friday;
+}
+
+/** 지금 테이프에서 열려 있는 세션. 주말 공백은 금요일 앱터. 그 외 휴장은 이미 시작한 마지막 세션. */
 export function activeTapeSession(now = new Date()): UsTradingSession {
+  if (weekendReplayFriday(now)) return "afterhours";
   const tapeYmd = runnerTapeDate(now);
   const prev = previousEtWeekday(tapeYmd);
   const live = tapeSessionAt(now, tapeYmd, prev);

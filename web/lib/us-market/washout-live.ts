@@ -19,6 +19,7 @@ import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } 
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
   activeTapeSession,
+  boardTapeYmd,
   etWallMs,
   isInTapeDay,
   isUsWeekday,
@@ -824,7 +825,7 @@ export async function getWashoutBoard(opts?: {
   const live: LiveBundle = {
     index: 0,
     series: [],
-    tapeYmd: runnerTapeDate(new Date()),
+    tapeYmd: boardTapeYmd(new Date(), session),
     items: trackedRows.map((row) => ({
       ticker: row.ticker,
       score: row.score,
