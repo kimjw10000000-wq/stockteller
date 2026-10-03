@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getWashoutCatalog } from "@/lib/us-market/washout-live";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
