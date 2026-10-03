@@ -29,12 +29,6 @@ type Payload = {
   error?: string;
 };
 
-const POLL_MS: Record<RangeKey, number> = {
-  "1d": 3_000,
-  "1w": 20_000,
-  "1m": 30_000,
-  "3m": 60_000,
-};
 const CHART_W = 640;
 const CHART_H = 280;
 const PAD = 16;
@@ -336,9 +330,7 @@ export function SimilarMoversContent() {
     avg20: false,
   });
   const readyRef = useRef(false);
-  const bootRef = useRef(true);
   const byBoardRef = useRef<Partial<Record<string, Payload>>>({});
-  const prefetchedRef = useRef<SessionKey | null>(null);
 
   const rangeRef = useRef<RangeKey>(range);
   const sessionRef = useRef<SessionKey>(session);
@@ -346,74 +338,39 @@ export function SimilarMoversContent() {
   sessionRef.current = session;
 
   useEffect(() => {
-    setHoverIndex(null);
     let cancelled = false;
-    const key = boardKey(range, session);
-    const cached = byBoardRef.current[key];
-    if (cached) setData(cached);
-
-    const load = async (force = false) => {
+    const load = async () => {
       try {
-        const params = new URLSearchParams({
-          range,
-          session,
-          _: String(Date.now()),
-        });
-        if (force) params.set("force", "1");
-        const res = await fetch(`/api/washout?${params.toString()}`, { cache: "no-store" });
-        const json = (await res.json()) as Payload;
+        const res = await fetch("/api/washout");
+        const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
         if (cancelled) return;
-        const usable = Boolean(json.series && json.series.length > 0);
-        if ((res.ok && json.error == null) || usable) {
+        const boards = json.boards ?? {};
+        const key = boardKey(rangeRef.current, sessionRef.current);
+        const board = boards[key];
+        if (res.ok && board) {
+          byBoardRef.current = boards;
           readyRef.current = true;
-          byBoardRef.current[key] = json;
-          if (rangeRef.current === range && sessionRef.current === session) {
-            setData(json);
-            setFailed(false);
-          }
+          setData(board);
+          setFailed(false);
           return;
         }
-        if (!readyRef.current && rangeRef.current === range && sessionRef.current === session) {
-          setFailed(true);
-        }
+        if (!readyRef.current) setFailed(true);
       } catch {
-        if (
-          !cancelled &&
-          !readyRef.current &&
-          rangeRef.current === range &&
-          sessionRef.current === session
-        ) {
-          setFailed(true);
-        }
+        if (!cancelled && !readyRef.current) setFailed(true);
       }
     };
-
-    if (prefetchedRef.current !== session) {
-      prefetchedRef.current = session;
-      for (const other of RANGES) {
-        if (other === range) continue;
-        const otherKey = boardKey(other, session);
-        void fetch(`/api/washout?range=${other}&session=${session}`, { cache: "no-store" })
-          .then((res) => res.json() as Promise<Payload>)
-          .then((hist) => {
-            if (hist.error != null || hist.range !== other || hist.session !== session) return;
-            byBoardRef.current[otherKey] = hist;
-            if (rangeRef.current === other && sessionRef.current === session) {
-              setData(hist);
-              setFailed(false);
-            }
-          })
-          .catch(() => undefined);
-      }
-    }
-
-    void load(bootRef.current);
-    bootRef.current = false;
-    const id = window.setInterval(() => void load(false), POLL_MS[range]);
+    void load();
+    const id = window.setInterval(() => void load(), 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
+  }, []);
+
+  useEffect(() => {
+    setHoverIndex(null);
+    const board = byBoardRef.current[boardKey(range, session)];
+    if (board) setData(board);
   }, [range, session]);
 
   const chart = data?.range === range && data?.session === session ? data : null;

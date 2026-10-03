@@ -1,63 +1,25 @@
 import { NextResponse } from "next/server";
-import { getWashoutBoard, type WashoutRange } from "@/lib/us-market/washout-live";
-import type { UsTradingSession } from "@/lib/us-market/us-session";
+import { getWashoutCatalog } from "@/lib/us-market/washout-live";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const fetchCache = "force-no-store";
+export const revalidate = 60;
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function parseRange(raw: string | null): WashoutRange {
-  if (raw === "1d" || raw === "1w" || raw === "1m" || raw === "3m") return raw;
-  return "1d";
-}
+const SHARED = {
+  "Cache-Control": "public, max-age=30, s-maxage=60, stale-while-revalidate=120",
+  "CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+  "Vercel-CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+};
 
-function parseSession(raw: string | null): UsTradingSession | undefined {
-  if (raw === "premarket" || raw === "regular" || raw === "afterhours") return raw;
-  return undefined;
-}
-
-/** Vercel은 Polygon을 호출하지 않고 Supabase 샘플만 읽는다. */
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const force = url.searchParams.get("force") === "1";
-  const range = parseRange(url.searchParams.get("range"));
-  const session = parseSession(url.searchParams.get("session"));
+/** 점수표 한 장을 올려 두고 모든 방문자가 같은 응답을 받는다. Polygon은 호출하지 않는다. */
+export async function GET() {
   try {
-    const result = await getWashoutBoard({ force, range, session });
-    return NextResponse.json(result, {
-      headers: {
-        "Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
-        "CDN-Cache-Control": "no-store",
-        "Vercel-CDN-Cache-Control": "no-store",
-      },
-    });
+    const boards = await getWashoutCatalog();
+    return NextResponse.json({ boards }, { headers: SHARED });
   } catch (e) {
     const message = e instanceof Error ? e.message : "server error";
     return NextResponse.json(
-      {
-        index: 0,
-        series: [],
-        items: [],
-        range,
-        session: session ?? "regular",
-        axisStart: 0,
-        axisEnd: 0,
-        sessionDate: "",
-        fetchedAt: new Date().toISOString(),
-        servedFromCache: false,
-        compare: {
-          session: null,
-          yesterday: null,
-          avg5: null,
-          avg20: null,
-          days5: 0,
-          days20: 0,
-          paths: { yesterday: [], avg5: [], avg20: [] },
-        },
-        error: message,
-      },
+      { boards: {}, error: message },
       { status: 502, headers: { "Cache-Control": "no-store" } }
     );
   }

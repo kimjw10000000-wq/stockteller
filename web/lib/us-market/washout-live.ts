@@ -840,17 +840,49 @@ export async function getWashoutBoard(opts?: {
   return payload;
 }
 
+const PUBLISHED_RANGES: WashoutRange[] = ["1d", "1w", "1m", "3m"];
+const PUBLISHED_SESSIONS: UsTradingSession[] = ["afterhours", "premarket", "regular"];
+
+/** 방문자 수와 무관하게, 한 번 만든 점수표를 그대로 나눠 준다. */
+export async function getWashoutCatalog(): Promise<Record<string, WashoutBoardPayload>> {
+  const now = new Date();
+  let lookback = now.getTime();
+  const tapes = new Map<UsTradingSession, string>();
+  for (const session of PUBLISHED_SESSIONS) {
+    const tape = boardTapeYmd(now, session);
+    tapes.set(session, tape);
+    const oldest = tapeDatesBack(tape, 21)[0];
+    const from = etWallMs(previousEtWeekday(oldest), 16, 0);
+    if (from < lookback) lookback = from;
+  }
+  const samples = await loadSamplesSince(lookback);
+  const boards: Record<string, WashoutBoardPayload> = {};
+  for (const session of PUBLISHED_SESSIONS) {
+    const live: LiveBundle = {
+      index: 0,
+      series: [],
+      tapeYmd: tapes.get(session) ?? boardTapeYmd(now, session),
+      items: [],
+    };
+    for (const range of PUBLISHED_RANGES) {
+      boards[`${range}:${session}`] = await assembleRange(live, range, session, samples);
+    }
+  }
+  return boards;
+}
+
 async function assembleRange(
   live: LiveBundle,
   range: WashoutRange,
-  session: UsTradingSession
+  session: UsTradingSession,
+  preloaded?: Array<{ t: number; v: number; tape_date?: string }>
 ): Promise<WashoutBoardPayload> {
   const days = tapeDatesBack(live.tapeYmd, rangeDays(range));
   const compareDays = tapeDatesBack(live.tapeYmd, 21);
   const axisStart = sessionBounds(days[0], session).start;
   const axisEnd = sessionBounds(days[days.length - 1], session).end;
   const lookback = etWallMs(previousEtWeekday(compareDays[0]), 16, 0);
-  const hist = await loadSamplesSince(lookback);
+  const hist = preloaded ?? (await loadSamplesSince(lookback));
   const byT = new Map<number, { t: number; v: number; tape_date?: string }>();
   for (const row of hist) byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date });
   for (const point of live.series) {
