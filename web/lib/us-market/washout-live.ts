@@ -2,6 +2,7 @@ import {
   dumpGrid,
   washoutIndexAverage,
   washoutIndexPath,
+  washoutReactionIndexPath,
   trackingOriginMs,
   specialTickersAfterRth,
   WASHOUT_TRACK_PCT,
@@ -191,6 +192,12 @@ export type WashoutBoardPayload = {
   fetchedAt: string;
   servedFromCache: boolean;
   compare?: WashoutCompare;
+  /** 현재반응 설거지 지수. 추적 시작 후 90분 안의 종목만 평균. */
+  reaction?: {
+    index: number;
+    series: WashoutChartPoint[];
+    compare?: WashoutCompare;
+  };
   error?: string;
 };
 
@@ -749,6 +756,10 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
   }
 
   const path = washoutIndexPath(seriesList);
+  const reactionAt = new Map<number, number>();
+  for (const point of washoutReactionIndexPath(seriesList)) {
+    reactionAt.set(Math.floor(point.t / 60_000) * 60_000, point.score);
+  }
   const rawSeries = path.map((point) => ({ t: point.t, v: point.score }));
   const axisStart = etWallMs(previousEtWeekday(tapeYmd), 16, 0);
   const hist = await loadSamplesSince(axisStart - 8 * 60 * 60 * 1000);
@@ -765,7 +776,14 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
             isInTapeDay(point.t, tapeYmd) && (persistFrom == null || point.t >= persistFrom)
         )
       : series;
-  await persistSamples(toStore, tapeYmd, { incremental: !opts?.persistAll });
+  await persistSamples(
+    toStore.map((point) => {
+      const reaction = reactionAt.get(Math.floor(point.t / 60_000) * 60_000);
+      return reaction == null ? point : { ...point, reaction };
+    }),
+    tapeYmd,
+    { incremental: !opts?.persistAll }
+  );
   return {
     index: washoutIndexAverage(
       items.map((row) => ({
@@ -874,7 +892,7 @@ async function assembleRange(
   live: LiveBundle,
   range: WashoutRange,
   session: UsTradingSession,
-  preloaded?: Array<{ t: number; v: number; tape_date?: string }>
+  preloaded?: Array<{ t: number; v: number; tape_date?: string; reaction?: number }>
 ): Promise<WashoutBoardPayload> {
   const days = tapeDatesBack(live.tapeYmd, rangeDays(range));
   const compareDays = tapeDatesBack(live.tapeYmd, 21);
@@ -882,16 +900,53 @@ async function assembleRange(
   const axisEnd = sessionBounds(days[days.length - 1], session).end;
   const lookback = etWallMs(previousEtWeekday(compareDays[0]), 16, 0);
   const hist = preloaded ?? (await loadSamplesSince(lookback));
-  const byT = new Map<number, { t: number; v: number; tape_date?: string }>();
-  for (const row of hist) byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date });
+  const byT = new Map<number, { t: number; v: number; tape_date?: string; reaction?: number }>();
+  for (const row of hist) {
+    byT.set(row.t, { t: row.t, v: row.v, tape_date: row.tape_date, reaction: row.reaction });
+  }
   for (const point of live.series) {
-    byT.set(Math.floor(point.t / 60_000) * 60_000, {
+    const key = Math.floor(point.t / 60_000) * 60_000;
+    const prev = byT.get(key);
+    byT.set(key, {
       t: point.t,
       v: point.v,
       tape_date: live.tapeYmd,
+      reaction: prev?.reaction,
     });
   }
-  const merged = [...byT.values()].sort((a, b) => a.t - b.t);
+  const merged = [...byT.values()].filter((row) => Number.isFinite(row.v)).sort((a, b) => a.t - b.t);
+  const reactionRows = merged
+    .filter((row) => row.reaction != null && Number.isFinite(row.reaction))
+    .map((row) => ({ t: row.t, v: row.reaction as number, tape_date: row.tape_date }));
+  const main = paintSession(merged, live, range, session, days);
+  const reaction = paintSession(reactionRows, { ...live, index: 0 }, range, session, days);
+  return {
+    index: main.series.length ? asDump(main.index) : 0,
+    series: main.series.map((p) => ({ ...p, v: asDump(p.v) })),
+    items: live.items,
+    range,
+    session,
+    axisStart,
+    axisEnd,
+    sessionDate: live.tapeYmd,
+    fetchedAt: new Date().toISOString(),
+    servedFromCache: false,
+    compare: main.compare,
+    reaction: {
+      index: reaction.series.length ? asDump(reaction.index) : 0,
+      series: reaction.series.map((p) => ({ ...p, v: asDump(p.v) })),
+      compare: reaction.compare,
+    },
+  };
+}
+
+function paintSession(
+  merged: Array<{ t: number; v: number; tape_date?: string }>,
+  live: LiveBundle,
+  range: WashoutRange,
+  session: UsTradingSession,
+  days: string[]
+): { index: number; series: WashoutChartPoint[]; compare: WashoutCompare } {
   const rowTape = (row: { t: number; tape_date?: string }) =>
     (row.tape_date ?? "").slice(0, 10) || runnerTapeDate(new Date(row.t));
   const points =
@@ -910,9 +965,7 @@ async function assembleRange(
     .reverse()
     .find((row) => row.tape_date === live.tapeYmd && tapeSessionAtMs(row.t, live.tapeYmd) === session);
   const atMs =
-    nowMs >= bounds.start && nowMs < bounds.end
-      ? nowMs
-      : (latestTape?.t ?? bounds.start);
+    nowMs >= bounds.start && nowMs < bounds.end ? nowMs : (latestTape?.t ?? bounds.start);
   const compare = washoutCompareAt(tagged, atMs, live.tapeYmd);
   compare.at = atMs;
   const rawPaths = washoutComparePaths(tagged, live.tapeYmd, points);
@@ -924,17 +977,5 @@ async function assembleRange(
   compare.yesterday = compare.yesterday == null ? null : asDump(compare.yesterday);
   compare.avg5 = compare.avg5 == null ? null : asDump(compare.avg5);
   compare.avg20 = compare.avg20 == null ? null : asDump(compare.avg20);
-  return {
-    index: series.length ? asDump(index) : 0,
-    series: series.map((p) => ({ ...p, v: asDump(p.v) })),
-    items: live.items,
-    range,
-    session,
-    axisStart,
-    axisEnd,
-    sessionDate: live.tapeYmd,
-    fetchedAt: new Date().toISOString(),
-    servedFromCache: false,
-    compare,
-  };
+  return { index, series, compare };
 }

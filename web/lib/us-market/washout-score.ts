@@ -720,6 +720,22 @@ export function washoutScoreSeries(
   return washoutScoreRun(bars, prevClose, opts).points;
 }
 
+/** 이미 진행 중인 엔진에 이어지는 봉만 넣는다. 상태는 호출 후 반환값만 쓴다. */
+export function washoutScoreContinue(
+  state: WashoutEngineState,
+  bars: WashoutBar[],
+  opts?: WashoutScoreOpts
+): { points: WashoutPoint[]; state: WashoutEngineState } {
+  const seeded = applySavedPeakAt(applySeedPeak(bars, opts?.seedPeak ?? 0), opts?.savedPeakAt ?? 0);
+  let next = state;
+  const points: WashoutPoint[] = [];
+  for (const bar of seeded) {
+    next = nextState(next, bar, opts);
+    points.push(pointOf(next));
+  }
+  return { points, state: next };
+}
+
 export function lastWashoutScore(
   bars: WashoutBar[],
   prevClose: number,
@@ -770,7 +786,22 @@ export function washoutIndexAverage(entries: Array<number | WashoutIndexName>): 
   return sum / entries.length;
 }
 
-export function washoutIndexPath(seriesList: WashoutPoint[][]): WashoutIndexPoint[] {
+/** 현재반응 설거지 지수. 추적 시작 후 이 시간을 넘기면 빠진다. */
+export const WASHOUT_REACTION_MS = 90 * 60 * 1000;
+
+/** 오리지널 멤버이면서, 추적 시작 시각과 지금 사이가 1시간 30분 이내. */
+export function inCurrentReaction(point: WashoutPoint | null | undefined, atMs: number): point is WashoutPoint {
+  if (!washoutPointInSessionIndex(point, atMs)) return false;
+  const started = point.captureAt || 0;
+  if (!(started > 0)) return false;
+  const age = atMs - started;
+  return age >= 0 && age <= WASHOUT_REACTION_MS;
+}
+
+function indexPathFrom(
+  seriesList: WashoutPoint[][],
+  accept: (point: WashoutPoint, atMs: number) => boolean
+): WashoutIndexPoint[] {
   const keys = new Set<number>();
   for (const series of seriesList) {
     for (const point of series) keys.add(Math.floor(point.t / MINUTE_MS));
@@ -790,7 +821,7 @@ export function washoutIndexPath(seriesList: WashoutPoint[][]): WashoutIndexPoin
     const scores: WashoutIndexName[] = [];
     let t = k * MINUTE_MS;
     for (const point of last) {
-      if (washoutPointInSessionIndex(point, t)) {
+      if (point && accept(point, t)) {
         scores.push({
           score: point.score,
           captureAt: point.captureAt,
@@ -803,6 +834,15 @@ export function washoutIndexPath(seriesList: WashoutPoint[][]): WashoutIndexPoin
     out.push({ t, score: washoutIndexAverage(scores) });
   }
   return out;
+}
+
+export function washoutIndexPath(seriesList: WashoutPoint[][]): WashoutIndexPoint[] {
+  return indexPathFrom(seriesList, (point, atMs) => washoutPointInSessionIndex(point, atMs));
+}
+
+/** 세션 점수는 오리지널과 같고, 들어간 종목만 추적 90분 이내로 줄인다. */
+export function washoutReactionIndexPath(seriesList: WashoutPoint[][]): WashoutIndexPoint[] {
+  return indexPathFrom(seriesList, inCurrentReaction);
 }
 
 export type WashoutIndexMember = {

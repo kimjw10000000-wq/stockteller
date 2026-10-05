@@ -213,6 +213,8 @@
     "lead": "This index shows how hard today's runners are being dumped from their highs. 0 means they are holding. The farther below 0 (more negative), the deeper the dump.",
     "error": "Could not load scores. Please try again shortly.",
     "indexLabel": "Dump Index",
+    "reactionLabel": "Current-reaction dump index",
+    "reactionLead": "Averages names whose tracking started within 90 minutes, using the score earned in this session.",
     "tracked": "Tracking",
     "ticker": "Ticker",
     "score": "Score",

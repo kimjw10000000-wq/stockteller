@@ -26,6 +26,11 @@ type Payload = {
   axisStart?: number;
   axisEnd?: number;
   compare?: Compare;
+  reaction?: {
+    index?: number;
+    series?: ChartPoint[];
+    compare?: Compare;
+  };
   error?: string;
 };
 
@@ -317,13 +322,169 @@ function WashoutLineChart({
   );
 }
 
-export function SimilarMoversContent() {
+function IndexPane({
+  label,
+  hint,
+  chart,
+  range,
+  session,
+  onRange,
+  onSession,
+  overlaysOn,
+  onToggleOverlay,
+}: {
+  label: string;
+  hint?: string;
+  chart: Payload | null;
+  range: RangeKey;
+  session: SessionKey;
+  onRange: (range: RangeKey) => void;
+  onSession: (session: SessionKey) => void;
+  overlaysOn: Record<OverlayKey, boolean>;
+  onToggleOverlay: (key: OverlayKey) => void;
+}) {
   const { t, locale } = useI18n();
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  useEffect(() => {
+    setHoverIndex(null);
+  }, [range, session]);
+  const series = (chart?.series ?? []).filter((p) => Number.isFinite(p.x));
+  const hoverPoint = hoverIndex != null && hoverIndex < series.length ? series[hoverIndex] : null;
+  const shown = hoverPoint?.v ?? series.at(-1)?.v ?? null;
+  const lastT = hoverPoint?.t ?? series.at(-1)?.t;
+  const shownTime = lastT != null ? hoverLabel(lastT, range, locale) : null;
+  const compare = chart?.compare;
+  const overlayRows = useMemo(
+    () =>
+      OVERLAYS.map((row) => ({
+        ...row,
+        label: t(
+          row.key === "yesterday"
+            ? "similar.compareYesterday"
+            : row.key === "avg5"
+              ? "similar.compareAvg5"
+              : "similar.compareAvg20"
+        ),
+        value: compare?.[row.key] ?? null,
+        points: (compare?.paths?.[row.key] ?? []).filter((p) => Number.isFinite(p.x)),
+      })),
+    [compare, t]
+  );
+  const activeOverlays = overlayRows
+    .filter((row) => overlaysOn[row.key])
+    .map((row) => ({
+      key: row.key,
+      color: row.color,
+      label: row.label,
+      points: row.points,
+      level: row.value,
+    }));
+
+  return (
+    <Card className="border-border">
+      <CardContent className="px-4 py-4">
+        <div className="space-y-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">{label}</p>
+              <p className="mt-1 text-3xl font-semibold tabular-nums text-foreground">
+                {shown == null ? "—" : roundIndex(shown)}
+              </p>
+              <p className="mt-1 h-5 text-sm tabular-nums text-muted-foreground">
+                {shownTime ?? "\u00a0"}
+              </p>
+              {hint ? <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</p> : null}
+            </div>
+            <div className="flex shrink-0 rounded-lg border border-border p-0.5" role="group">
+              {SESSIONS.map((key) => {
+                const active = session === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onSession(key)}
+                    className={`rounded-md px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm ${
+                      active
+                        ? "bg-[#030213] font-semibold text-white shadow-sm"
+                        : "text-muted-foreground hover:bg-black/5"
+                    }`}
+                  >
+                    {t(`similar.session.${key}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              {compare?.at ? `${localClock(compare.at, locale)} ${t("similar.sameTime")}` : "\u00a0"}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {overlayRows.map((row) => {
+                const active = overlaysOn[row.key];
+                return (
+                  <button
+                    key={row.key}
+                    type="button"
+                    onClick={() => onToggleOverlay(row.key)}
+                    className={`rounded-lg border px-2 py-2 text-left ${
+                      active ? "bg-input-background" : "border-border hover:bg-input-background/70"
+                    }`}
+                    style={active ? { borderColor: row.color } : undefined}
+                  >
+                    <span className="block text-[11px] text-muted-foreground">{row.label}</span>
+                    <span
+                      className="mt-0.5 block text-sm font-medium tabular-nums"
+                      style={{ color: active ? row.color : undefined }}
+                    >
+                      {row.value == null ? "—" : roundIndex(row.value)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <WashoutLineChart
+            series={series}
+            range={range}
+            axisStart={chart?.axisStart ?? 0}
+            axisEnd={chart?.axisEnd ?? 0}
+            hoverIndex={hoverIndex}
+            onHoverIndex={setHoverIndex}
+            overlays={activeOverlays}
+          />
+          <div className="grid grid-cols-4 gap-1 text-center text-sm">
+            {RANGES.map((key) => {
+              const active = range === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onRange(key)}
+                  className={`rounded-lg py-2 ${
+                    active
+                      ? "bg-input-background font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-input-background/70"
+                  }`}
+                >
+                  {t(`similar.range.${key}`)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SimilarMoversContent() {
+  const { t } = useI18n();
   const [range, setRange] = useState<RangeKey>("1d");
   const [session, setSession] = useState<SessionKey>(() => activeTapeSession());
   const [data, setData] = useState<Payload | null>(null);
   const [failed, setFailed] = useState(false);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [on, setOn] = useState<Record<OverlayKey, boolean>>({
     yesterday: false,
     avg5: false,
@@ -368,155 +529,49 @@ export function SimilarMoversContent() {
   }, []);
 
   useEffect(() => {
-    setHoverIndex(null);
     const board = byBoardRef.current[boardKey(range, session)];
     if (board) setData(board);
   }, [range, session]);
 
   const chart = data?.range === range && data?.session === session ? data : null;
-  const series = (chart?.series ?? []).filter((p) => Number.isFinite(p.x));
-  const hoverPoint =
-    hoverIndex != null && hoverIndex < series.length ? series[hoverIndex] : null;
-  const shown = hoverPoint?.v ?? series.at(-1)?.v ?? null;
-  const lastT = hoverPoint?.t ?? series.at(-1)?.t;
-  const shownTime = lastT != null ? hoverLabel(lastT, range, locale) : null;
-  const compare = data?.compare;
-  const overlayRows = useMemo(
-    () =>
-      OVERLAYS.map((row) => ({
-        ...row,
-        label: t(
-          row.key === "yesterday"
-            ? "similar.compareYesterday"
-            : row.key === "avg5"
-              ? "similar.compareAvg5"
-              : "similar.compareAvg20"
-        ),
-        value: compare?.[row.key] ?? null,
-        points: (compare?.paths?.[row.key] ?? []).filter((p) => Number.isFinite(p.x)),
-      })),
-    [compare, t]
-  );
-  const activeOverlays = overlayRows
-    .filter((row) => on[row.key])
-    .map((row) => ({
-      key: row.key,
-      color: row.color,
-      label: row.label,
-      points: row.points,
-      level: row.value,
-    }));
+  const reactionChart: Payload | null = chart
+    ? {
+        ...chart,
+        series: chart.reaction?.series ?? [],
+        compare: chart.reaction?.compare,
+        index: chart.reaction?.index,
+      }
+    : null;
+  const paneProps = {
+    range,
+    session,
+    onRange: setRange,
+    onSession: setSession,
+    overlaysOn: on,
+    onToggleOverlay: (key: OverlayKey) => setOn((prev) => ({ ...prev, [key]: !prev[key] })),
+  };
 
   return (
-    <main className="mx-auto w-full max-w-lg space-y-4">
+    <main className="mx-auto w-full max-w-6xl space-y-4">
       <header>
         <p className="text-sm font-medium text-muted-foreground">{t("similar.kicker")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-foreground">
-          {t("similar.title")}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {t("similar.lead")}
-        </p>
+        <h1 className="mt-1 text-2xl font-semibold text-foreground">{t("similar.title")}</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{t("similar.lead")}</p>
       </header>
 
-      <Card className="border-border">
-        <CardContent className="px-4 py-4">
-          {failed && !data ? (
-            <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
-          ) : (
-            <div className="space-y-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">{t("similar.indexLabel")}</p>
-                  <p className="mt-1 text-3xl font-semibold tabular-nums text-foreground">
-                    {shown == null ? "—" : roundIndex(shown)}
-                  </p>
-                  <p className="mt-1 h-5 text-sm tabular-nums text-muted-foreground">
-                    {shownTime ?? "\u00a0"}
-                  </p>
-                </div>
-                <div className="flex shrink-0 rounded-lg border border-border p-0.5" role="group">
-                  {SESSIONS.map((key) => {
-                    const active = session === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setSession(key)}
-                        className={`rounded-md px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm ${
-                          active
-                            ? "bg-[#030213] font-semibold text-white shadow-sm"
-                            : "text-muted-foreground hover:bg-black/5"
-                        }`}
-                      >
-                        {t(`similar.session.${key}`)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 text-[11px] text-muted-foreground">
-                  {compare?.at ? `${localClock(compare.at, locale)} ${t("similar.sameTime")}` : "\u00a0"}
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {overlayRows.map((row) => {
-                    const active = on[row.key];
-                    return (
-                      <button
-                        key={row.key}
-                        type="button"
-                        onClick={() => setOn((prev) => ({ ...prev, [row.key]: !prev[row.key] }))}
-                        className={`rounded-lg border px-2 py-2 text-left ${
-                          active ? "bg-input-background" : "border-border hover:bg-input-background/70"
-                        }`}
-                        style={active ? { borderColor: row.color } : undefined}
-                      >
-                        <span className="block text-[11px] text-muted-foreground">{row.label}</span>
-                        <span
-                          className="mt-0.5 block text-sm font-medium tabular-nums"
-                          style={{ color: active ? row.color : undefined }}
-                        >
-                          {row.value == null ? "—" : roundIndex(row.value)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <WashoutLineChart
-                series={series}
-                range={range}
-                axisStart={chart?.axisStart ?? 0}
-                axisEnd={chart?.axisEnd ?? 0}
-                hoverIndex={hoverIndex}
-                onHoverIndex={setHoverIndex}
-                overlays={activeOverlays}
-              />
-              <div className="grid grid-cols-4 gap-1 text-center text-sm">
-                {RANGES.map((key) => {
-                  const active = range === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setRange(key)}
-                      className={`rounded-lg py-2 ${
-                        active
-                          ? "bg-input-background font-medium text-foreground"
-                          : "text-muted-foreground hover:bg-input-background/70"
-                      }`}
-                    >
-                      {t(`similar.range.${key}`)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {failed && !data ? (
+        <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
+      ) : (
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+          <IndexPane label={t("similar.indexLabel")} chart={chart} {...paneProps} />
+          <IndexPane
+            label={t("similar.reactionLabel")}
+            hint={t("similar.reactionLead")}
+            chart={reactionChart}
+            {...paneProps}
+          />
+        </div>
+      )}
     </main>
   );
 }

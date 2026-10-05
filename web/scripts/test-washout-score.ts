@@ -16,6 +16,8 @@ import {
   washoutIndexAverage,
   washoutIndexPath,
   washoutIndexPathDetailed,
+  washoutReactionIndexPath,
+  WASHOUT_REACTION_MS,
   washoutScoreForIndex,
   washoutScoreSeries,
 } from "../lib/us-market/washout-score";
@@ -691,3 +693,46 @@ console.log(
 );
 void intervalGapWeightFromTimes;
 void rthOpen;
+
+const reactionOpen = etWallMs("2026-05-12", 9, 31);
+const reactionLater = reactionOpen + WASHOUT_REACTION_MS;
+const reactionAfter = reactionLater + 60_000;
+const preBridge = etWallMs("2026-05-12", 9, 0);
+function reactionPoint(
+  t: number,
+  captureAt: number,
+  sessionCaptureAt: number,
+  score: number
+) {
+  return {
+    t,
+    price: 10,
+    peakPrice: 12,
+    peakAt: sessionCaptureAt,
+    captureAt,
+    sessionCaptureAt,
+    ddPct: 10,
+    minuteChange: 0,
+    minuteScore: 0,
+    score,
+    tracking: true,
+    sessionElapsedMin: 1,
+    sessionQuotaMin: 960,
+    trackUntilMs: reactionAfter + 60 * 60 * 1000,
+  };
+}
+const reactionPath = washoutReactionIndexPath([
+  [reactionPoint(reactionOpen, reactionOpen, reactionOpen, 100)],
+  [
+    reactionPoint(reactionOpen, preBridge, reactionOpen, 40),
+    reactionPoint(reactionLater, preBridge, reactionOpen, 40),
+    reactionPoint(reactionAfter, preBridge, reactionOpen, 40),
+  ],
+]);
+const atOpen = reactionPath.find((row) => row.t === reactionOpen);
+const atLimit = reactionPath.find((row) => row.t === reactionLater);
+const atAfter = reactionPath.find((row) => row.t === reactionAfter);
+if (!atOpen || atOpen.score <= 0) throw new Error("reaction open should include the fresh name");
+if (!atLimit || atLimit.score <= 0) throw new Error("reaction should keep a name through 90 minutes");
+if (!atAfter || atAfter.score !== 0) throw new Error("reaction should drop a name after 90 minutes");
+console.log("현재반응 90분", atOpen.score > 0, atLimit.score > 0, atAfter.score === 0);

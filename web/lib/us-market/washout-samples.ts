@@ -7,6 +7,8 @@ export type WashoutSample = {
   t: number;
   v: number;
   tape_date: string;
+  /** 현재반응 설거지 지수. 열이 생기기 전 행은 없다. */
+  reaction?: number;
 };
 
 const mem = new Map<number, WashoutSample>();
@@ -36,10 +38,20 @@ function minuteKey(t: number): number {
   return Math.floor(t / 60_000) * 60_000;
 }
 
-export function rememberSamples(points: Array<{ t: number; v: number }>, tapeDate: string): void {
+export function rememberSamples(
+  points: Array<{ t: number; v: number; reaction?: number }>,
+  tapeDate: string
+): void {
   for (const point of points) {
     const t = minuteKey(point.t);
-    mem.set(t, { t, v: point.v, tape_date: runnerTapeDate(new Date(point.t)) || tapeDate });
+    const prev = mem.get(t);
+    const reaction = point.reaction != null && Number.isFinite(point.reaction) ? point.reaction : prev?.reaction;
+    mem.set(t, {
+      t,
+      v: point.v,
+      tape_date: runnerTapeDate(new Date(point.t)) || tapeDate,
+      ...(reaction != null ? { reaction } : {}),
+    });
   }
 }
 
@@ -90,10 +102,28 @@ export async function deleteSamplesFromTape(tapeDate: string, fromMs: number): P
   }
 }
 
+/** 현재반응 점수는 같은 분에서 1ms 뒤, 없는 테이프 날짜로 둔다. 원 지수 행과 시각 키가 겹치지 않게. */
+const REACTION_TAPE = "2099-01-01";
+const REACTION_SHIFT_MS = 1;
+
+function isReactionTape(tape: string): boolean {
+  return tape.slice(0, 10) === REACTION_TAPE;
+}
+
+function sampleFromRow(row: { t: string; v: number; tape_date: string }): WashoutSample | null {
+  const t = Date.parse(String(row.t));
+  if (!Number.isFinite(t)) return null;
+  return {
+    t: minuteKey(t),
+    v: Number(row.v),
+    tape_date: String(row.tape_date),
+  };
+}
+
 export async function persistSamples(
-  points: Array<{ t: number; v: number }>,
+  points: Array<{ t: number; v: number; reaction?: number }>,
   tapeDate: string,
-  opts?: { incremental?: boolean }
+  opts?: { incremental?: boolean; reactionOnly?: boolean }
 ): Promise<void> {
   rememberSamples(points, tapeDate);
   if (points.length === 0) return;
@@ -106,7 +136,7 @@ export async function persistSamples(
       : lastT - 2 * 60_000
     : 0;
   const fresh = incremental ? sorted.filter((p) => minuteKey(p.t) >= fromT) : sorted;
-  const byMinute = new Map<number, { t: number; v: number }>();
+  const byMinute = new Map<number, { t: number; v: number; reaction?: number }>();
   for (const point of fresh) byMinute.set(minuteKey(point.t), point);
   const unique = [...byMinute.values()].sort((a, b) => a.t - b.t);
   if (unique.length === 0) return;
@@ -117,11 +147,26 @@ export async function persistSamples(
       v: point.v,
       tape_date: runnerTapeDate(new Date(point.t)) || tapeDate,
     }));
+    const reactionRows = unique
+      .filter((point) => point.reaction != null && Number.isFinite(point.reaction))
+      .map((point) => ({
+        t: new Date(minuteKey(point.t) + REACTION_SHIFT_MS).toISOString(),
+        v: point.reaction as number,
+        tape_date: REACTION_TAPE,
+      }));
     const chunk = 400;
-    for (let i = 0; i < rows.length; i += chunk) {
-      const { error } = await admin.from("washout_index_samples").upsert(rows.slice(i, i + chunk), {
-        onConflict: "t",
-      });
+    if (!opts?.reactionOnly) {
+      for (let i = 0; i < rows.length; i += chunk) {
+        const { error } = await admin.from("washout_index_samples").upsert(rows.slice(i, i + chunk), {
+          onConflict: "t",
+        });
+        if (error) throw error;
+      }
+    }
+    for (let i = 0; i < reactionRows.length; i += chunk) {
+      const { error } = await admin
+        .from("washout_index_samples")
+        .upsert(reactionRows.slice(i, i + chunk), { onConflict: "t" });
       if (error) throw error;
     }
     lastPersistedT = Math.max(lastPersistedT, ...unique.map((p) => minuteKey(p.t)));
@@ -505,6 +550,66 @@ export async function loadTapeSampleBounds(tapeDate: string): Promise<{ minT: nu
   }
 }
 
+function absorbSampleRow(
+  byT: Map<number, WashoutSample>,
+  row: { t: string; v: number; tape_date: string }
+): void {
+  const parsed = Date.parse(String(row.t));
+  if (!Number.isFinite(parsed)) return;
+  const key = minuteKey(parsed);
+  if (isReactionTape(String(row.tape_date))) {
+    const prev = byT.get(key);
+    if (prev) prev.reaction = Number(row.v);
+    else byT.set(key, { t: key, v: Number.NaN, tape_date: "", reaction: Number(row.v) });
+    return;
+  }
+  const sample = sampleFromRow(row);
+  if (!sample) return;
+  const prev = byT.get(sample.t);
+  if (prev?.reaction != null) sample.reaction = prev.reaction;
+  byT.set(sample.t, sample);
+}
+
+async function loadReactionMap(
+  admin: ReturnType<typeof createAdminClient>,
+  fromMs: number
+): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  const end = Date.now() + 60_000;
+  const slices = 8;
+  const step = Math.max(60_000, Math.ceil((end - fromMs) / slices));
+  await Promise.all(
+    Array.from({ length: slices }, (_, i) => {
+      const start = fromMs + i * step;
+      const stop = i === slices - 1 ? end : start + step;
+      return (async () => {
+        let cursor = new Date(start).toISOString();
+        const stopIso = new Date(stop).toISOString();
+        for (let n = 0; n < 8; n++) {
+          const { data, error } = await admin
+            .from("washout_index_samples")
+            .select("t,v")
+            .eq("tape_date", REACTION_TAPE)
+            .gte("t", cursor)
+            .lt("t", stopIso)
+            .order("t", { ascending: true })
+            .limit(1000);
+          if (error || !data?.length) return;
+          for (const row of data) {
+            const t = Date.parse(String(row.t));
+            if (Number.isFinite(t)) map.set(minuteKey(t), Number(row.v));
+          }
+          if (data.length < 1000) return;
+          const last = Date.parse(String(data[data.length - 1].t));
+          if (!Number.isFinite(last)) return;
+          cursor = new Date(last + 1).toISOString();
+        }
+      })();
+    })
+  );
+  return map;
+}
+
 export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]> {
   const now = Date.now();
   if (
@@ -534,21 +639,13 @@ export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]>
         .order("t", { ascending: true })
         .limit(page);
       if (error || !data?.length) break;
-      for (const row of data) {
-        const t = Date.parse(String(row.t));
-        if (!Number.isFinite(t)) continue;
-        byT.set(minuteKey(t), {
-          t: minuteKey(t),
-          v: Number(row.v),
-          tape_date: String(row.tape_date),
-        });
-      }
+      for (const row of data) absorbSampleRow(byT, row);
       if (data.length < page) break;
       const last = Date.parse(String(data[data.length - 1].t));
       if (!Number.isFinite(last)) break;
       cursor = new Date(last + 1).toISOString();
     }
-    const rows = [...byT.values()].sort((a, b) => a.t - b.t);
+    const rows = [...byT.values()].filter((row) => Number.isFinite(row.v)).sort((a, b) => a.t - b.t);
     samplesQueryCache = { fromMs, at: now, rows };
     return rows;
   } catch {
@@ -562,40 +659,42 @@ export async function loadSamplesForTapeDates(tapes: string[]): Promise<WashoutS
   if (!unique.length) return [];
   try {
     const admin = createAdminClient();
-    const pages = await Promise.all(
-      unique.map(async (tape) => {
-        const rows: Array<{ t: string; v: number; tape_date: string }> = [];
-        let cursor: string | null = null;
-        for (let n = 0; n < 5; n++) {
-          let query = admin
-            .from("washout_index_samples")
-            .select("t,v,tape_date")
-            .eq("tape_date", tape)
-            .order("t", { ascending: true })
-            .limit(1000);
-          if (cursor) query = query.gt("t", cursor);
-          const { data, error } = await query;
-          if (error || !data?.length) break;
-          for (const row of data) {
-            rows.push({
-              t: String(row.t),
-              v: Number(row.v),
-              tape_date: String(row.tape_date),
-            });
+    const earliest = [...unique].sort()[0];
+    const reactionFrom = Date.parse(`${earliest}T00:00:00Z`) - 4 * 24 * 60 * 60 * 1000;
+    const [pages, reaction] = await Promise.all([
+      Promise.all(
+        unique.map(async (tape) => {
+          const rows: WashoutSample[] = [];
+          let cursor: string | null = null;
+          for (let n = 0; n < 5; n++) {
+            let query = admin
+              .from("washout_index_samples")
+              .select("t,v,tape_date")
+              .eq("tape_date", tape)
+              .order("t", { ascending: true })
+              .limit(1000);
+            if (cursor) query = query.gt("t", cursor);
+            const { data, error } = await query;
+            if (error || !data?.length) break;
+            for (const row of data) {
+              const sample = sampleFromRow(row);
+              if (sample && !isReactionTape(sample.tape_date)) rows.push(sample);
+            }
+            if (data.length < 1000) break;
+            cursor = String(data[data.length - 1].t);
           }
-          if (data.length < 1000) break;
-          cursor = String(data[data.length - 1].t);
-        }
-        return rows;
-      })
-    );
+          return rows;
+        })
+      ),
+      loadReactionMap(admin, reactionFrom),
+    ]);
     const byT = new Map<number, WashoutSample>();
     for (const page of pages) {
-      for (const row of page) {
-        const t = Date.parse(row.t);
-        if (!Number.isFinite(t)) continue;
-        byT.set(minuteKey(t), { t: minuteKey(t), v: row.v, tape_date: row.tape_date });
-      }
+      for (const row of page) byT.set(row.t, row);
+    }
+    for (const [t, value] of reaction) {
+      const row = byT.get(t);
+      if (row) row.reaction = value;
     }
     return [...byT.values()].sort((a, b) => a.t - b.t);
   } catch {
