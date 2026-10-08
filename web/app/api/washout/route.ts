@@ -1,22 +1,31 @@
 import { NextResponse } from "next/server";
-import { getWashoutCatalog, getWashoutLiveBoards } from "@/lib/us-market/washout-live";
+import { loadPublishedWashout, publishWashoutCatalog } from "@/lib/us-market/washout-published";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SHARED = {
-  "Cache-Control": "public, max-age=30, s-maxage=60, stale-while-revalidate=120",
-  "CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
-  "Vercel-CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+  "Cache-Control": "public, max-age=15, s-maxage=20, stale-while-revalidate=20",
+  "CDN-Cache-Control": "public, s-maxage=20, stale-while-revalidate=20",
+  "Vercel-CDN-Cache-Control": "public, s-maxage=20, stale-while-revalidate=20",
 };
 
-/** 점수표 한 장을 올려 두고 모든 방문자가 같은 응답을 받는다. Polygon은 호출하지 않는다. */
-export async function GET(request: Request) {
-  const liveOnly = new URL(request.url).searchParams.get("view") === "live";
+/** 매분 그려 둔 점수표를 그대로 준다. 이 요청에서는 표를 다시 만들지 않는다. */
+export async function GET() {
   try {
-    const boards = liveOnly ? await getWashoutLiveBoards() : await getWashoutCatalog();
-    return NextResponse.json({ boards }, { headers: SHARED });
+    const published = await loadPublishedWashout();
+    if (published) {
+      return NextResponse.json(
+        { boards: published.boards, builtAt: published.builtAt },
+        { headers: SHARED }
+      );
+    }
+    const made = await publishWashoutCatalog();
+    return NextResponse.json(
+      { boards: made.boards, builtAt: made.builtAt },
+      { headers: SHARED }
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : "server error";
     return NextResponse.json(
