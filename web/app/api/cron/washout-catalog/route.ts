@@ -6,14 +6,16 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 function authorize(req: Request): boolean {
-  const vercelCron = req.headers.get("x-vercel-cron") === "1";
-  if (vercelCron) return true;
+  if (req.headers.get("x-vercel-cron") === "1") return true;
+  const ua = req.headers.get("user-agent") ?? "";
+  if (/\bvercel-cron\b/i.test(ua)) return true;
   const cronSecret = process.env.CRON_SECRET?.trim();
   const auth = req.headers.get("authorization")?.trim() ?? "";
   if (cronSecret && auth === `Bearer ${cronSecret}`) return true;
   console.error("[cron/washout-catalog] unauthorized", {
-    cronHeader: vercelCron,
+    cronHeader: false,
     hasAuthorization: auth.length > 0,
+    ua: ua.slice(0, 40),
   });
   return false;
 }
