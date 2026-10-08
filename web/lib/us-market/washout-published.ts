@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getWashoutCatalog, type WashoutBoardPayload } from "@/lib/us-market/washout-live";
+import { loadWashoutMembers, type WashoutMemberLists } from "@/lib/us-market/washout-samples";
 
 const BUCKET = "washout-catalog";
 const OBJECT_PATH = "current.json";
@@ -7,6 +8,7 @@ const OBJECT_PATH = "current.json";
 export type PublishedWashout = {
   builtAt: string;
   boards: Record<string, WashoutBoardPayload>;
+  members?: WashoutMemberLists;
 };
 
 function alreadyExists(message: string): boolean {
@@ -36,11 +38,12 @@ async function ensureBucket(): Promise<void> {
 }
 
 export async function savePublishedWashout(
-  boards: Record<string, WashoutBoardPayload>
+  boards: Record<string, WashoutBoardPayload>,
+  members: WashoutMemberLists
 ): Promise<string> {
   await ensureBucket();
   const builtAt = new Date().toISOString();
-  const body = JSON.stringify({ builtAt, boards } satisfies PublishedWashout);
+  const body = JSON.stringify({ builtAt, boards, members } satisfies PublishedWashout);
   const admin = storageAdmin();
   const { error } = await admin.storage.from(BUCKET).upload(OBJECT_PATH, Buffer.from(body, "utf8"), {
     upsert: true,
@@ -68,8 +71,9 @@ export async function loadPublishedWashout(): Promise<PublishedWashout | null> {
 export async function publishWashoutCatalog(): Promise<{
   builtAt: string;
   boards: Record<string, WashoutBoardPayload>;
+  members: WashoutMemberLists;
 }> {
-  const boards = await getWashoutCatalog();
-  const builtAt = await savePublishedWashout(boards);
-  return { builtAt, boards };
+  const [boards, members] = await Promise.all([getWashoutCatalog(), loadWashoutMembers()]);
+  const builtAt = await savePublishedWashout(boards, members);
+  return { builtAt, boards, members };
 }

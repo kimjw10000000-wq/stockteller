@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { runnerTapeDate, tapeDayElapsedMin } from "./us-session";
+import { washoutScoreForIndex } from "./washout-score";
+import { activeTapeSession, runnerTapeDate, tapeDayElapsedMin, type UsTradingSession } from "./us-session";
 
 export type WashoutSample = {
   t: number;
@@ -416,7 +417,7 @@ export async function persistTrackedBoard(
     lastPrice?: number;
     lastBarT?: number;
     prevClose?: number;
-    grid?: Record<string, number>;
+    grid?: Record<string, number | string>;
     tapeDate?: string;
   }>
 ): Promise<void> {
@@ -521,6 +522,65 @@ export async function loadTrackedBoard(): Promise<
       .sort((a, b) => b.score - a.score);
   } catch {
     return [];
+  }
+}
+
+export type WashoutMember = { ticker: string; score: number };
+
+export type WashoutMemberLists = {
+  session: UsTradingSession | null;
+  index: WashoutMember[];
+  reaction: WashoutMember[];
+};
+
+const MEMBER_SESSIONS = new Set<UsTradingSession>(["afterhours", "premarket", "regular"]);
+
+function dumpScore(v: number): number {
+  if (!Number.isFinite(v) || v === 0) return 0;
+  return -Math.abs(v);
+}
+
+function gridNumber(grid: Record<string, unknown> | null, key: string): number | null {
+  if (!grid) return null;
+  const n = Number(grid[key]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** 지금 장의 설거지 지수·현재반응 지수에 들어간 종목과 표시 점수. */
+export async function loadWashoutMembers(): Promise<WashoutMemberLists> {
+  const live = activeTapeSession();
+  const empty: WashoutMemberLists = { session: live, index: [], reaction: [] };
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("washout_tracked_tickers").select("ticker,score,grid");
+    if (error || !data) return empty;
+    const index: WashoutMember[] = [];
+    const reaction: WashoutMember[] = [];
+    for (const row of data) {
+      const ticker = String(row.ticker ?? "").trim().toUpperCase();
+      if (!ticker) continue;
+      const grid =
+        row.grid && typeof row.grid === "object" && !Array.isArray(row.grid)
+          ? (row.grid as Record<string, unknown>)
+          : null;
+      const rowSession = grid?.session;
+      if (typeof rowSession === "string" && MEMBER_SESSIONS.has(rowSession as UsTradingSession)) {
+        if (rowSession !== live) continue;
+      }
+      const flag = gridNumber(grid, "inIndex");
+      if (flag === 0) continue;
+      const stored = gridNumber(grid, "indexScore");
+      const raw = Number(row.score);
+      const contribution = stored != null ? stored : washoutScoreForIndex(Number.isFinite(raw) ? raw : 0);
+      const shown = { ticker, score: dumpScore(contribution) };
+      index.push(shown);
+      if (gridNumber(grid, "inReaction") === 1) reaction.push(shown);
+    }
+    index.sort((a, b) => a.score - b.score || a.ticker.localeCompare(b.ticker));
+    reaction.sort((a, b) => a.score - b.score || a.ticker.localeCompare(b.ticker));
+    return { session: live, index, reaction };
+  } catch {
+    return empty;
   }
 }
 

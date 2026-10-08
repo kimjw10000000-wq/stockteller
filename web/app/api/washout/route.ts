@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadPublishedWashout, publishWashoutCatalog } from "@/lib/us-market/washout-published";
+import { loadWashoutMembers } from "@/lib/us-market/washout-samples";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,14 +17,15 @@ export async function GET() {
   try {
     const published = await loadPublishedWashout();
     if (published) {
+      const members = published.members ?? (await loadWashoutMembers());
       return NextResponse.json(
-        { boards: published.boards, builtAt: published.builtAt },
+        { boards: published.boards, builtAt: published.builtAt, members },
         { headers: SHARED }
       );
     }
     const made = await publishWashoutCatalog();
     return NextResponse.json(
-      { boards: made.boards, builtAt: made.builtAt },
+      { boards: made.boards, builtAt: made.builtAt, members: made.members },
       { headers: SHARED }
     );
   } catch (e) {

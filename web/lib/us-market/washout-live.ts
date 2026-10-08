@@ -3,8 +3,10 @@ import {
   washoutIndexAverage,
   washoutIndexPath,
   washoutReactionIndexPath,
+  washoutScoreForIndexName,
   trackingOriginMs,
   specialTickersAfterRth,
+  WASHOUT_REACTION_MS,
   WASHOUT_TRACK_PCT,
   type WashoutBar,
   type WashoutPoint,
@@ -61,6 +63,7 @@ export type WashoutBoardRow = {
   peakPrice?: number;
   peakAt?: number;
   captureAt?: number;
+  sessionCaptureAt?: number;
   peakElapsedMin?: number;
   trackFrom?: number;
   lastPrice?: number;
@@ -489,6 +492,35 @@ function refClose(raw: SnapshotRow, now: Date): number | null {
   return close != null && Number.isFinite(close) && close > 0 ? close : null;
 }
 
+function nameInThisSession(sessionCaptureAt: number | undefined, now: number): boolean {
+  const started = sessionCaptureAt || 0;
+  if (!(started > 0)) return true;
+  if (runnerTapeDate(new Date(started)) !== runnerTapeDate(new Date(now))) return false;
+  return sessionAtInstant(new Date(started)) === sessionAtInstant(new Date(now));
+}
+
+function memberGrid(hit: WashoutBoardRow | undefined, now: number): Record<string, number | string> | undefined {
+  if (!hit) return undefined;
+  const base: Record<string, number | string> = { ...(hit.grid ?? {}) };
+  const session = sessionAtInstant(new Date(now));
+  const captureAt = hit.captureAt ?? 0;
+  const inIndex = nameInThisSession(hit.sessionCaptureAt, now);
+  const age = captureAt > 0 ? now - captureAt : Number.POSITIVE_INFINITY;
+  if (captureAt > 0) base.captureAt = captureAt;
+  if (hit.peakElapsedMin && hit.peakElapsedMin > 0) base.peakElapsedMin = hit.peakElapsedMin;
+  if (hit.peakAt && hit.peakAt > 0) base.peakAt = hit.peakAt;
+  base.indexScore = washoutScoreForIndexName({
+    score: hit.score,
+    captureAt: hit.captureAt,
+    peakAt: hit.peakAt,
+    peakElapsedMin: hit.peakElapsedMin,
+  });
+  base.inIndex = inIndex ? 1 : 0;
+  base.inReaction = inIndex && age >= 0 && age <= WASHOUT_REACTION_MS ? 1 : 0;
+  if (session) base.session = session;
+  return base;
+}
+
 function stitchCarry(
   points: Array<{ t: number; v: number; tape_date?: string }>,
   axisStart: number,
@@ -694,6 +726,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         peakPrice: out.state.peakPrice,
         peakAt: out.state.peakAt,
         captureAt: last.captureAt,
+        sessionCaptureAt: last.sessionCaptureAt,
         peakElapsedMin: last.peakElapsedMin,
         trackFrom: origin ?? (firstTrack?.peakAt ? trackingOriginMs(firstTrack.peakAt) : undefined),
         lastPrice: out.state.price,
@@ -741,7 +774,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
           lastPrice: hit?.lastPrice,
           lastBarT: hit?.lastBarT,
           prevClose: hit?.prevClose,
-          grid: hit?.grid,
+          grid: memberGrid(hit, now.getTime()) ?? hit?.grid,
           tapeDate: tapeYmd,
         };
       })

@@ -218,6 +218,9 @@
     "tracked": "추적 중",
     "ticker": "티커",
     "score": "점수",
+    "members": "포함된 종목",
+    "membersEmpty": "지금은 없습니다",
+    "membersOther": "지금 열려 있는 장에 포함된 종목만 표시됩니다",
     "range": {
       "1d": "1일",
       "1w": "1주일",

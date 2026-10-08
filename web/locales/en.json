@@ -218,6 +218,9 @@
     "tracked": "Tracking",
     "ticker": "Ticker",
     "score": "Score",
+    "members": "Names in this index",
+    "membersEmpty": "None right now",
+    "membersOther": "Names are shown for the session that is open now",
     "range": {
       "1d": "1D",
       "1w": "1W",

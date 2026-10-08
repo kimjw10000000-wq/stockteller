@@ -35,6 +35,18 @@ type Payload = {
   error?: string;
 };
 
+type Member = { ticker: string; score: number };
+type Members = {
+  session: SessionKey | null;
+  index: Member[];
+  reaction: Member[];
+};
+
+type ChartFile = {
+  boards?: Partial<Record<string, Payload>>;
+  members?: Members;
+};
+
 const CHART_W = 640;
 const CHART_H = 280;
 const PAD = 16;
@@ -327,6 +339,8 @@ function IndexPane({
   label,
   hint,
   chart,
+  names,
+  namesNote,
   range,
   session,
   onRange,
@@ -337,6 +351,8 @@ function IndexPane({
   label: string;
   hint?: string;
   chart: Payload | null;
+  names: Member[] | null;
+  namesNote?: string;
   range: RangeKey;
   session: SessionKey;
   onRange: (range: RangeKey) => void;
@@ -417,6 +433,23 @@ function IndexPane({
               })}
             </div>
           </div>
+          {names ? (
+            <div className="border-t border-border pt-3">
+              <p className="text-[11px] text-muted-foreground">{t("similar.members")}</p>
+              {names.length === 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">{namesNote}</p>
+              ) : (
+                <ul className="mt-2 flex max-h-28 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
+                  {names.map((name) => (
+                    <li key={name.ticker} className="flex items-baseline gap-2 text-sm">
+                      <span className="font-mono text-foreground">{name.ticker}</span>
+                      <span className="tabular-nums text-foreground">{roundIndex(name.score)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
           <div>
             <p className="mb-2 text-[11px] text-muted-foreground">
               {compare?.at ? `${localClock(compare.at, locale)} ${t("similar.sameTime")}` : "\u00a0"}
@@ -480,11 +513,31 @@ function IndexPane({
   );
 }
 
-function publishedBoards(): Partial<Record<string, Payload>> | null {
+function memberList(raw: unknown): Member[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: Member[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const ticker = String((row as { ticker?: unknown }).ticker ?? "").trim().toUpperCase();
+    const score = Number((row as { score?: unknown }).score);
+    if (!ticker || !Number.isFinite(score)) continue;
+    out.push({ ticker, score });
+  }
+  return out;
+}
+
+function readMembers(json: ChartFile | null | undefined): Members | null {
+  const index = memberList(json?.members?.index);
+  const reaction = memberList(json?.members?.reaction);
+  if (!index || !reaction) return null;
+  const session = json?.members?.session;
+  const known = session === "afterhours" || session === "premarket" || session === "regular";
+  return { session: known ? session : null, index, reaction };
+}
+
+function publishedFile(): ChartFile | null {
   if (typeof window === "undefined") return null;
-  const ready = (window as Window & { __washoutReady?: { boards?: Partial<Record<string, Payload>> } })
-    .__washoutReady;
-  return ready?.boards ?? null;
+  return (window as Window & { __washoutReady?: ChartFile }).__washoutReady ?? null;
 }
 
 export function SimilarMoversContent() {
@@ -493,8 +546,9 @@ export function SimilarMoversContent() {
   const [session, setSession] = useState<SessionKey>(() => activeTapeSession());
   const readyRef = useRef(false);
   const byBoardRef = useRef<Partial<Record<string, Payload>>>({});
+  const [members, setMembers] = useState<Members | null>(() => readMembers(publishedFile()));
   const [data, setData] = useState<Payload | null>(() => {
-    const boards = publishedBoards();
+    const boards = publishedFile()?.boards ?? null;
     if (!boards) return null;
     byBoardRef.current = boards;
     readyRef.current = true;
@@ -516,28 +570,28 @@ export function SimilarMoversContent() {
     let cancelled = false;
     const load = async (refresh: boolean) => {
       try {
-        const early = (window as Window & { __washoutChart?: Promise<{ boards?: Partial<Record<string, Payload>> } | null> })
-          .__washoutChart;
-        let boards: Partial<Record<string, Payload>> | null = refresh ? null : publishedBoards();
-        if (!boards && !refresh && early) {
-          const json = await early;
-          boards = json?.boards ?? null;
-        }
-        if (!boards) {
+        const early = (window as Window & { __washoutChart?: Promise<ChartFile | null> }).__washoutChart;
+        let file: ChartFile | null = refresh ? null : publishedFile();
+        if (!file?.boards && !refresh && early) file = await early;
+        if (!file?.boards) {
           const res = await fetch(washoutChartUrl());
-          if (res.ok) {
-            const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
-            boards = json.boards ?? null;
-          }
+          if (res.ok) file = (await res.json()) as ChartFile;
         }
-        if (!boards) {
+        if (!file?.boards) {
+          const res = await fetch("/api/washout");
+          if (res.ok) file = (await res.json()) as ChartFile;
+        }
+        if (file?.boards && !readMembers(file)) {
           const res = await fetch("/api/washout");
           if (res.ok) {
-            const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
-            boards = json.boards ?? null;
+            const extra = (await res.json()) as ChartFile;
+            if (readMembers(extra)) file = { ...file, members: extra.members };
           }
         }
         if (cancelled) return;
+        const nextMembers = readMembers(file);
+        if (nextMembers) setMembers(nextMembers);
+        const boards = file?.boards ?? null;
         const key = boardKey(rangeRef.current, sessionRef.current);
         const board = boards?.[key];
         if (board && boards) {
@@ -574,6 +628,17 @@ export function SimilarMoversContent() {
         index: chart.reaction?.index,
       }
     : null;
+  const roster = (kind: "index" | "reaction"): { names: Member[] | null; namesNote?: string } => {
+    if (!members) return { names: null };
+    if (members.session && members.session !== session) {
+      return { names: [], namesNote: t("similar.membersOther") };
+    }
+    const names = kind === "index" ? members.index : members.reaction;
+    return { names, namesNote: names.length === 0 ? t("similar.membersEmpty") : undefined };
+  };
+  const indexRoster = roster("index");
+  const reactionRoster = roster("reaction");
+
   const paneProps = {
     range,
     session,
@@ -595,11 +660,12 @@ export function SimilarMoversContent() {
         <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
       ) : (
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          <IndexPane label={t("similar.indexLabel")} chart={chart} {...paneProps} />
+          <IndexPane label={t("similar.indexLabel")} chart={chart} {...indexRoster} {...paneProps} />
           <IndexPane
             label={t("similar.reactionLabel")}
             hint={t("similar.reactionLead")}
             chart={reactionChart}
+            {...reactionRoster}
             {...paneProps}
           />
         </div>
