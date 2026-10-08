@@ -6,9 +6,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SHARED = {
-  "Cache-Control": "public, max-age=15, s-maxage=20, stale-while-revalidate=20",
-  "CDN-Cache-Control": "public, s-maxage=20, stale-while-revalidate=20",
-  "Vercel-CDN-Cache-Control": "public, s-maxage=20, stale-while-revalidate=20",
+  "Cache-Control": "public, max-age=0, s-maxage=15, stale-while-revalidate=0",
+  "CDN-Cache-Control": "public, s-maxage=15",
+  "Vercel-CDN-Cache-Control": "public, s-maxage=15",
 };
 
 /** 매분 그려 둔 점수표를 그대로 준다. 이 요청에서는 표를 다시 만들지 않는다. */

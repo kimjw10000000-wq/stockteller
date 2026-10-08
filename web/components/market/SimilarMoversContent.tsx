@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { activeTapeSession, type UsTradingSession } from "@/lib/us-market/us-session";
+import { washoutChartUrl } from "@/lib/us-market/washout-chart-url";
 
 type ChartPoint = { t: number; v: number; x: number };
 type RangeKey = "1d" | "1w" | "1m" | "3m";
@@ -479,19 +480,32 @@ function IndexPane({
   );
 }
 
+function publishedBoards(): Partial<Record<string, Payload>> | null {
+  if (typeof window === "undefined") return null;
+  const ready = (window as Window & { __washoutReady?: { boards?: Partial<Record<string, Payload>> } })
+    .__washoutReady;
+  return ready?.boards ?? null;
+}
+
 export function SimilarMoversContent() {
   const { t } = useI18n();
   const [range, setRange] = useState<RangeKey>("1d");
   const [session, setSession] = useState<SessionKey>(() => activeTapeSession());
-  const [data, setData] = useState<Payload | null>(null);
+  const readyRef = useRef(false);
+  const byBoardRef = useRef<Partial<Record<string, Payload>>>({});
+  const [data, setData] = useState<Payload | null>(() => {
+    const boards = publishedBoards();
+    if (!boards) return null;
+    byBoardRef.current = boards;
+    readyRef.current = true;
+    return boards[boardKey("1d", activeTapeSession())] ?? null;
+  });
   const [failed, setFailed] = useState(false);
   const [on, setOn] = useState<Record<OverlayKey, boolean>>({
     yesterday: false,
     avg5: false,
     avg20: false,
   });
-  const readyRef = useRef(false);
-  const byBoardRef = useRef<Partial<Record<string, Payload>>>({});
 
   const rangeRef = useRef<RangeKey>(range);
   const sessionRef = useRef<SessionKey>(session);
@@ -500,15 +514,33 @@ export function SimilarMoversContent() {
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const load = async (refresh: boolean) => {
       try {
-        const res = await fetch("/api/washout");
-        const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
+        const early = (window as Window & { __washoutChart?: Promise<{ boards?: Partial<Record<string, Payload>> } | null> })
+          .__washoutChart;
+        let boards: Partial<Record<string, Payload>> | null = refresh ? null : publishedBoards();
+        if (!boards && !refresh && early) {
+          const json = await early;
+          boards = json?.boards ?? null;
+        }
+        if (!boards) {
+          const res = await fetch(washoutChartUrl());
+          if (res.ok) {
+            const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
+            boards = json.boards ?? null;
+          }
+        }
+        if (!boards) {
+          const res = await fetch("/api/washout");
+          if (res.ok) {
+            const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
+            boards = json.boards ?? null;
+          }
+        }
         if (cancelled) return;
-        const boards = json.boards ?? {};
         const key = boardKey(rangeRef.current, sessionRef.current);
-        const board = boards[key];
-        if (res.ok && board) {
+        const board = boards?.[key];
+        if (board && boards) {
           byBoardRef.current = boards;
           readyRef.current = true;
           setData(board);
@@ -520,8 +552,8 @@ export function SimilarMoversContent() {
         if (!cancelled && !readyRef.current) setFailed(true);
       }
     };
-    void load();
-    const id = window.setInterval(() => void load(), 60_000);
+    void load(false);
+    const id = window.setInterval(() => void load(true), 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
