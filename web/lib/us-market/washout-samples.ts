@@ -654,13 +654,18 @@ export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]>
 }
 
 /** 테이프 날짜 색인으로 필요한 날만 읽는다. 하루는 960분 이하라 날짜당 한 번이면 된다. */
-export async function loadSamplesForTapeDates(tapes: string[]): Promise<WashoutSample[]> {
+export async function loadSamplesForTapeDates(
+  tapes: string[],
+  opts?: { reactionFromMs?: number }
+): Promise<WashoutSample[]> {
   const unique = [...new Set(tapes.map((tape) => tape.slice(0, 10)).filter(Boolean))];
   if (!unique.length) return [];
   try {
     const admin = createAdminClient();
     const earliest = [...unique].sort()[0];
-    const reactionFrom = Date.parse(`${earliest}T00:00:00Z`) - 4 * 24 * 60 * 60 * 1000;
+    const reactionFrom =
+      opts?.reactionFromMs ??
+      Date.parse(`${earliest}T00:00:00Z`) - 4 * 24 * 60 * 60 * 1000;
     const [pages, reaction] = await Promise.all([
       Promise.all(
         unique.map(async (tape) => {

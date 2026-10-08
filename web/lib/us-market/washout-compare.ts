@@ -99,21 +99,24 @@ function valueFromIndex(
   const target = start + elapsedMin * 60_000;
   const center = Math.floor(elapsedMin);
   const slackMin = MATCH_SLACK_MS / 60_000;
-  let before: MinuteBucket | null = null;
-  let after: { t: number; v: number; dt: number } | null = null;
-  for (let minute = center - slackMin; minute <= center + slackMin + 1; minute++) {
-    if (minute < 0) continue;
+  const at = (minute: number): MinuteBucket | null => {
+    if (minute < 0) return null;
     const row = index.get(`${tapeYmd}\0${session}\0${minute}`);
-    if (!row) continue;
-    const dt = Math.abs(row.t - target);
-    if (dt > MATCH_SLACK_MS) continue;
-    if (row.t <= target) {
-      if (!before || row.t > before.t) before = row;
-    } else if (!after || dt < after.dt) {
-      after = { t: row.t, v: row.v, dt };
-    }
+    if (!row || Math.abs(row.t - target) > MATCH_SLACK_MS) return null;
+    return row;
+  };
+  const exact = at(center);
+  if (exact && exact.t <= target) return exact.v;
+  for (let distance = 1; distance <= slackMin; distance++) {
+    const before = at(center - distance);
+    if (before && before.t <= target) return before.v;
   }
-  return (before ?? after)?.v ?? null;
+  if (exact) return exact.v;
+  for (let distance = 1; distance <= slackMin + 1; distance++) {
+    const after = at(center + distance);
+    if (after) return after.v;
+  }
+  return null;
 }
 
 export function valueAtSessionElapsed(

@@ -500,25 +500,41 @@ export function SimilarMoversContent() {
 
   useEffect(() => {
     let cancelled = false;
+    let round = 0;
     const load = async () => {
-      try {
-        const res = await fetch("/api/washout");
-        const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
-        if (cancelled) return;
-        const boards = json.boards ?? {};
+      const gen = ++round;
+      let fullApplied = false;
+      const apply = (boards: Partial<Record<string, Payload>>, source: "live" | "full") => {
+        if (cancelled || gen !== round) return;
+        if (source === "live" && fullApplied) return;
+        if (source === "full") fullApplied = true;
         const key = boardKey(rangeRef.current, sessionRef.current);
-        const board = boards[key];
-        if (res.ok && board) {
-          byBoardRef.current = boards;
+        const board = source === "full" ? boards[key] : (boards[key] ?? byBoardRef.current[key]);
+        if (source === "full") byBoardRef.current = boards;
+        else byBoardRef.current = { ...byBoardRef.current, ...boards };
+        if (board) {
           readyRef.current = true;
-          setData(board);
+          setData(byBoardRef.current[key] ?? board);
           setFailed(false);
           return;
         }
-        if (!readyRef.current) setFailed(true);
-      } catch {
-        if (!cancelled && !readyRef.current) setFailed(true);
-      }
+        if (source === "full" && !readyRef.current) setFailed(true);
+      };
+      const pull = async (url: string, source: "live" | "full") => {
+        try {
+          const res = await fetch(url);
+          const json = (await res.json()) as { boards?: Partial<Record<string, Payload>> };
+          if (!res.ok) {
+            if (source === "full" && !readyRef.current && !cancelled && gen === round) setFailed(true);
+            return;
+          }
+          apply(json.boards ?? {}, source);
+        } catch {
+          if (source === "full" && !cancelled && gen === round && !readyRef.current) setFailed(true);
+        }
+      };
+      void pull("/api/washout?view=live", "live");
+      void pull("/api/washout", "full");
     };
     void load();
     const id = window.setInterval(() => void load(), 60_000);

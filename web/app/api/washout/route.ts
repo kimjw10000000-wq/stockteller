@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getWashoutCatalog } from "@/lib/us-market/washout-live";
+import { getWashoutCatalog, getWashoutLiveBoards } from "@/lib/us-market/washout-live";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,9 +12,10 @@ const SHARED = {
 };
 
 /** 점수표 한 장을 올려 두고 모든 방문자가 같은 응답을 받는다. Polygon은 호출하지 않는다. */
-export async function GET() {
+export async function GET(request: Request) {
+  const liveOnly = new URL(request.url).searchParams.get("view") === "live";
   try {
-    const boards = await getWashoutCatalog();
+    const boards = liveOnly ? await getWashoutLiveBoards() : await getWashoutCatalog();
     return NextResponse.json({ boards }, { headers: SHARED });
   } catch (e) {
     const message = e instanceof Error ? e.message : "server error";

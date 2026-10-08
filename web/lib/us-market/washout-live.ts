@@ -873,15 +873,39 @@ export async function getWashoutCatalog(): Promise<Record<string, WashoutBoardPa
     for (const day of tapeDatesBack(tape, 21)) tapeSet.add(day);
   }
   const samples = await loadSamplesForTapeDates([...tapeSet]);
+  return boardsFromSamples(tapes, samples, PUBLISHED_RANGES);
+}
+
+/** 지금 세션의 1일 선만. 비교선·긴 기간은 전체 표가 이어서 채운다. */
+export async function getWashoutLiveBoards(): Promise<Record<string, WashoutBoardPayload>> {
+  const now = new Date();
+  const tapes = new Map<UsTradingSession, string>();
+  const tapeSet = new Set<string>();
+  let reactionFrom = now.getTime();
+  for (const session of PUBLISHED_SESSIONS) {
+    const tape = boardTapeYmd(now, session);
+    tapes.set(session, tape);
+    tapeSet.add(tape);
+    reactionFrom = Math.min(reactionFrom, sessionBounds(tape, "afterhours").start);
+  }
+  const samples = await loadSamplesForTapeDates([...tapeSet], { reactionFromMs: reactionFrom });
+  return boardsFromSamples(tapes, samples, ["1d"]);
+}
+
+async function boardsFromSamples(
+  tapes: Map<UsTradingSession, string>,
+  samples: Array<{ t: number; v: number; tape_date?: string; reaction?: number }>,
+  ranges: WashoutRange[]
+): Promise<Record<string, WashoutBoardPayload>> {
   const boards: Record<string, WashoutBoardPayload> = {};
   for (const session of PUBLISHED_SESSIONS) {
     const live: LiveBundle = {
       index: 0,
       series: [],
-      tapeYmd: tapes.get(session) ?? boardTapeYmd(now, session),
+      tapeYmd: tapes.get(session) ?? "",
       items: [],
     };
-    for (const range of PUBLISHED_RANGES) {
+    for (const range of ranges) {
       boards[`${range}:${session}`] = await assembleRange(live, range, session, samples);
     }
   }

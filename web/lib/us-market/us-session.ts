@@ -139,14 +139,19 @@ export function isInTapeDay(t: number, tapeYmd: string): boolean {
  * 급등 테이프 하루의 날짜 = 본장이 열리는 ET 달력일.
  * 전날 16:00–20:00 애프터는 이 날짜에 속하고, 오늘 16:00–20:00 애프터는 다음 테이프 하루.
  */
+const tapeDateByMinute = new Map<number, string>();
+
 export function runnerTapeDate(now = new Date()): string {
+  const minute = Math.floor(now.getTime() / 60_000);
+  const cached = tapeDateByMinute.get(minute);
+  if (cached) return cached;
   const p = getZonedParts(now, EASTERN_TIME_ZONE);
-  const ymd = etYmd(now);
+  const ymd = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
   const minutes = p.hour * 60 + p.minute;
   const session = sessionFromEtMinutes(minutes);
-  if (session === "afterhours") return nextEtWeekday(ymd);
-  if (minutes >= AFT_END) return nextEtWeekday(ymd);
-  return ymd;
+  const tape = session === "afterhours" || minutes >= AFT_END ? nextEtWeekday(ymd) : ymd;
+  tapeDateByMinute.set(minute, tape);
+  return tape;
 }
 
 export function tapeSessionAt(
@@ -163,18 +168,26 @@ export function tapeSessionAt(
 }
 
 /** 프리 04:00–09:30 / 본장 09:30–16:00 / 애프터 16:00–20:00. 애프터는 전 거래일. */
+const sessionBoundsCache = new Map<string, { start: number; end: number }>();
+
 export function sessionBounds(
   tapeYmd: string,
   session: UsTradingSession
 ): { start: number; end: number } {
+  const key = `${tapeYmd}|${session}`;
+  const cached = sessionBoundsCache.get(key);
+  if (cached) return cached;
+  let bounds: { start: number; end: number };
   if (session === "afterhours") {
     const prev = previousEtWeekday(tapeYmd);
-    return { start: etWallMs(prev, 16, 0), end: etWallMs(prev, 20, 0) };
+    bounds = { start: etWallMs(prev, 16, 0), end: etWallMs(prev, 20, 0) };
+  } else if (session === "premarket") {
+    bounds = { start: etWallMs(tapeYmd, 4, 0), end: etWallMs(tapeYmd, 9, 30) };
+  } else {
+    bounds = { start: etWallMs(tapeYmd, 9, 30), end: etWallMs(tapeYmd, 16, 0) };
   }
-  if (session === "premarket") {
-    return { start: etWallMs(tapeYmd, 4, 0), end: etWallMs(tapeYmd, 9, 30) };
-  }
-  return { start: etWallMs(tapeYmd, 9, 30), end: etWallMs(tapeYmd, 16, 0) };
+  sessionBoundsCache.set(key, bounds);
+  return bounds;
 }
 
 export function sessionLengthMin(session: UsTradingSession): number {

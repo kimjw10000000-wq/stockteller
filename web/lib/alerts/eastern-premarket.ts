@@ -16,7 +16,11 @@ type ZonedParts = {
   second: number;
 };
 
-export function getZonedParts(date: Date, timeZone: string): ZonedParts {
+const zonedFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  const cached = zonedFormatters.get(timeZone);
+  if (cached) return cached;
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
@@ -27,6 +31,12 @@ export function getZonedParts(date: Date, timeZone: string): ZonedParts {
     second: "2-digit",
     hourCycle: "h23",
   });
+  zonedFormatters.set(timeZone, dtf);
+  return dtf;
+}
+
+export function getZonedParts(date: Date, timeZone: string): ZonedParts {
+  const dtf = formatterFor(timeZone);
   const map: Record<string, string> = {};
   for (const part of dtf.formatToParts(date)) {
     if (part.type !== "literal") map[part.type] = part.value;
