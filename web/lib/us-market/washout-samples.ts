@@ -452,9 +452,15 @@ export async function persistTrackedBoard(
       grid: row.grid ?? {},
       tape_date: row.tapeDate ?? null,
     }));
-    const { error } = await admin.from("washout_tracked_tickers").upsert(payload, {
+    let { error } = await admin.from("washout_tracked_tickers").upsert(payload, {
       onConflict: "ticker",
     });
+    if (error && /track_from/i.test(error.message)) {
+      const withoutTrackFrom = payload.map(({ track_from: _trackFrom, ...row }) => row);
+      ({ error } = await admin.from("washout_tracked_tickers").upsert(withoutTrackFrom, {
+        onConflict: "ticker",
+      }));
+    }
     if (error) {
       const { error: plainErr } = await admin.from("washout_tracked_tickers").upsert(
         payload.map((row) => ({
