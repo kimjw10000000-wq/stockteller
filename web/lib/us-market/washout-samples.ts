@@ -456,7 +456,11 @@ export async function persistTrackedBoard(
       onConflict: "ticker",
     });
     if (error && /track_from/i.test(error.message)) {
-      const withoutTrackFrom = payload.map(({ track_from: _trackFrom, ...row }) => row);
+      const withoutTrackFrom = payload.map((row) => {
+        const copy = { ...row };
+        delete copy.track_from;
+        return copy;
+      });
       ({ error } = await admin.from("washout_tracked_tickers").upsert(withoutTrackFrom, {
         onConflict: "ticker",
       }));
