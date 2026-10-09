@@ -33,6 +33,31 @@ export function sessionAtInstant(now = new Date()): UsTradingSession | null {
   return sessionFromEtMinutes(p.hour * 60 + p.minute);
 }
 
+/** 프리 09:29, 본장 15:59, 애프터 19:59 ET. 다음 분부터 세션이 바뀐다. */
+export function isSessionEndMinute(t: number): boolean {
+  const minute = Math.floor(t / 60_000) * 60_000;
+  const session = sessionAtInstant(new Date(minute));
+  if (!session) return false;
+  return sessionAtInstant(new Date(minute + 60_000)) !== session;
+}
+
+/** 세션 마지막 분 점수는 계산값 대신 1분 전 값을 쓴다. */
+export function holdSessionEndMinute<T extends { t: number; v: number; reaction?: number }>(
+  points: T[]
+): T[] {
+  const byMinute = new Map<number, T>();
+  for (const point of points) byMinute.set(Math.floor(point.t / 60_000) * 60_000, point);
+  return points.map((point) => {
+    const minute = Math.floor(point.t / 60_000) * 60_000;
+    if (!isSessionEndMinute(minute)) return point;
+    const prev = byMinute.get(minute - 60_000);
+    if (!prev || !Number.isFinite(prev.v)) return point;
+    const held: T = { ...point, v: prev.v };
+    if (prev.reaction != null && Number.isFinite(prev.reaction)) held.reaction = prev.reaction;
+    return held;
+  });
+}
+
 export function getUsTradingSession(now = new Date()): UsTradingSession | null {
   if (!isUsWeekday(now)) return null;
   return sessionAtInstant(now);

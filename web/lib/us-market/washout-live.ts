@@ -24,6 +24,7 @@ import {
   activeTapeSession,
   boardTapeYmd,
   etWallMs,
+  holdSessionEndMinute,
   isInTapeDay,
   isUsWeekday,
   previousEtWeekday,
@@ -809,14 +810,14 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
             isInTapeDay(point.t, tapeYmd) && (persistFrom == null || point.t >= persistFrom)
         )
       : series;
-  await persistSamples(
+  const held = holdSessionEndMinute(
     toStore.map((point) => {
       const reaction = reactionAt.get(Math.floor(point.t / 60_000) * 60_000);
       return reaction == null ? point : { ...point, reaction };
-    }),
-    tapeYmd,
-    { incremental: !opts?.persistAll }
+    })
   );
+  await persistSamples(held, tapeYmd, { incremental: !opts?.persistAll });
+  const heldSeries = holdSessionEndMinute(series);
   return {
     index: washoutIndexAverage(
       items.map((row) => ({
@@ -826,7 +827,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         peakElapsedMin: row.peakElapsedMin,
       }))
     ),
-    series: series.filter((point) => isInTapeDay(point.t, tapeYmd)),
+    series: heldSeries.filter((point) => isInTapeDay(point.t, tapeYmd)),
     tapeYmd,
     items,
   };
@@ -971,7 +972,9 @@ async function assembleRange(
       reaction: prev?.reaction,
     });
   }
-  const merged = [...byT.values()].filter((row) => Number.isFinite(row.v)).sort((a, b) => a.t - b.t);
+  const merged = holdSessionEndMinute(
+    [...byT.values()].filter((row) => Number.isFinite(row.v)).sort((a, b) => a.t - b.t)
+  );
   const reactionRows = merged
     .filter((row) => row.reaction != null && Number.isFinite(row.reaction))
     .map((row) => ({ t: row.t, v: row.reaction as number, tape_date: row.tape_date }));

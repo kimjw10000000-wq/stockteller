@@ -23,6 +23,8 @@ import {
 } from "../lib/us-market/washout-score";
 import {
   etWallMs,
+  holdSessionEndMinute,
+  isSessionEndMinute,
   previousEtWeekday,
   sessionMinutesBetween,
   addSessionMinutes,
@@ -736,3 +738,23 @@ if (!atOpen || atOpen.score <= 0) throw new Error("reaction open should include 
 if (!atLimit || atLimit.score <= 0) throw new Error("reaction should keep a name through 90 minutes");
 if (!atAfter || atAfter.score !== 0) throw new Error("reaction should drop a name after 90 minutes");
 console.log("현재반응 90분", atOpen.score > 0, atLimit.score > 0, atAfter.score === 0);
+
+const endPremarket = etWallMs("2026-10-08", 9, 29);
+const endRegular = etWallMs("2026-10-08", 15, 59);
+const endAfter = etWallMs("2026-10-07", 19, 59);
+if (!isSessionEndMinute(endPremarket) || !isSessionEndMinute(endRegular) || !isSessionEndMinute(endAfter)) {
+  throw new Error("session end minute");
+}
+if (isSessionEndMinute(endPremarket - 60_000) || isSessionEndMinute(endPremarket + 60_000)) {
+  throw new Error("only the last minute of a session is held");
+}
+const held = holdSessionEndMinute([
+  { t: endPremarket - 60_000, v: 752, reaction: 80 },
+  { t: endPremarket, v: 199, reaction: 10 },
+  { t: endRegular - 60_000, v: 464 },
+  { t: endRegular, v: 12 },
+]);
+if (held[1].v !== 752 || held[1].reaction !== 80 || held[3].v !== 464) {
+  throw new Error("session end should keep the previous minute");
+}
+console.log("세션 마지막 분", held[1].v, held[3].v);
