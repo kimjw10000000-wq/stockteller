@@ -810,13 +810,13 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
             isInTapeDay(point.t, tapeYmd) && (persistFrom == null || point.t >= persistFrom)
         )
       : series;
-  const held = holdSessionEndMinute(
+  const heldPoints = holdSessionEndMinute(
     toStore.map((point) => {
       const reaction = reactionAt.get(Math.floor(point.t / 60_000) * 60_000);
       return reaction == null ? point : { ...point, reaction };
     })
   );
-  await persistSamples(held, tapeYmd, { incremental: !opts?.persistAll });
+  await persistSamples(heldPoints, tapeYmd, { incremental: !opts?.persistAll });
   const heldSeries = holdSessionEndMinute(series);
   return {
     index: washoutIndexAverage(
