@@ -15,7 +15,7 @@
     "indicatorsDesc": "CPI·PPI 및 기업 실적 발표",
     "halts": "TradeHalt",
     "haltsDesc": "미국 주식 거래 정지·재개",
-    "similar": "설거지 지수",
+    "similar": "Tools/Index",
     "similarDesc": "급등주 설거지 점수"
   },
   "header": {
@@ -221,6 +221,12 @@
     "members": "포함된 종목",
     "membersEmpty": "지금은 없습니다",
     "membersOther": "지금 열려 있는 장에 포함된 종목만 표시됩니다",
+    "oddsTitle": "전고 돌파",
+    "oddsUntil": "오늘 본장까지",
+    "oddsReclaim": "전고점 돌파 확률",
+    "oddsNext": "{edge}% 이상 갈 확률",
+    "oddsAboveTop": "이 구간보다 높이 갈 확률",
+    "oddsLoading": "불러오는 중",
     "range": {
       "1d": "1일",
       "1w": "1주일",

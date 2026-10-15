@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { activeTapeSession, type UsTradingSession } from "@/lib/us-market/us-session";
 import { washoutChartUrl } from "@/lib/us-market/washout-chart-url";
+import { ReclaimOddsCards } from "@/components/market/ReclaimOddsCards";
 
 type ChartPoint = { t: number; v: number; x: number };
 type RangeKey = "1d" | "1w" | "1m" | "3m";
@@ -649,7 +650,7 @@ export function SimilarMoversContent() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4">
+    <main className="mx-auto w-full max-w-7xl space-y-4">
       <header>
         <p className="text-sm font-medium text-muted-foreground">{t("similar.kicker")}</p>
         <h1 className="mt-1 text-2xl font-semibold text-foreground">{t("similar.title")}</h1>
@@ -659,7 +660,7 @@ export function SimilarMoversContent() {
       {failed && !data ? (
         <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
           <IndexPane label={t("similar.indexLabel")} chart={chart} {...indexRoster} {...paneProps} />
           <IndexPane
             label={t("similar.reactionLabel")}
@@ -668,6 +669,7 @@ export function SimilarMoversContent() {
             {...reactionRoster}
             {...paneProps}
           />
+          <ReclaimOddsCards />
         </div>
       )}
     </main>

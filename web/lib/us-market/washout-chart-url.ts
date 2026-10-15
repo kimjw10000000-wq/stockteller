@@ -5,3 +5,7 @@ export function washoutChartOrigin(): string {
 export function washoutChartUrl(minute = Math.floor(Date.now() / 60_000)): string {
   return `${washoutChartOrigin()}/storage/v1/object/public/washout-catalog/current.json?m=${minute}`;
 }
+
+export function reclaimOddsUrl(second = Math.floor(Date.now() / 1000)): string {
+  return `${washoutChartOrigin()}/storage/v1/object/public/washout-catalog/odds.json?s=${second}`;
+}

@@ -19,6 +19,7 @@ import {
   type WashoutCompare,
 } from "./washout-compare";
 import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } from "./polygon-keys";
+import { lowAfterPeak } from "./reclaim-odds";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
   activeTapeSession,
@@ -70,6 +71,8 @@ export type WashoutBoardRow = {
   lastPrice?: number;
   lastBarT?: number;
   prevClose?: number;
+  /** 지금 고점 이후의 최저가. */
+  lowSincePeak?: number;
   grid?: Record<string, number>;
 };
 
@@ -82,6 +85,9 @@ type SnapshotRow = {
   lastTrade?: { p?: number; t?: number };
   lastQuote?: { p?: number };
 };
+
+/** 이 날만, 새로 보는 종목은 본장 9:30부터 추적한 것으로 본다. 다음 거래일은 다시 애프터부터. */
+const RTH_CATCHUP_YMD = "2026-10-15";
 
 const CACHE_MS = 0;
 const HIST_CACHE_MS = 8_000;
@@ -289,6 +295,19 @@ function snapshotMinuteHigh(raw: SnapshotRow): number | null {
   return maxNum(raw.min?.h, raw.min?.c);
 }
 
+function rthCatchupOpen(ymd: string): number | null {
+  if (ymd !== RTH_CATCHUP_YMD) return null;
+  return etWallMs(ymd, 9, 30);
+}
+
+function seenHigh(raw: SnapshotRow, ymd: string, now: Date): number | null {
+  const minuteHigh = snapshotMinuteHigh(raw);
+  const open = rthCatchupOpen(ymd);
+  if (open == null || now.getTime() < open) return minuteHigh;
+  const dayHigh = raw.day?.h;
+  return maxNum(minuteHigh ?? undefined, dayHigh != null && dayHigh > 0 ? dayHigh : undefined);
+}
+
 function isCandidate(
   row: {
     ticker: string;
@@ -493,7 +512,7 @@ function refClose(raw: SnapshotRow, now: Date): number | null {
   return close != null && Number.isFinite(close) && close > 0 ? close : null;
 }
 
-function nameInThisSession(sessionCaptureAt: number | undefined, now: number): boolean {
+export function nameInThisSession(sessionCaptureAt: number | undefined, now: number): boolean {
   const started = sessionCaptureAt || 0;
   if (!(started > 0)) return true;
   if (runnerTapeDate(new Date(started)) !== runnerTapeDate(new Date(now))) return false;
@@ -590,7 +609,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       const priorClose = raw.prevDay?.c;
       const todayClose = raw.day?.c ?? null;
       const prevClose = refClose(raw, now);
-      const minuteHigh = snapshotMinuteHigh(raw);
+      const minuteHigh = seenHigh(raw, nowYmd, now);
       if (minuteHigh != null) rememberTapeHigh(tapeYmd, ticker, minuteHigh);
       if (
         !ticker ||
@@ -700,12 +719,17 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       const livePc = live ? barPrevClose(live.t, nowYmd, row.priorClose, row.todayClose) : row.prevClose;
       bars = mergeLiveBar(bars, live, livePc, startMs);
       const origin = savedOrigins.get(ticker);
+      const catchupOpen = rthCatchupOpen(nowYmd);
+      const freshFrom =
+        catchupOpen != null && now.getTime() >= catchupOpen
+          ? catchupOpen
+          : minuteStart(now.getTime()) - 60_000;
       const clipFrom =
         origin != null && origin > 0
           ? Math.floor(origin / 60_000) * 60_000
           : wasTracked.has(ticker)
             ? startMs
-            : minuteStart(now.getTime()) - 60_000;
+            : freshFrom;
       bars = bars.filter((bar) => bar.t >= clipFrom);
       const firstPc = bars[0]?.prevClose ?? row.prevClose;
       const out = await scoreWithPeakSeconds(bars, firstPc, row.ticker, key, {
@@ -733,6 +757,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         lastPrice: out.state.price,
         lastBarT: out.state.t,
         prevClose: out.state.prevClose,
+        lowSincePeak: lowAfterPeak(bars, out.state.peakAt, out.state.peakPrice, out.state.price),
         grid: dumpGrid(out.state.grid),
       };
     } catch {

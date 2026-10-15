@@ -15,7 +15,7 @@
     "indicatorsDesc": "CPI, PPI, and earnings releases",
     "halts": "TradeHalt",
     "haltsDesc": "U.S. stock trading halts and resumes",
-    "similar": "Dump Index",
+    "similar": "Tools/Index",
     "similarDesc": "How hard today's runners are getting dumped from the highs"
   },
   "header": {
@@ -221,6 +221,12 @@
     "members": "Names in this index",
     "membersEmpty": "None right now",
     "membersOther": "Names are shown for the session that is open now",
+    "oddsTitle": "Prior-high break",
+    "oddsUntil": "Through today's regular session",
+    "oddsReclaim": "Chance of breaking the prior high",
+    "oddsNext": "Chance of {edge}% or higher",
+    "oddsAboveTop": "Chance of a higher zone",
+    "oddsLoading": "Loading",
     "range": {
       "1d": "1D",
       "1w": "1W",

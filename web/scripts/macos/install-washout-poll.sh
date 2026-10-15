@@ -57,7 +57,7 @@ cat > "$PLIST" <<EOF
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/caffeinate</string>
-    <string>-i</string>
+    <string>-dims</string>
     <string>${NPM}</string>
     <string>run</string>
     <string>poll:washout</string>
@@ -92,7 +92,10 @@ else
   launchctl load -w "$PLIST"
 fi
 
+# 화면이 꺼지거나 HDMI를 빼도 시스템 잠자기를 막는다. 관리자 암호가 없으면 caffeinate가 맡는다.
+pmset -a sleep 0 disksleep 0 displaysleep 0 2>/dev/null || true
+
 echo "설거지 폴러를 맥 로그인 항목으로 넣었습니다."
 echo "  저장소  $WEB"
 echo "  로그    tail -f $OUT_LOG"
-echo "Mac Mini는 전원 연결 + 시스템 설정에서 디스플레이가 꺼져도 잠들지 않게 해 두세요."
+echo "화면이 꺼져도, 케이블을 빼도 맥은 잠들지 않습니다. 전원은 꽂아 두세요."

@@ -4,6 +4,7 @@ import { loadWashoutMembers, type WashoutMemberLists } from "@/lib/us-market/was
 
 const BUCKET = "washout-catalog";
 const OBJECT_PATH = "current.json";
+const ODDS_PATH = "odds.json";
 
 export type PublishedWashout = {
   builtAt: string;
@@ -52,6 +53,28 @@ export async function savePublishedWashout(
   });
   if (error) throw error;
   return builtAt;
+}
+
+export type PublishedReclaimOdds = {
+  builtAt: string;
+  cards: Array<{
+    ticker: string;
+    name: string;
+    reclaimPct: number;
+    nextPct: number;
+    nextEdge: number | null;
+  }>;
+};
+
+export async function savePublishedReclaimOdds(file: PublishedReclaimOdds): Promise<void> {
+  await ensureBucket();
+  const admin = storageAdmin();
+  const { error } = await admin.storage.from(BUCKET).upload(ODDS_PATH, Buffer.from(JSON.stringify(file), "utf8"), {
+    upsert: true,
+    contentType: "application/json",
+    cacheControl: "1",
+  });
+  if (error) throw error;
 }
 
 export async function loadPublishedWashout(): Promise<PublishedWashout | null> {

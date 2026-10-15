@@ -14,7 +14,6 @@ export function AboutContent() {
       <h2>{t("about.tools")}</h2>
       <ul>
         <li>{t("about.toolAlerts")}</li>
-        <li>{t("about.toolArticles")}</li>
         <li>{t("about.toolNewsSec")}</li>
         <li>{t("about.toolIndicators")}</li>
         <li>{t("about.toolHalts")}</li>
