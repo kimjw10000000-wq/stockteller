@@ -654,22 +654,22 @@ export function SimilarMoversContent() {
       <header>
         <p className="text-sm font-medium text-muted-foreground">{t("similar.kicker")}</p>
         <h1 className="mt-1 text-2xl font-semibold text-foreground">{t("similar.title")}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{t("similar.lead")}</p>
       </header>
 
       {failed && !data ? (
         <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-          <IndexPane label={t("similar.indexLabel")} chart={chart} {...indexRoster} {...paneProps} />
-          <IndexPane
-            label={t("similar.reactionLabel")}
-            hint={t("similar.reactionLead")}
-            chart={reactionChart}
-            {...reactionRoster}
-            {...paneProps}
-          />
+        <div className="space-y-4">
           <ReclaimOddsCards />
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+            <IndexPane label={t("similar.indexLabel")} chart={chart} {...indexRoster} {...paneProps} />
+            <IndexPane
+              label={t("similar.reactionLabel")}
+              chart={reactionChart}
+              {...reactionRoster}
+              {...paneProps}
+            />
+          </div>
         </div>
       )}
     </main>
