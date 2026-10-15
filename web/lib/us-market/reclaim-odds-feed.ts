@@ -137,8 +137,8 @@ function connect(): void {
 }
 
 function risePct(row: Seed): number {
-  if (!(row.prevClose > 0) || !(row.peak > 0)) return 0;
-  return (row.peak / row.prevClose - 1) * 100;
+  if (!(row.prevClose > 0) || !(row.price > 0)) return 0;
+  return (row.price / row.prevClose - 1) * 100;
 }
 
 async function publish(): Promise<void> {
@@ -157,6 +157,7 @@ async function publish(): Promise<void> {
       reclaimPct: quote.reclaimPct,
       nextPct: quote.nextPct,
       nextEdge: quote.nextEdge,
+      risePct: risePct(row),
     });
   }
   await savePublishedReclaimOdds({ builtAt: new Date().toISOString(), cards });

@@ -63,6 +63,7 @@ export type PublishedReclaimOdds = {
     reclaimPct: number;
     nextPct: number;
     nextEdge: number | null;
+    risePct?: number;
   }>;
 };
 

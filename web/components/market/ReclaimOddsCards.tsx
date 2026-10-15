@@ -11,7 +11,17 @@ type CardRow = {
   reclaimPct: number;
   nextPct: number;
   nextEdge: number | null;
+  risePct?: number;
 };
+
+function byCurrentRise(cards: CardRow[]): CardRow[] {
+  if (cards.every((row) => row.risePct == null)) return cards;
+  return [...cards].sort((a, b) => {
+    const diff = (b.risePct ?? -Infinity) - (a.risePct ?? -Infinity);
+    if (diff !== 0) return diff;
+    return a.ticker.localeCompare(b.ticker);
+  });
+}
 
 type OddsFile = { builtAt?: string; cards?: CardRow[] };
 
@@ -42,7 +52,7 @@ export function ReclaimOddsCards() {
         const json = (await res.json()) as OddsFile;
         if (!cancelled && Array.isArray(json.cards)) {
           seen.current = true;
-          setCards(json.cards);
+          setCards(byCurrentRise(json.cards));
         }
       } catch {
         if (!cancelled && !seen.current) setCards([]);
