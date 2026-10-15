@@ -651,11 +651,6 @@ export function SimilarMoversContent() {
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-4">
-      <header>
-        <p className="text-sm font-medium text-muted-foreground">{t("similar.kicker")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-foreground">{t("similar.title")}</h1>
-      </header>
-
       {failed && !data ? (
         <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
       ) : (
