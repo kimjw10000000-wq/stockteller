@@ -136,9 +136,19 @@ function connect(): void {
   });
 }
 
+function risePct(row: Seed): number {
+  if (!(row.prevClose > 0) || !(row.peak > 0)) return 0;
+  return (row.peak / row.prevClose - 1) * 100;
+}
+
 async function publish(): Promise<void> {
+  const ranked = [...book.values()].sort((a, b) => {
+    const diff = risePct(b) - risePct(a);
+    if (diff !== 0) return diff;
+    return a.ticker.localeCompare(b.ticker);
+  });
   const cards: PublishedReclaimOdds["cards"] = [];
-  for (const row of book.values()) {
+  for (const row of ranked) {
     const quote = quoteReclaim(row);
     if (!quote) continue;
     cards.push({
@@ -149,7 +159,6 @@ async function publish(): Promise<void> {
       nextEdge: quote.nextEdge,
     });
   }
-  cards.sort((a, b) => a.ticker.localeCompare(b.ticker));
   await savePublishedReclaimOdds({ builtAt: new Date().toISOString(), cards });
 }
 
