@@ -1,7 +1,7 @@
 /**
  *   npx tsx scripts/test-reclaim-odds.ts
  */
-import { liftProbability, quoteReclaim, recoveryX, showOddsPct } from "../lib/us-market/reclaim-odds";
+import { liftProbability, oddsReferenceClose, quoteReclaim, recoveryX, showOddsPct } from "../lib/us-market/reclaim-odds";
 
 function assert(cond: boolean, message: string): void {
   if (!cond) throw new Error(message);
@@ -23,5 +23,13 @@ const atHigh = quoteReclaim({ prevClose: 1, peak: 2.56, low: 2.56, price: 2.56 }
 assert(atHigh != null && atHigh.nextEdge === 200 && atHigh.reclaimPct === 100, `touch ${JSON.stringify(atHigh)}`);
 const top = quoteReclaim({ prevClose: 1, peak: 12, low: 10, price: 10 });
 assert(top != null && top.nextEdge == null && top.nextPct === 0.1, `top ${JSON.stringify(top)}`);
+
+const iamOpen = oddsReferenceClose({ prevClose: 8.86, prevNotional: 8.86 * 4904, dayOpen: 16.15 });
+assert(iamOpen === 16.15, `iam open ${iamOpen}`);
+assert(quoteReclaim({ prevClose: iamOpen, peak: 19.7, low: 16.15, price: 19.09 }) == null, "iam under 30");
+const busy = oddsReferenceClose({ prevClose: 10, prevNotional: 2_000_000, dayOpen: 16 });
+assert(busy === 10, `busy day ${busy}`);
+const near = oddsReferenceClose({ prevClose: 10, prevNotional: 50_000, dayOpen: 11 });
+assert(near === 10, `near open ${near}`);
 
 console.log("reclaim odds ok", { atLow, mid, dipped });

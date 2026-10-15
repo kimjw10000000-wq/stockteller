@@ -17,6 +17,8 @@ type Seed = {
   low: number;
   price: number;
   prevClose: number;
+  /** 확률에만 쓰는 기준가. 가짜 전일 종가면 시초가. */
+  oddsPrev: number;
   /** Polygon과 같은 식. (현재가 / 전일종가 - 1) × 100. 체결마다 갱신. */
   polygonPct: number;
 };
@@ -156,7 +158,12 @@ async function publish(): Promise<void> {
   });
   const cards: PublishedReclaimOdds["cards"] = [];
   for (const row of ranked) {
-    const quote = quoteReclaim(row);
+    const quote = quoteReclaim({
+      prevClose: row.oddsPrev,
+      peak: row.peak,
+      low: row.low,
+      price: row.price,
+    });
     if (!quote) continue;
     cards.push({
       ticker: row.ticker,
@@ -205,12 +212,14 @@ export function noteReclaimSeeds(items: WashoutBoardRow[], now = Date.now()): vo
           low = Math.min(prev.low, low);
         }
       }
+      const oddsPrev = row.oddsPrevClose && row.oddsPrevClose > 0 ? row.oddsPrevClose : row.prevClose;
       next.set(row.ticker, {
         ticker: row.ticker,
         peak,
         low,
         price: shown,
         prevClose: row.prevClose,
+        oddsPrev,
         polygonPct: polygonPct(shown, row.prevClose, row.todaysChangePerc),
       });
     }

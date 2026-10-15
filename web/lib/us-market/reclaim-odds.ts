@@ -92,6 +92,19 @@ function higherShare(zoneLo: number): number {
   return higher / d;
 }
 
+/** 전일 거래대금이 얇고 시초가가 그 종가와 멀리 있으면, 그 종가는 확률 기준으로 쓰지 않는다. */
+export function oddsReferenceClose(input: {
+  prevClose: number;
+  prevNotional: number | null;
+  dayOpen: number | null;
+}): number {
+  const { prevClose, prevNotional, dayOpen } = input;
+  if (!(prevClose > 0) || !(dayOpen != null && dayOpen > 0)) return prevClose;
+  if (!(prevNotional != null && prevNotional < 100_000)) return prevClose;
+  if (Math.abs(dayOpen / prevClose - 1) <= 0.2) return prevClose;
+  return dayOpen;
+}
+
 export function quoteReclaim(input: {
   prevClose: number;
   peak: number;

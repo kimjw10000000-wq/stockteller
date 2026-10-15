@@ -19,7 +19,7 @@ import {
   type WashoutCompare,
 } from "./washout-compare";
 import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } from "./polygon-keys";
-import { lowAfterPeak } from "./reclaim-odds";
+import { lowAfterPeak, oddsReferenceClose } from "./reclaim-odds";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
 import {
   activeTapeSession,
@@ -73,6 +73,8 @@ export type WashoutBoardRow = {
   prevClose?: number;
   /** Polygon 스냅샷의 오늘 등락률. 전일 종가 대비. */
   todaysChangePerc?: number | null;
+  /** 확률 기준. 가짜 전일 종가면 오늘 시초가. */
+  oddsPrevClose?: number;
   /** 지금 고점 이후의 최저가. */
   lowSincePeak?: number;
   grid?: Record<string, number>;
@@ -82,7 +84,7 @@ type SnapshotRow = {
   ticker?: string;
   todaysChangePerc?: number;
   day?: { o?: number; h?: number; c?: number; v?: number };
-  prevDay?: { c?: number };
+  prevDay?: { c?: number; v?: number; vw?: number };
   min?: { c?: number; h?: number; t?: number };
   lastTrade?: { p?: number; t?: number };
   lastQuote?: { p?: number };
@@ -295,6 +297,18 @@ function rememberTapeHigh(tapeYmd: string, ticker: string, print: number | null)
 
 function snapshotMinuteHigh(raw: SnapshotRow): number | null {
   return maxNum(raw.min?.h, raw.min?.c);
+}
+
+function prevDayNotional(raw: SnapshotRow): number | null {
+  const shares = raw.prevDay?.v;
+  const px = raw.prevDay?.vw != null && raw.prevDay.vw > 0 ? raw.prevDay.vw : raw.prevDay?.c;
+  if (shares == null || !Number.isFinite(shares) || shares < 0 || px == null || !(px > 0)) return null;
+  return shares * px;
+}
+
+function sessionOpen(raw: SnapshotRow): number | null {
+  const open = raw.day?.o;
+  return open != null && Number.isFinite(open) && open > 0 ? open : null;
 }
 
 function rthCatchupOpen(ymd: string): number | null {
@@ -636,6 +650,8 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
           todayClose != null && Number.isFinite(todayClose) && todayClose > 0 ? todayClose : null,
         high: minuteHigh,
         changePerc,
+        dayOpen: sessionOpen(raw),
+        prevNotional: prevDayNotional(raw),
       };
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
@@ -662,6 +678,8 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         todayClose != null && Number.isFinite(todayClose) && todayClose > 0 ? todayClose : null,
       high,
       changePerc: raw?.todaysChangePerc ?? null,
+      dayOpen: raw ? sessionOpen(raw) : null,
+      prevNotional: raw ? prevDayNotional(raw) : null,
     });
   }
   const mapped = [...mappedBy.values()];
@@ -760,6 +778,11 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         lastBarT: out.state.t,
         prevClose: out.state.prevClose,
         todaysChangePerc: row.changePerc,
+        oddsPrevClose: oddsReferenceClose({
+          prevClose: row.priorClose,
+          prevNotional: row.prevNotional,
+          dayOpen: row.dayOpen,
+        }),
         lowSincePeak: lowAfterPeak(bars, out.state.peakAt, out.state.peakPrice, out.state.price),
         grid: dumpGrid(out.state.grid),
       };
