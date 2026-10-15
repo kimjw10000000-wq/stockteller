@@ -71,6 +71,8 @@ export type WashoutBoardRow = {
   lastPrice?: number;
   lastBarT?: number;
   prevClose?: number;
+  /** Polygon 스냅샷의 오늘 등락률. 전일 종가 대비. */
+  todaysChangePerc?: number | null;
   /** 지금 고점 이후의 최저가. */
   lowSincePeak?: number;
   grid?: Record<string, number>;
@@ -757,6 +759,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
         lastPrice: out.state.price,
         lastBarT: out.state.t,
         prevClose: out.state.prevClose,
+        todaysChangePerc: row.changePerc,
         lowSincePeak: lowAfterPeak(bars, out.state.peakAt, out.state.peakPrice, out.state.price),
         grid: dumpGrid(out.state.grid),
       };

@@ -17,6 +17,8 @@ type Seed = {
   low: number;
   price: number;
   prevClose: number;
+  /** Polygon과 같은 식. (현재가 / 전일종가 - 1) × 100. 체결마다 갱신. */
+  polygonPct: number;
 };
 
 const names = new Map<string, string>();
@@ -62,6 +64,7 @@ function writeTrade(ticker: string, price: number): void {
     row.low = price;
   }
   row.price = price;
+  row.polygonPct = polygonPct(price, row.prevClose, row.polygonPct);
   dirty = true;
 }
 
@@ -136,9 +139,13 @@ function connect(): void {
   });
 }
 
+function polygonPct(price: number, prevClose: number, snapshot?: number | null): number {
+  if (prevClose > 0 && price > 0) return (price / prevClose - 1) * 100;
+  return snapshot != null && Number.isFinite(snapshot) ? snapshot : 0;
+}
+
 function risePct(row: Seed): number {
-  if (!(row.prevClose > 0) || !(row.price > 0)) return 0;
-  return (row.price / row.prevClose - 1) * 100;
+  return polygonPct(row.price, row.prevClose, row.polygonPct);
 }
 
 async function publish(): Promise<void> {
@@ -198,7 +205,14 @@ export function noteReclaimSeeds(items: WashoutBoardRow[], now = Date.now()): vo
           low = Math.min(prev.low, low);
         }
       }
-      next.set(row.ticker, { ticker: row.ticker, peak, low, price: shown, prevClose: row.prevClose });
+      next.set(row.ticker, {
+        ticker: row.ticker,
+        peak,
+        low,
+        price: shown,
+        prevClose: row.prevClose,
+        polygonPct: polygonPct(shown, row.prevClose, row.todaysChangePerc),
+      });
     }
     if (next.size === 0 && book.size === 0) return;
     book.clear();
