@@ -5,8 +5,10 @@ import { createPortal } from "react-dom";
 import { Share2, X } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { Button } from "@/components/ui/button";
+import { ensureKoreanShareNames, peekKoreanShareName, subscribeKoreanShareNames } from "@/lib/companies/korean-names-client";
 import {
   buildKakaoSharePayload,
+  buildNewsShareCardTitle,
   getFacebookShareUrl,
   getLineShareUrl,
   getLinkedInShareUrl,
@@ -15,30 +17,56 @@ import {
   getTwitterShareUrl,
   getWhatsAppShareUrl,
   initKakaoSdk,
+  newsShareIdentity,
   openSharePopup,
+  withShareLocale,
 } from "@/lib/kakao-share";
 
 type NewsShareModalProps = {
   url: string;
-  title: string;
+  title?: string;
   description: string;
   imageUrl?: string | null;
   variant?: "button" | "icon";
   profileText?: string | null;
+  ticker?: string | null;
+  companyName?: string | null;
+  headline?: string | null;
 };
 
 export function NewsShareModal({
   url,
-  title,
+  title = "",
   description,
   imageUrl = null,
   variant = "button",
   profileText = null,
+  ticker = null,
+  companyName = null,
+  headline = null,
 }: NewsShareModalProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [namesReady, setNamesReady] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const koreanName = locale === "ko" && ticker ? peekKoreanShareName(ticker) : "";
+  const shareCompany = koreanName || companyName || "";
+  const shareTitle = ticker
+    ? buildNewsShareCardTitle(ticker, shareCompany, headline || title)
+    : title;
+  const shareProfile = ticker ? newsShareIdentity(ticker, shareCompany).line || null : profileText;
+  const shareUrl = withShareLocale(url, locale);
+
+  useEffect(() => {
+    if (locale !== "ko") return;
+    return subscribeKoreanShareNames(() => setNamesReady((n) => n + 1));
+  }, [locale]);
+
+  useEffect(() => {
+    if (locale !== "ko") return;
+    void ensureKoreanShareNames();
+  }, [locale, namesReady]);
 
   useEffect(() => {
     setMounted(true);
@@ -55,51 +83,51 @@ export function NewsShareModal({
     }
     try {
       window.Kakao.Share.sendDefault(
-        buildKakaoSharePayload({ pageUrl: url, title, description, imageUrl, profileText })
+        buildKakaoSharePayload({ pageUrl: shareUrl, title: shareTitle, description, imageUrl, profileText: shareProfile })
       );
     } catch (err) {
       console.error("[share] Kakao sendDefault failed", err, { url, title });
       showToast(t("news.shareKakaoFailed"));
     }
-  }, [url, title, description, imageUrl, profileText, showToast, t]);
+  }, [shareUrl, shareTitle, description, imageUrl, shareProfile, showToast, t]);
 
   const handleFacebookShare = useCallback(() => {
-    openSharePopup(getFacebookShareUrl(url));
-  }, [url]);
+    openSharePopup(getFacebookShareUrl(shareUrl));
+  }, [shareUrl]);
 
   const handleTwitterShare = useCallback(() => {
-    openSharePopup(getTwitterShareUrl(url, title));
-  }, [url, title]);
+    openSharePopup(getTwitterShareUrl(shareUrl, shareTitle));
+  }, [shareUrl, shareTitle]);
 
   const handleRedditShare = useCallback(() => {
-    openSharePopup(getRedditShareUrl(url, title));
-  }, [url, title]);
+    openSharePopup(getRedditShareUrl(shareUrl, shareTitle));
+  }, [shareUrl, shareTitle]);
 
   const handleTelegramShare = useCallback(() => {
-    openSharePopup(getTelegramShareUrl(url, title));
-  }, [url, title]);
+    openSharePopup(getTelegramShareUrl(shareUrl, shareTitle));
+  }, [shareUrl, shareTitle]);
 
   const handleLineShare = useCallback(() => {
-    openSharePopup(getLineShareUrl(url));
-  }, [url]);
+    openSharePopup(getLineShareUrl(shareUrl));
+  }, [shareUrl]);
 
   const handleWhatsAppShare = useCallback(() => {
-    openSharePopup(getWhatsAppShareUrl(url, title));
-  }, [url, title]);
+    openSharePopup(getWhatsAppShareUrl(shareUrl, shareTitle));
+  }, [shareUrl, shareTitle]);
 
   const handleLinkedInShare = useCallback(() => {
-    openSharePopup(getLinkedInShareUrl(url));
-  }, [url]);
+    openSharePopup(getLinkedInShareUrl(shareUrl));
+  }, [shareUrl]);
 
   const handleCopyLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(shareUrl);
       showToast(t("news.copied"));
     } catch (err) {
       console.error("[share] clipboard copy failed", err);
-      window.prompt("링크를 복사하세요:", url);
+      window.prompt("링크를 복사하세요:", shareUrl);
     }
-  }, [url, showToast, t]);
+  }, [shareUrl, showToast, t]);
 
   useEffect(() => {
     if (!toast) return;
@@ -220,7 +248,7 @@ export function NewsShareModal({
               <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 p-2">
                 <input
                   readOnly
-                  value={url}
+                  value={shareUrl}
                   aria-label={t("news.shareLinkAria")}
                   className="min-w-0 flex-1 truncate bg-transparent px-2 text-sm text-muted-foreground outline-none"
                 />

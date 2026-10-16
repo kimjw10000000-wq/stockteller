@@ -25,6 +25,14 @@ export type KakaoShareInput = {
   profileText?: string | null;
 };
 
+/** 한국어로 공유한 링크만 미리보기 크롤러가 한글 회사명을 읽게 한다. */
+export function withShareLocale(url: string, locale: string): string {
+  if (locale !== "ko") return url;
+  const next = new URL(url);
+  next.searchParams.set("lang", "ko");
+  return next.toString();
+}
+
 export function getSharePageUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return new URL(normalized, SHARE_ORIGIN).toString();

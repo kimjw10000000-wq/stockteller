@@ -5,6 +5,7 @@
  *
  *   npm run poll:washout
  */
+import { refreshKoreanShareNames } from "../lib/companies/korean-share-names";
 import { resolve } from "node:path";
 import { config } from "dotenv";
 import { captureWashoutLive } from "../lib/us-market/washout-live";
@@ -55,8 +56,10 @@ async function loop(): Promise<void> {
     captureBusy = true;
     try {
       const skip = await washoutCaptureSkipReason(now);
+      let shareTickers: string[] = [];
       if (skip === "ok") {
         const live = await captureWashoutLive();
+        shareTickers = live.items.map((row) => row.ticker);
         try {
           noteReclaimSeeds(live.items);
         } catch (e) {
@@ -75,6 +78,11 @@ async function loop(): Promise<void> {
           console.error("reclaim seeds", e instanceof Error ? e.message : e);
         }
         console.log(now.toISOString(), "idle", skip);
+      }
+      try {
+        await refreshKoreanShareNames(shareTickers);
+      } catch (e) {
+        console.log(new Date().toISOString(), "toss share names", e instanceof Error ? e.message : e);
       }
       if (hour >= 0 && now.getUTCHours() !== hour) {
         const compact = await compactOldWashoutSamples(now.getTime());

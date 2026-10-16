@@ -7,17 +7,28 @@ import { loadRelatedWireNews, loadWireNewsById } from "@/lib/gnw/query";
 import { tServer } from "@/lib/i18n/server";
 import { uniqueWireNewsTickers, wireNewsTicker } from "@/lib/quotes/format";
 import { loadTickerQuotes } from "@/lib/quotes/ticker-quotes";
+import { ensureKoreanShareNames, peekKoreanShareName } from "@/lib/companies/korean-names-client";
 import { buildWireNewsDetailMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type PageProps = { params: { id: string } };
+type PageProps = { params: { id: string }; searchParams: { lang?: string | string[] } };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+function shareLang(lang: string | string[] | undefined): boolean {
+  return (Array.isArray(lang) ? lang[0] : lang) === "ko";
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const item = await loadWireNewsById(params.id);
   if (!item) return { title: tServer("newsSec.notFoundTitle") };
-  return buildWireNewsDetailMetadata(item);
+  let nameKo: string | null = null;
+  if (shareLang(searchParams?.lang)) {
+    await ensureKoreanShareNames();
+    const ticker = item.primary_ticker || item.tickers?.[0] || "";
+    nameKo = peekKoreanShareName(ticker) || null;
+  }
+  return buildWireNewsDetailMetadata(item, nameKo, shareLang(searchParams?.lang));
 }
 
 export default async function WireNewsDetailPage({ params }: PageProps) {

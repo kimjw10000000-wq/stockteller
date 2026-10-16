@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { NewsShareModal } from "@/components/news/NewsShareModal";
 import { QuoteChangePct } from "@/components/news/QuoteChangePct";
-import { buildNewsShareCardDescription, buildNewsShareCardTitle, newsShareIdentity, getWireNewsShareUrl } from "@/lib/kakao-share";
+import { buildNewsShareCardDescription, getWireNewsShareUrl } from "@/lib/kakao-share";
 import { wireNewsAffiliation, type WireNewsRow } from "@/lib/gnw/types";
 import { disclosureTrend } from "@/lib/news-display";
 import type { TickerQuote } from "@/lib/quotes/types";
@@ -38,8 +38,7 @@ export function WireNewsCard({
     "";
   const when = item.published_at || item.created_at;
   const affiliation = wireNewsAffiliation(item);
-  const shareId = newsShareIdentity(ticker === "—" ? "" : ticker, item.company_name);
-  const shareTitle = buildNewsShareCardTitle(shareId.ticker, shareId.company, item.title);
+  const shareTicker = ticker === "—" ? "" : ticker;
   const shareDescription = buildNewsShareCardDescription(item.title, preview || item.summary);
   const capLabel =
     item.cap_bucket === "nano"
@@ -87,9 +86,10 @@ export function WireNewsCard({
           <NewsShareModal
             variant="icon"
             url={getWireNewsShareUrl(item.id)}
-            title={shareTitle}
+            ticker={shareTicker}
+            companyName={item.company_name}
+            headline={item.title}
             description={shareDescription}
-            profileText={shareId.line || null}
           />
         </div>
       </Card>

@@ -10,6 +10,7 @@ import {
   getNewsShareUrl,
   getWireNewsShareUrl,
   newsShareIdentity,
+  withShareLocale,
 } from "@/lib/kakao-share";
 import { getSiteUrl, SITE_NAME_KO } from "@/lib/site";
 
@@ -102,14 +103,17 @@ function truncateMetaDescription(text: string): string {
 
 export function buildNewsDetailMetadata(
   row: DisclosureWithStock,
-  id: string
+  id: string,
+  nameKo?: string | null,
+  koreanShare = false
 ): Metadata {
   const title = row.title?.trim() || "뉴스";
   const description = buildReportDescription(row);
   const cover = getCoverImageUrl(row) || DEFAULT_SHARE_IMAGE_PATH;
   const canonicalUrl = getNewsShareUrl(id);
   const { stock, name } = disclosureStockLabel(row);
-  const ogTitle = buildNewsShareCardTitle(stock, name, title);
+  const ogTitle = buildNewsShareCardTitle(stock, nameKo?.trim() || name, title);
+  const shareUrl = koreanShare ? withShareLocale(canonicalUrl, "ko") : canonicalUrl;
   const ogDescription = buildNewsShareCardDescription(title, description);
 
   return {
@@ -120,7 +124,7 @@ export function buildNewsDetailMetadata(
       type: "article",
       title: ogTitle,
       description: ogDescription,
-      url: canonicalUrl,
+      url: shareUrl,
       publishedTime: row.created_at,
       images: [{ url: cover, width: 1200, height: 630, alt: buildReportImageAlt(title) }],
     },
@@ -133,12 +137,18 @@ export function buildNewsDetailMetadata(
   };
 }
 
-export function buildWireNewsDetailMetadata(item: WireNewsRow): Metadata {
+export function buildWireNewsDetailMetadata(
+  item: WireNewsRow,
+  nameKo?: string | null,
+  koreanShare = false
+): Metadata {
   const title = item.title?.trim() || "News/SEC";
   const canonicalUrl = getWireNewsShareUrl(item.id);
   const ticker = item.primary_ticker || item.tickers?.[0] || "";
-  const { line } = newsShareIdentity(ticker, item.company_name);
-  const ogTitle = buildNewsShareCardTitle(ticker, item.company_name, title);
+  const company = nameKo?.trim() || item.company_name;
+  const { line } = newsShareIdentity(ticker, company);
+  const ogTitle = buildNewsShareCardTitle(ticker, company, title);
+  const shareUrl = koreanShare ? withShareLocale(canonicalUrl, "ko") : canonicalUrl;
   const ogDescription = buildNewsShareCardDescription(title, item.teaser || item.summary);
 
   return {
@@ -149,7 +159,7 @@ export function buildWireNewsDetailMetadata(item: WireNewsRow): Metadata {
       type: "article",
       title: ogTitle,
       description: ogDescription,
-      url: canonicalUrl,
+      url: shareUrl,
       siteName: SITE_NAME_KO,
       locale: "ko_KR",
       publishedTime: item.published_at || item.created_at || undefined,

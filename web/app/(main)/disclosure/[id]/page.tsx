@@ -5,17 +5,28 @@ import { NewsOlderInfiniteList } from "@/components/news/NewsOlderInfiniteList";
 import { getDisclosureById, listDisclosuresPaginated, incrementDisclosureViewCount } from "@/lib/disclosures";
 import { enrichStockMatchContext, getSignalStatusForStockContext } from "@/lib/stock-signal-sync";
 import { readStoredSignalStatus, DEFAULT_SIGNAL_STATUS } from "@/lib/signal-status";
+import { ensureKoreanShareNames, peekKoreanShareName } from "@/lib/companies/korean-names-client";
+import { disclosureStockLabel } from "@/lib/news-display";
 import { buildNewsDetailMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type PageProps = { params: { id: string } };
+type PageProps = { params: { id: string }; searchParams: { lang?: string | string[] } };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+function shareLang(lang: string | string[] | undefined): boolean {
+  return (Array.isArray(lang) ? lang[0] : lang) === "ko";
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const row = await getDisclosureById(params.id);
   if (!row) return { title: "뉴스를 찾을 수 없음" };
-  return buildNewsDetailMetadata(row, params.id);
+  let nameKo: string | null = null;
+  if (shareLang(searchParams?.lang)) {
+    await ensureKoreanShareNames();
+    nameKo = peekKoreanShareName(disclosureStockLabel(row).stock) || null;
+  }
+  return buildNewsDetailMetadata(row, params.id, nameKo, shareLang(searchParams?.lang));
 }
 
 export default async function DisclosureDetailPage({ params }: PageProps) {

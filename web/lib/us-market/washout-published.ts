@@ -5,6 +5,7 @@ import { loadWashoutMembers, type WashoutMemberLists } from "@/lib/us-market/was
 const BUCKET = "washout-catalog";
 const OBJECT_PATH = "current.json";
 const ODDS_PATH = "odds.json";
+const NAMES_KO_PATH = "names-ko.json";
 
 export type PublishedWashout = {
   builtAt: string;
@@ -68,6 +69,36 @@ export type PublishedReclaimOdds = {
     risePct?: number;
   }>;
 };
+
+export type PublishedKoreanNames = {
+  builtAt: string;
+  names: Record<string, string>;
+};
+
+export async function savePublishedKoreanNames(names: Record<string, string>): Promise<void> {
+  await ensureBucket();
+  const file: PublishedKoreanNames = { builtAt: new Date().toISOString(), names };
+  const admin = storageAdmin();
+  const { error } = await admin.storage.from(BUCKET).upload(NAMES_KO_PATH, Buffer.from(JSON.stringify(file), "utf8"), {
+    upsert: true,
+    contentType: "application/json",
+    cacheControl: "60",
+  });
+  if (error) throw error;
+}
+
+export async function loadPublishedKoreanNames(): Promise<Record<string, string>> {
+  try {
+    const admin = storageAdmin();
+    const { data, error } = await admin.storage.from(BUCKET).download(NAMES_KO_PATH);
+    if (error || !data) return {};
+    const parsed = JSON.parse(await data.text()) as PublishedKoreanNames;
+    if (!parsed?.names || typeof parsed.names !== "object") return {};
+    return parsed.names;
+  } catch {
+    return {};
+  }
+}
 
 export async function savePublishedReclaimOdds(file: PublishedReclaimOdds): Promise<void> {
   await ensureBucket();

@@ -12,12 +12,7 @@ import { NewsShareModal } from "@/components/news/NewsShareModal";
 import { NewsSignalGaugePanel } from "@/components/news/NewsSignalGaugePanel";
 import { resolveDisclosureSignalStatus, type SignalStatus } from "@/lib/signal-status";
 import { enrichStockMatchContext, type StockMatchContext } from "@/lib/stock-signal-sync";
-import {
-  buildNewsShareCardDescription,
-  buildNewsShareCardTitle,
-  getNewsShareUrl,
-  newsShareIdentity,
-} from "@/lib/kakao-share";
+import { buildNewsShareCardDescription, getNewsShareUrl } from "@/lib/kakao-share";
 import { buildReportImageAlt, prepareArticleBodyHtml } from "@/lib/seo";
 import { resolveArticleBodyHtml } from "@/lib/article-body";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
@@ -81,10 +76,11 @@ export function NewsDetailView({
         <div className="mt-4">
           <NewsShareModal
             url={getNewsShareUrl(item.id)}
-            title={buildNewsShareCardTitle(stock, name, title)}
+            ticker={stock}
+            companyName={name}
+            headline={title}
             description={buildNewsShareCardDescription(title, item.summary)}
             imageUrl={cover}
-            profileText={newsShareIdentity(stock, name).line || null}
           />
         </div>
         <NewsSignalGaugePanel
