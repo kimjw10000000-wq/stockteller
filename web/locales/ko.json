@@ -222,7 +222,7 @@
     "membersEmpty": "지금은 없습니다",
     "membersOther": "지금 열려 있는 장에 포함된 종목만 표시됩니다",
     "oddsTitle": "전고 돌파",
-    "oddsUntil": "오늘 본장까지",
+    "oddsUntil": "오늘 본장 끝날 때까지",
     "oddsReclaim": "전고점 돌파 확률",
     "oddsNext": "{edge}% 이상 갈 확률",
     "oddsAboveTop": "이 구간보다 높이 갈 확률",

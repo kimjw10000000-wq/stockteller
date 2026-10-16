@@ -222,7 +222,7 @@
     "membersEmpty": "None right now",
     "membersOther": "Names are shown for the session that is open now",
     "oddsTitle": "Prior-high break",
-    "oddsUntil": "Through today's regular session",
+    "oddsUntil": "Until today's regular session ends",
     "oddsReclaim": "Chance of breaking the prior high",
     "oddsNext": "Chance of {edge}% or higher",
     "oddsAboveTop": "Chance of a higher zone",
