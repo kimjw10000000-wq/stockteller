@@ -5,6 +5,7 @@ import {
   resolveListedIssuerParent,
   findIssuerParentTicker,
   isPreferredShareTicker,
+  isWarrantOrPreferredListing,
   type DbListingRow,
   type SecListingRow,
 } from "./listing-diff";
@@ -81,6 +82,19 @@ assert(
 assert(findIssuerParentTicker("DCOM$", ["DCOM", "DCOM$"]) === "DCOM", "DCOM$ waits on DCOM");
 assert(isPreferredShareTicker("CMS-PB") === true, "CMS-PB preferred");
 assert(isPreferredShareTicker("BRK-B") === false, "BRK-B is class B not preferred");
+assert(isWarrantOrPreferredListing("AAC-W") === true, "dash warrant");
+assert(isWarrantOrPreferredListing("LTRYW") === true, "nasdaq warrant");
+assert(isWarrantOrPreferredListing("ABR$D") === true, "dollar preferred");
+assert(isWarrantOrPreferredListing("HODO", "House of Doge Inc. - Common Stock") === false, "common stays");
+assert(isWarrantOrPreferredListing("ACME", "Acme Warrant") === true, "warrant name");
+assert(isWarrantOrPreferredListing("ACME", "아크미 워런트") === true, "korean warrant name");
+assert(isWarrantOrPreferredListing("ACME", "아크미 우선주") === true, "korean preferred name");
+assert(isWarrantOrPreferredListing("BRK-B", "Berkshire Hathaway Inc. Class B") === false, "class B stays");
+assert(
+  isWarrantOrPreferredListing("PFBC", "Preferred Bank - Common Stock") === false,
+  "bank named Preferred stays"
+);
+assert(isWarrantOrPreferredListing("FLYW") === false, "four-letter common ending in W");
 assert(
   resolveListedIssuerParent("ABR$D", [{ ticker: "ABR", cik: "0000000004" }])?.cik === "0000000004",
   "preferred inherits common cik"

@@ -152,6 +152,20 @@ export function isPreferredShareTicker(ticker: string): boolean {
   return /^P(R)?[A-Z0-9]*$/.test(dash[1] ?? "");
 }
 
+/** 전고 돌파 카드에서 뺀다. 나스닥 다섯째 글자 W, -WT/-WS, 이름에 warrant·preferred. */
+export function isWarrantOrPreferredListing(ticker: string, name?: string | null): boolean {
+  if (isPreferredShareTicker(ticker)) return true;
+  const t = ticker.trim().toUpperCase().replace(/\./g, "-");
+  const compact = t.replace(/-/g, "");
+  if (/-W(T|S)?$/.test(t)) return true;
+  if (compact.length >= 5 && compact.endsWith("W")) return true;
+  const label = String(name ?? "");
+  if (/\bwarrants?\b/i.test(label) || /워런트/.test(label)) return true;
+  if (/우선주/.test(label)) return true;
+  if (/\bpreferred shares?\b|\bpreference shares?\b|\bpreferred stock\b|\bpfd\b/i.test(label)) return true;
+  return false;
+}
+
 export function isWarrantPreferredOrUnit(ticker: string, siblingTickers: string[]): boolean {
   if (isPreferredShareTicker(ticker)) return true;
   return isJuniorShareListing(ticker, siblingTickers);

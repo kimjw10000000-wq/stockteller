@@ -10,6 +10,7 @@ import { fetchTossStocks } from "../toss/stocks";
 import { polygonAdvancedKeyOrNull } from "./polygon-keys";
 import { savePublishedReclaimOdds, type PublishedReclaimOdds } from "./washout-published";
 import { inReclaimHoldGap } from "./us-session";
+import { isWarrantOrPreferredListing } from "../companies/listing-diff";
 import { nameInThisSession, type WashoutBoardRow } from "./washout-live";
 
 const SOCKET = "wss://socket.polygon.io/stocks";
@@ -168,6 +169,10 @@ function polygonPct(price: number, prevClose: number, snapshot?: number | null):
   return snapshot != null && Number.isFinite(snapshot) ? snapshot : 0;
 }
 
+function listedLabel(ticker: string): string {
+  return [names.get(ticker), namesKo.get(ticker)].filter(Boolean).join(" ");
+}
+
 function risePct(row: Seed): number {
   return polygonPct(row.price, row.prevClose, row.polygonPct);
 }
@@ -187,6 +192,7 @@ async function publish(): Promise<void> {
       price: row.price,
     });
     if (!quote) continue;
+    if (isWarrantOrPreferredListing(row.ticker, listedLabel(row.ticker))) continue;
     cards.push({
       ticker: row.ticker,
       name: names.get(row.ticker) ?? row.ticker,
@@ -221,6 +227,7 @@ export function noteReclaimSeeds(items: WashoutBoardRow[], now = Date.now()): vo
     const next = new Map<string, Seed>();
     for (const row of items) {
       if (!nameInThisSession(row.sessionCaptureAt, now)) continue;
+      if (isWarrantOrPreferredListing(row.ticker, listedLabel(row.ticker))) continue;
       if (!(row.peakPrice && row.peakPrice > 0) || !(row.prevClose && row.prevClose > 0)) continue;
       const price = row.lastPrice && row.lastPrice > 0 ? row.lastPrice : row.peakPrice;
       let low = row.lowSincePeak && row.lowSincePeak > 0 ? Math.min(row.lowSincePeak, price, row.peakPrice) : Math.min(price, row.peakPrice);
