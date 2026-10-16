@@ -75,31 +75,29 @@ export function ReclaimOddsCards() {
     <Card className="border-border">
       <CardContent className="px-4 py-4">
         <p className="text-sm text-muted-foreground">{t("similar.oddsTitle")}</p>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("similar.oddsNote")}</p>
         {cards == null ? (
           <p className="mt-2 text-sm text-muted-foreground">{t("similar.oddsLoading")}</p>
         ) : cards.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">{t("similar.membersEmpty")}</p>
         ) : (
-          <ul className="mt-2 max-h-[36rem] space-y-2 overflow-y-auto">
+          <ul className="mt-2 max-h-80 space-y-2 overflow-y-auto">
             {cards.map((row) => (
               <li key={row.ticker}>
-                <div className="rounded-lg border border-border px-3 py-4">
-                  <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{row.ticker}</p>
-                  <div className="mt-3 flex items-end justify-between gap-4">
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {t("similar.oddsReclaim", { ticker: row.ticker })}
-                    </p>
-                    <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{pct(row.reclaimPct)}</p>
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{row.ticker}</p>
                   </div>
-                  <div className="mt-3 flex items-end justify-between gap-4">
-                    <p className="text-xs leading-relaxed text-muted-foreground">
+                  <div className="shrink-0 text-right">
+                    <p className="text-[11px] text-muted-foreground">{t("similar.oddsUntil")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("similar.oddsReclaim")}</p>
+                    <p className="text-sm font-semibold tabular-nums text-foreground">{pct(row.reclaimPct)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {row.nextEdge == null
-                        ? t("similar.oddsAboveTop", { ticker: row.ticker })
-                        : t("similar.oddsNext", { ticker: row.ticker, edge: row.nextEdge })}
+                        ? t("similar.oddsAboveTop")
+                        : t("similar.oddsNext", { edge: row.nextEdge })}
                     </p>
-                    <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{pct(row.nextPct)}</p>
+                    <p className="text-sm font-semibold tabular-nums text-foreground">{pct(row.nextPct)}</p>
                   </div>
                 </div>
               </li>
