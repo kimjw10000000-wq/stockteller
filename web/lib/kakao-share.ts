@@ -30,6 +30,7 @@ export function withShareLocale(url: string, locale: string): string {
   if (locale !== "ko") return url;
   const next = new URL(url);
   next.searchParams.set("lang", "ko");
+  next.searchParams.set("n", "2");
   return next.toString();
 }
 

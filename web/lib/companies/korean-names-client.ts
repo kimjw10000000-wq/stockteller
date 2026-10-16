@@ -43,9 +43,18 @@ export function ensureKoreanShareNames(): Promise<void> {
     })
     .catch(() => undefined)
     .finally(() => {
-      loadedAt = Date.now();
+      loadedAt = Object.keys(names).length > 0 ? Date.now() : Date.now() - 55_000;
       inflight = null;
       for (const listener of listeners) listener();
     });
   return inflight;
+}
+
+export async function koreanShareNameFor(ticker: string): Promise<string> {
+  await ensureKoreanShareNames();
+  const first = peekKoreanShareName(ticker);
+  if (first) return first;
+  loadedAt = 0;
+  await ensureKoreanShareNames();
+  return peekKoreanShareName(ticker);
 }

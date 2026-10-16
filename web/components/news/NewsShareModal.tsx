@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Share2, X } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { Button } from "@/components/ui/button";
-import { ensureKoreanShareNames, peekKoreanShareName, subscribeKoreanShareNames } from "@/lib/companies/korean-names-client";
+import { ensureKoreanShareNames, koreanShareNameFor, subscribeKoreanShareNames } from "@/lib/companies/korean-names-client";
 import {
   buildKakaoSharePayload,
   buildNewsShareCardTitle,
@@ -50,12 +50,6 @@ export function NewsShareModal({
   const [isOpen, setIsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const koreanName = locale === "ko" && ticker ? peekKoreanShareName(ticker) : "";
-  const shareCompany = koreanName || companyName || "";
-  const shareTitle = ticker
-    ? buildNewsShareCardTitle(ticker, shareCompany, headline || title)
-    : title;
-  const shareProfile = ticker ? newsShareIdentity(ticker, shareCompany).line || null : profileText;
   const shareUrl = withShareLocale(url, locale);
 
   useEffect(() => {
@@ -76,48 +70,70 @@ export function NewsShareModal({
     setToast(message);
   }, []);
 
-  const handleKakaoShare = useCallback(() => {
+  const resolveOutgoing = useCallback(async () => {
+    const korean = locale === "ko" && ticker ? await koreanShareNameFor(ticker) : "";
+    const company = korean || companyName || "";
+    const nextTitle = ticker ? buildNewsShareCardTitle(ticker, company, headline || title) : title;
+    const nextProfile = ticker ? newsShareIdentity(ticker, company).line || null : profileText;
+    return { nextTitle, nextProfile, nextUrl: withShareLocale(url, locale) };
+  }, [locale, ticker, companyName, headline, title, profileText, url]);
+
+  const handleKakaoShare = useCallback(async () => {
     if (!initKakaoSdk() || !window.Kakao?.Share) {
       showToast(t("news.shareKakaoUnavailable"));
       return;
     }
+    const outgoing = await resolveOutgoing();
     try {
       window.Kakao.Share.sendDefault(
-        buildKakaoSharePayload({ pageUrl: shareUrl, title: shareTitle, description, imageUrl, profileText: shareProfile })
+        buildKakaoSharePayload({
+          pageUrl: outgoing.nextUrl,
+          title: outgoing.nextTitle,
+          description,
+          imageUrl,
+          profileText: outgoing.nextProfile,
+        })
       );
     } catch (err) {
-      console.error("[share] Kakao sendDefault failed", err, { url, title });
+      console.error("[share] Kakao sendDefault failed", err, { url: outgoing.nextUrl, title: outgoing.nextTitle });
       showToast(t("news.shareKakaoFailed"));
     }
-  }, [shareUrl, shareTitle, description, imageUrl, shareProfile, showToast, t]);
+  }, [description, imageUrl, resolveOutgoing, showToast, t]);
 
-  const handleFacebookShare = useCallback(() => {
-    openSharePopup(getFacebookShareUrl(shareUrl));
-  }, [shareUrl]);
+  const handleFacebookShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getFacebookShareUrl(outgoing.nextUrl));
+  }, [resolveOutgoing]);
 
-  const handleTwitterShare = useCallback(() => {
-    openSharePopup(getTwitterShareUrl(shareUrl, shareTitle));
-  }, [shareUrl, shareTitle]);
+  const handleTwitterShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getTwitterShareUrl(outgoing.nextUrl, outgoing.nextTitle));
+  }, [resolveOutgoing]);
 
-  const handleRedditShare = useCallback(() => {
-    openSharePopup(getRedditShareUrl(shareUrl, shareTitle));
-  }, [shareUrl, shareTitle]);
+  const handleRedditShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getRedditShareUrl(outgoing.nextUrl, outgoing.nextTitle));
+  }, [resolveOutgoing]);
 
-  const handleTelegramShare = useCallback(() => {
-    openSharePopup(getTelegramShareUrl(shareUrl, shareTitle));
-  }, [shareUrl, shareTitle]);
+  const handleTelegramShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getTelegramShareUrl(outgoing.nextUrl, outgoing.nextTitle));
+  }, [resolveOutgoing]);
 
-  const handleLineShare = useCallback(() => {
-    openSharePopup(getLineShareUrl(shareUrl));
-  }, [shareUrl]);
+  const handleLineShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getLineShareUrl(outgoing.nextUrl));
+  }, [resolveOutgoing]);
 
-  const handleWhatsAppShare = useCallback(() => {
-    openSharePopup(getWhatsAppShareUrl(shareUrl, shareTitle));
-  }, [shareUrl, shareTitle]);
+  const handleWhatsAppShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getWhatsAppShareUrl(outgoing.nextUrl, outgoing.nextTitle));
+  }, [resolveOutgoing]);
 
-  const handleLinkedInShare = useCallback(() => {
-    openSharePopup(getLinkedInShareUrl(shareUrl));
-  }, [shareUrl]);
+  const handleLinkedInShare = useCallback(async () => {
+    const outgoing = await resolveOutgoing();
+    openSharePopup(getLinkedInShareUrl(outgoing.nextUrl));
+  }, [resolveOutgoing]);
 
   const handleCopyLink = useCallback(async () => {
     try {
