@@ -76,14 +76,22 @@ export function isHandheldOddsDevice(): boolean {
 
 let openImpl: (() => void) | null = null;
 let closeImpl: (() => void) | null = null;
+let primeImpl: (() => void) | null = null;
 
-export function bindReclaimWidgetControls(api: { open: () => void; close: () => void }): () => void {
+export function bindReclaimWidgetControls(api: { open: () => void; close: () => void; prime: () => void }): () => void {
   openImpl = api.open;
   closeImpl = api.close;
+  primeImpl = api.prime;
   return () => {
     if (openImpl === api.open) openImpl = null;
     if (closeImpl === api.close) closeImpl = null;
+    if (primeImpl === api.prime) primeImpl = null;
   };
+}
+
+/** Start the hidden video before Picture-in-Picture. Chrome rejects the first request until a frame exists. */
+export function primeReclaimWidget(): void {
+  primeImpl?.();
 }
 
 export function openReclaimWidget(ticker: string): void {

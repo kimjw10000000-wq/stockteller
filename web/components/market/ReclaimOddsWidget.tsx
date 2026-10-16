@@ -74,6 +74,7 @@ export function ReclaimOddsWidget() {
   const tickRef = useRef<() => void>(() => undefined);
   const paintRef = useRef<() => void>(() => undefined);
   const armRef = useRef<() => void>(() => undefined);
+  const primeRef = useRef<() => void>(() => undefined);
 
   const paintNow = useCallback(() => {
     const canvas = canvasRef.current;
@@ -124,13 +125,34 @@ export function ReclaimOddsWidget() {
     paintNow();
     if (!video.srcObject) {
       try {
-        video.srcObject = canvas.captureStream();
+        // 0 fps until requestFrame(), so the warm-up does not keep drawing.
+        video.srcObject = canvas.captureStream(0);
       } catch {
         return false;
       }
     }
+    // The track only exists after srcObject is set. The first PiP call needs that frame.
+    paintNow();
     return true;
   }, [paintNow]);
+
+  const prime = useCallback(() => {
+    if (!ensureStream()) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const play = video.play();
+    if (play) void play.catch(() => undefined);
+    let tries = 0;
+    const kick = () => {
+      const current = videoRef.current;
+      if (!current || current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA || tries >= 30) return;
+      tries += 1;
+      paintRef.current();
+      window.setTimeout(kick, 50);
+    };
+    kick();
+  }, [ensureStream]);
+  primeRef.current = prime;
 
   const close = useCallback(() => {
     openingRef.current = false;
@@ -191,19 +213,45 @@ export function ReclaimOddsWidget() {
       }
       return webkit.webkitPresentationMode === "picture-in-picture";
     };
+    const failToPanel = () => {
+      videoPendingRef.current = false;
+      if (document.pictureInPictureElement === video) {
+        patchReclaimWidget({ mode: "video" });
+        return;
+      }
+      if (enterWebkit()) patchReclaimWidget({ mode: "video" });
+      else if (getReclaimWidgetState().mode !== "document") patchReclaimWidget({ mode: "panel" });
+    };
     if (typeof video.requestPictureInPicture === "function") {
+      // Must run in this tap. Waiting for metadata here is what made the first try fall back to the in-page panel.
       videoPendingRef.current = true;
       void video.requestPictureInPicture().then(() => {
         videoPendingRef.current = false;
         patchReclaimWidget({ mode: "video" });
-      }).catch(() => {
-        videoPendingRef.current = false;
-        if (document.pictureInPictureElement === video) {
-          patchReclaimWidget({ mode: "video" });
+      }).catch((error: unknown) => {
+        const notReady = error instanceof DOMException && error.name === "InvalidStateError";
+        if (!notReady) {
+          failToPanel();
           return;
         }
-        if (enterWebkit()) patchReclaimWidget({ mode: "video" });
-        else if (getReclaimWidgetState().mode !== "document") patchReclaimWidget({ mode: "panel" });
+        let settled = false;
+        const retry = () => {
+          if (settled || getReclaimWidgetState().mode !== "off") return;
+          settled = true;
+          window.clearTimeout(giveUp);
+          videoPendingRef.current = true;
+          void video.requestPictureInPicture().then(() => {
+            videoPendingRef.current = false;
+            patchReclaimWidget({ mode: "video" });
+          }).catch(() => failToPanel());
+        };
+        const giveUp = window.setTimeout(() => {
+          if (settled || getReclaimWidgetState().mode !== "off") return;
+          settled = true;
+          video.removeEventListener("loadeddata", retry);
+          failToPanel();
+        }, 1200);
+        video.addEventListener("loadeddata", retry, { once: true });
       });
       return true;
     }
@@ -214,31 +262,37 @@ export function ReclaimOddsWidget() {
     return false;
   }, [ensureStream]);
 
+  const openDocument = useCallback(() => {
+    const api = pipApi();
+    if (!api) return false;
+    openingRef.current = true;
+    void api.requestWindow({ width: 440, height: 300 }).then((pip) => {
+      openingRef.current = false;
+      pipRef.current = pip;
+      fillPip(pip);
+      const onHide = () => {
+        if (pipRef.current === pip) pipRef.current = null;
+        if (modeRef.current === "document") patchReclaimWidget({ mode: "off" });
+      };
+      pip.addEventListener("pagehide", onHide);
+      patchReclaimWidget({ mode: "document" });
+    }).catch(() => {
+      openingRef.current = false;
+      if (getReclaimWidgetState().mode === "off") patchReclaimWidget({ mode: "panel" });
+    });
+    return true;
+  }, [fillPip]);
+
   const open = useCallback(() => {
     if (openingRef.current || videoPendingRef.current || modeRef.current !== "off") return;
-    const api = pipApi();
-    if (api) {
-      openingRef.current = true;
-      void api.requestWindow({ width: 440, height: 300 }).then((pip) => {
-        openingRef.current = false;
-        pipRef.current = pip;
-        fillPip(pip);
-        const onHide = () => {
-          if (pipRef.current === pip) pipRef.current = null;
-          if (modeRef.current === "document") patchReclaimWidget({ mode: "off" });
-        };
-        pip.addEventListener("pagehide", onHide);
-        patchReclaimWidget({ mode: "document" });
-      }).catch(() => {
-        openingRef.current = false;
-        if (!startVideo()) patchReclaimWidget({ mode: "panel" });
-      });
-      return;
-    }
-    if (!startVideo()) patchReclaimWidget({ mode: "panel" });
-  }, [fillPip, startVideo]);
+    // Phones need the system video window, which is what lets Chrome leave and the small screen stay.
+    // Ask for it in this tap. Document PiP is only the fallback, still inside the tap.
+    if (startVideo()) return;
+    if (openDocument()) return;
+    patchReclaimWidget({ mode: "panel" });
+  }, [openDocument, startVideo]);
 
-  useEffect(() => bindReclaimWidgetControls({ open, close }), [open, close]);
+  useEffect(() => bindReclaimWidgetControls({ open, close, prime }), [open, close, prime]);
 
   useEffect(() => {
     const video = document.createElement("video");
@@ -291,6 +345,7 @@ export function ReclaimOddsWidget() {
     video.addEventListener("leavepictureinpicture", onLeave);
     video.addEventListener("webkitpresentationmodechanged", onWebkit);
     video.addEventListener("timeupdate", onTime);
+    primeRef.current();
 
     return () => {
       video.removeEventListener("enterpictureinpicture", onEnter);

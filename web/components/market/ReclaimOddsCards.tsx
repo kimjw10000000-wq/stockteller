@@ -5,7 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { ReclaimOddsList } from "@/components/market/ReclaimOddsList";
 import { useReclaimWidgetState } from "@/components/market/ReclaimOddsWidget";
-import { closeReclaimWidget, isHandheldOddsDevice, openReclaimWidget, watchReclaimOdds } from "@/lib/us-market/reclaim-widget";
+import {
+  closeReclaimWidget,
+  isHandheldOddsDevice,
+  openReclaimWidget,
+  primeReclaimWidget,
+  watchReclaimOdds,
+} from "@/lib/us-market/reclaim-widget";
 
 export function ReclaimOddsCards() {
   const { t } = useI18n();
@@ -40,7 +46,10 @@ export function ReclaimOddsCards() {
                   closeReclaimWidget();
                   return;
                 }
-                setPicking((on) => !on);
+                setPicking((on) => {
+                if (!on) primeReclaimWidget();
+                return !on;
+              });
               }}
               className={
                 floating || picking
