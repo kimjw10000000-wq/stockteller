@@ -23,9 +23,10 @@ export type ReclaimWidgetMode = "off" | "document" | "video" | "panel";
 type WidgetState = {
   cards: ReclaimCard[] | null;
   mode: ReclaimWidgetMode;
+  ticker: string | null;
 };
 
-const INITIAL: WidgetState = { cards: null, mode: "off" };
+const INITIAL: WidgetState = { cards: null, mode: "off", ticker: null };
 let state: WidgetState = INITIAL;
 const listeners = new Set<() => void>();
 
@@ -64,6 +65,15 @@ export function subscribeReclaimWatchers(listener: () => void): () => void {
   return () => watchListeners.delete(listener);
 }
 
+/** Phones and iPads. Desktop browsers keep the full list. */
+export function isHandheldOddsDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPod|iPad|Android/i.test(ua)) return true;
+  // iPadOS 13+ sends a desktop Macintosh UA and reports a touch screen.
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1 && /Macintosh/.test(ua);
+}
+
 let openImpl: (() => void) | null = null;
 let closeImpl: (() => void) | null = null;
 
@@ -76,12 +86,49 @@ export function bindReclaimWidgetControls(api: { open: () => void; close: () => 
   };
 }
 
-export function openReclaimWidget(): void {
-  openImpl?.();
+export function openReclaimWidget(ticker: string): void {
+  if (!isHandheldOddsDevice()) return;
+  const next = ticker.trim().toUpperCase();
+  if (!next) return;
+  patchReclaimWidget({ ticker: next });
+  if (getReclaimWidgetState().mode === "off") openImpl?.();
 }
 
 export function closeReclaimWidget(): void {
   closeImpl?.();
+}
+
+export function focusedReclaimCard(): ReclaimCard | null {
+  const { cards, ticker } = state;
+  if (!ticker || !cards) return null;
+  return cards.find((row) => row.ticker === ticker) ?? null;
+}
+
+export function rankReclaimCards(
+  cards: ReclaimCard[],
+  query: string,
+  locale: string,
+): { cards: ReclaimCard[]; matched: Set<string> } {
+  const q = query.trim().toLowerCase();
+  if (!q) return { cards, matched: new Set() };
+  const compact = (value: string) => value.toLowerCase().replace(/\s+/g, "");
+  const qCompact = compact(q);
+  const score = (row: ReclaimCard) => {
+    const fields = [row.ticker, cardDisplayName(row, locale), row.name, row.nameKo ?? ""].filter(Boolean);
+    const raw = fields.map((field) => field.toLowerCase());
+    const tight = raw.map(compact);
+    if (raw.some((field) => field === q) || tight.some((field) => field === qCompact)) return 0;
+    if (row.ticker.toLowerCase().startsWith(q)) return 1;
+    if (raw.some((field) => field.startsWith(q)) || tight.some((field) => field.startsWith(qCompact))) return 2;
+    if (raw.some((field) => field.includes(q)) || tight.some((field) => field.includes(qCompact))) return 3;
+    return 4;
+  };
+  const ranked = cards.map((row, index) => ({ row, score: score(row), index }));
+  ranked.sort((a, b) => a.score - b.score || a.index - b.index);
+  return {
+    cards: ranked.map((item) => item.row),
+    matched: new Set(ranked.filter((item) => item.score < 4).map((item) => item.row.ticker)),
+  };
 }
 
 export function pctLabel(n: number): string {
@@ -120,7 +167,6 @@ export function cardsSignature(cards: ReclaimCard[]): string {
 
 export const ODDS_PIP_W = 640;
 export const ODDS_PIP_H = 400;
-const PER_PAGE = 3;
 const FONT = '"Apple SD Gothic Neo", "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif';
 
 function ellipsis(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
@@ -130,140 +176,94 @@ function ellipsis(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return `${next}…`;
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function drawPair(
-  ctx: CanvasRenderingContext2D,
-  label: string,
-  value: string,
-  x: number,
-  y: number,
-  width: number,
-  align: "left" | "right",
-) {
-  ctx.textBaseline = "middle";
-  ctx.font = `700 22px ${FONT}`;
-  const valueW = ctx.measureText(value).width;
-  ctx.font = `400 15px ${FONT}`;
-  const shown = ellipsis(ctx, label, Math.max(24, width - valueW - 6));
-  const labelW = ctx.measureText(shown).width;
-  if (align === "left") {
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#717182";
-    ctx.fillText(shown, x, y);
-    ctx.font = `700 22px ${FONT}`;
-    ctx.fillStyle = "#030213";
-    ctx.fillText(value, x + labelW + 6, y);
-  } else {
-    ctx.textAlign = "right";
-    ctx.font = `700 22px ${FONT}`;
-    ctx.fillStyle = "#030213";
-    ctx.fillText(value, x + width, y);
-    ctx.font = `400 15px ${FONT}`;
-    ctx.fillStyle = "#717182";
-    ctx.fillText(shown, x + width - valueW - 6, y);
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+  const lines: string[] = [];
+  let rest = text.trim();
+  while (rest && lines.length < maxLines) {
+    if (ctx.measureText(rest).width <= maxWidth) {
+      lines.push(rest);
+      rest = "";
+      break;
+    }
+    let cut = rest.length;
+    while (cut > 1 && ctx.measureText(rest.slice(0, cut)).width > maxWidth) cut -= 1;
+    const space = rest.lastIndexOf(" ", cut);
+    if (space > 4) cut = space;
+    lines.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
   }
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
+  if (rest && lines.length > 0) {
+    const last = lines.length - 1;
+    lines[last] = ellipsis(ctx, `${lines[last]}${rest}`, maxWidth);
+  }
+  return lines;
 }
 
-function drawCard(
-  ctx: CanvasRenderingContext2D,
-  row: ReclaimCard,
-  copy: OddsWidgetCopy,
-  locale: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) {
-  ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "rgba(3, 2, 19, 0.4)";
-  ctx.lineWidth = 2;
-  roundRect(ctx, x, y, w, h, 10);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = "#030213";
-  ctx.font = `600 24px ${FONT}`;
-  ctx.fillText(ellipsis(ctx, cardDisplayName(row, locale), w - 20), x + 10, y + 8);
-
-  ctx.fillStyle = "#717182";
-  ctx.font = "400 14px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.fillText(ellipsis(ctx, row.ticker, w - 20), x + 10, y + 36);
-
-  const nextLabel = row.nextEdge == null ? copy.above : copy.next(row.nextEdge);
-  const colW = (w - 28) / 2;
-  drawPair(ctx, copy.reclaim, pctLabel(row.reclaimPct), x + 10, y + 74, colW, "left");
-  drawPair(ctx, nextLabel, pctLabel(row.nextPct), x + 18 + colW, y + 74, colW, "right");
-}
-
-/** Landscape frame so the system mini window stays small, like a video player. */
+/** One name fills the small window. */
 export function paintOddsWidget(
   ctx: CanvasRenderingContext2D,
-  cards: ReclaimCard[] | null,
+  card: ReclaimCard | null,
   copy: OddsWidgetCopy,
   locale: string,
-  page: number,
-): number {
+): void {
   const width = ODDS_PIP_W;
   const height = ODDS_PIP_H;
-  const pages = cards && cards.length > 0 ? Math.ceil(cards.length / PER_PAGE) : 1;
-  const safePage = ((page % pages) + pages) % pages;
-
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = "#030213";
-  ctx.fillRect(0, 0, width, 6);
+  ctx.fillRect(0, 0, width, 8);
 
   ctx.textBaseline = "top";
   ctx.textAlign = "left";
   ctx.fillStyle = "#717182";
-  ctx.font = `500 14px ${FONT}`;
+  ctx.font = `500 18px ${FONT}`;
   const brandW = ctx.measureText("whyup").width;
-  ctx.fillText("whyup", width - 16 - brandW, 16);
+  ctx.fillText("whyup", width - 28 - brandW, 24);
+
+  if (!card) {
+    ctx.font = `400 28px ${FONT}`;
+    ctx.fillText(copy.empty, 28, 96);
+    return;
+  }
+
+  const inner = width - 56;
+  ctx.fillStyle = "#030213";
+  ctx.font = `700 46px ${FONT}`;
+  const nameLines = wrapLines(ctx, cardDisplayName(card, locale), inner - brandW - 16, 2);
+  let y = 28;
+  for (const line of nameLines) {
+    ctx.fillText(line, 28, y);
+    y += 54;
+  }
+
+  ctx.fillStyle = "#717182";
+  ctx.font = "500 28px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.fillText(card.ticker, 28, y + 4);
+  y += 48;
+
+  ctx.font = `400 22px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.fillText(ellipsis(ctx, copy.until, inner), width / 2, y);
+  ctx.textAlign = "left";
+  y += 52;
+
+  const nextLabel = card.nextEdge == null ? copy.above : copy.next(card.nextEdge);
+  const colW = (inner - 24) / 2;
+  ctx.font = `400 22px ${FONT}`;
+  ctx.fillStyle = "#717182";
+  ctx.fillText(ellipsis(ctx, copy.reclaim, colW), 28, y);
+  ctx.textAlign = "right";
+  ctx.fillText(ellipsis(ctx, nextLabel, colW), width - 28, y);
+  ctx.textAlign = "left";
+  y += 36;
 
   ctx.fillStyle = "#030213";
-  ctx.font = `700 26px ${FONT}`;
-  ctx.fillText(ellipsis(ctx, copy.title, width - brandW - 40), 16, 12);
-
-  const pageLabel = pages > 1 ? `${safePage + 1}/${pages}` : "";
-  ctx.font = `600 14px ${FONT}`;
-  const pageW = pageLabel ? ctx.measureText(pageLabel).width : 0;
-  if (pageLabel) {
-    ctx.fillStyle = "#717182";
-    ctx.fillText(pageLabel, width - 16 - pageW, 46);
-  }
-
-  ctx.font = `400 15px ${FONT}`;
-  ctx.fillStyle = "#717182";
-  ctx.fillText(ellipsis(ctx, copy.until, width - 36 - (pageW ? pageW + 12 : 0)), 16, 44);
-
-  if (!cards || cards.length === 0) {
-    ctx.font = `400 20px ${FONT}`;
-    ctx.fillStyle = "#717182";
-    ctx.fillText(cards == null ? copy.loading : copy.empty, 16, 84);
-    return pages;
-  }
-
-  const slice = cards.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  let y = 74;
-  const cardW = width - 32;
-  const cardH = 100;
-  for (const row of slice) {
-    drawCard(ctx, row, copy, locale, 16, y, cardW, cardH);
-    y += cardH + 8;
-  }
-  return pages;
+  ctx.font = `700 72px ${FONT}`;
+  ctx.fillText(pctLabel(card.reclaimPct), 28, y);
+  ctx.textAlign = "right";
+  ctx.fillText(pctLabel(card.nextPct), width - 28, y);
+  ctx.textAlign = "left";
 }
 
 function esc(value: string): string {
@@ -279,32 +279,23 @@ function esc(value: string): string {
 export const ODDS_PIP_CSS = `
   html, body { height: 100%; margin: 0; background: #fff; color: #030213; }
   body { font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; }
-  #odds-scroll { box-sizing: border-box; height: 100%; overflow: auto; padding: 12px 14px 16px; }
-  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-  h1 { font-size: 16px; line-height: 1.3; font-weight: 650; margin: 0; }
+  #odds-scroll { box-sizing: border-box; height: 100%; display: flex; align-items: center; padding: 18px 22px; }
+  .sheet { width: 100%; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .name { margin: 0; font-size: 28px; line-height: 1.25; font-weight: 700; }
   .brand { font-size: 12px; color: #717182; }
-  .until { margin: 4px 0 0; font-size: 12px; line-height: 1.35; color: #717182; }
-  .hd { position: sticky; top: 0; background: #fff; padding-bottom: 8px; }
-  article { border: 2px solid rgba(3, 2, 19, 0.4); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
-  .name { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.35; }
-  .ticker { margin: 2px 0 0; font-family: ui-monospace, monospace; font-size: 12px; color: #717182; }
-  .cols { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; }
+  .ticker { margin: 6px 0 0; font-family: ui-monospace, monospace; font-size: 16px; color: #717182; }
+  .until { margin: 14px 0 0; text-align: center; font-size: 13px; line-height: 1.35; color: #717182; }
+  .cols { display: flex; justify-content: space-between; gap: 16px; margin-top: 16px; }
   .cols p { margin: 0; }
-  .lab { font-size: 12px; line-height: 1.35; color: #717182; }
-  .val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lab { font-size: 13px; line-height: 1.35; color: #717182; }
+  .val { margin-top: 4px; font-size: 36px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
   .right { text-align: right; }
-  .empty { margin: 8px 0 0; font-size: 14px; color: #717182; }
+  .empty { margin: 0; font-size: 16px; color: #717182; }
 `;
 
-export function oddsWidgetBodyHtml(cards: ReclaimCard[] | null, copy: OddsWidgetCopy, locale: string): string {
-  const head = `<div class="hd"><div class="top"><h1>${esc(copy.title)}</h1><span class="brand">whyup</span></div><p class="until">${esc(copy.until)}</p></div>`;
-  if (cards == null) return `${head}<p class="empty">${esc(copy.loading)}</p>`;
-  if (cards.length === 0) return `${head}<p class="empty">${esc(copy.empty)}</p>`;
-  const items = cards
-    .map((row) => {
-      const next = row.nextEdge == null ? copy.above : copy.next(row.nextEdge);
-      return `<article><p class="name">${esc(cardDisplayName(row, locale))}</p><p class="ticker">${esc(row.ticker)}</p><div class="cols"><div><p class="lab">${esc(copy.reclaim)}</p><p class="val">${esc(pctLabel(row.reclaimPct))}</p></div><div class="right"><p class="lab">${esc(next)}</p><p class="val">${esc(pctLabel(row.nextPct))}</p></div></div></article>`;
-    })
-    .join("");
-  return head + items;
+export function oddsWidgetBodyHtml(card: ReclaimCard | null, copy: OddsWidgetCopy, locale: string): string {
+  if (!card) return `<p class="empty">${esc(copy.empty)}</p>`;
+  const next = card.nextEdge == null ? copy.above : copy.next(card.nextEdge);
+  return `<div class="sheet"><div class="top"><p class="name">${esc(cardDisplayName(card, locale))}</p><span class="brand">whyup</span></div><p class="ticker">${esc(card.ticker)}</p><p class="until">${esc(copy.until)}</p><div class="cols"><div><p class="lab">${esc(copy.reclaim)}</p><p class="val">${esc(pctLabel(card.reclaimPct))}</p></div><div class="right"><p class="lab">${esc(next)}</p><p class="val">${esc(pctLabel(card.nextPct))}</p></div></div></div>`;
 }

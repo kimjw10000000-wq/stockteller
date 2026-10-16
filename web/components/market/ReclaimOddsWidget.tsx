@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useI18n } from "@/components/i18n/I18nProvider";
-import { ReclaimOddsList } from "@/components/market/ReclaimOddsList";
+import { ReclaimOddsFocus } from "@/components/market/ReclaimOddsList";
 import { reclaimOddsUrl } from "@/lib/us-market/washout-chart-url";
 import {
   ODDS_PIP_CSS,
   ODDS_PIP_H,
   ODDS_PIP_W,
   bindReclaimWidgetControls,
+  cardDisplayName,
   cardsSignature,
+  focusedReclaimCard,
   getReclaimWidgetState,
   oddsWidgetBodyHtml,
   paintOddsWidget,
@@ -44,7 +46,7 @@ export function useReclaimWidgetState() {
 
 export function ReclaimOddsWidget() {
   const { t, locale } = useI18n();
-  const { cards, mode } = useReclaimWidgetState();
+  const { cards, mode, ticker } = useReclaimWidgetState();
   const copy = useMemo<OddsWidgetCopy>(
     () => ({
       title: t("similar.oddsTitle"),
@@ -60,13 +62,10 @@ export function ReclaimOddsWidget() {
 
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const cardsRef = useRef(cards);
-  cardsRef.current = cards;
   const copyRef = useRef(copy);
   copyRef.current = copy;
   const localeRef = useRef(locale);
   localeRef.current = locale;
-  const pageRef = useRef(0);
   const pipRef = useRef<Window | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -81,8 +80,7 @@ export function ReclaimOddsWidget() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const pages = paintOddsWidget(ctx, cardsRef.current, copyRef.current, localeRef.current, pageRef.current);
-    pageRef.current = pages > 1 ? ((pageRef.current % pages) + pages) % pages : 0;
+    paintOddsWidget(ctx, focusedReclaimCard(), copyRef.current, localeRef.current);
     try {
       ctx.getImageData(0, 0, 1, 1);
     } catch {
@@ -112,12 +110,11 @@ export function ReclaimOddsWidget() {
       scroll.id = "odds-scroll";
       doc.body.appendChild(scroll);
     }
-    doc.title = copyRef.current.title;
+    const card = focusedReclaimCard();
+    doc.title = card ? `${card.ticker} · ${cardDisplayName(card, localeRef.current)}` : copyRef.current.title;
     const scroller = doc.getElementById("odds-scroll");
     if (!scroller) return;
-    const top = scroller.scrollTop;
-    scroller.innerHTML = oddsWidgetBodyHtml(cardsRef.current, copyRef.current, localeRef.current);
-    scroller.scrollTop = top;
+    scroller.innerHTML = oddsWidgetBodyHtml(card, copyRef.current, localeRef.current);
   }, []);
 
   const ensureStream = useCallback(() => {
@@ -140,7 +137,7 @@ export function ReclaimOddsWidget() {
     videoPendingRef.current = false;
     const pip = pipRef.current;
     pipRef.current = null;
-    patchReclaimWidget({ mode: "off" });
+    patchReclaimWidget({ mode: "off", ticker: null });
     if (pip && !pip.closed) {
       try {
         pip.close();
@@ -170,8 +167,9 @@ export function ReclaimOddsWidget() {
     if (!video) return false;
     try {
       if ("mediaSession" in navigator) {
+        const card = focusedReclaimCard();
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: copyRef.current.title,
+          title: card ? `${card.ticker} · ${cardDisplayName(card, localeRef.current)}` : copyRef.current.title,
           artist: "whyup",
         });
       }
@@ -221,7 +219,7 @@ export function ReclaimOddsWidget() {
     const api = pipApi();
     if (api) {
       openingRef.current = true;
-      void api.requestWindow({ width: 380, height: 560 }).then((pip) => {
+      void api.requestWindow({ width: 440, height: 300 }).then((pip) => {
         openingRef.current = false;
         pipRef.current = pip;
         fillPip(pip);
@@ -378,21 +376,12 @@ export function ReclaimOddsWidget() {
     const pip = pipRef.current;
     if (!pip || pip.closed) return;
     fillPip(pip);
-  }, [mode, cards, copy, locale, fillPip]);
+  }, [mode, cards, copy, locale, ticker, fillPip]);
 
   useEffect(() => {
     if (mode !== "video") return;
     paintNow();
-  }, [mode, cards, copy, locale, paintNow]);
-
-  useEffect(() => {
-    if (mode !== "video") return;
-    const id = window.setInterval(() => {
-      pageRef.current += 1;
-      paintNow();
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, [mode, paintNow]);
+  }, [mode, cards, copy, locale, ticker, paintNow]);
 
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
@@ -450,7 +439,7 @@ export function ReclaimOddsWidget() {
           {t("similar.oddsFloatClose")}
         </button>
       </div>
-      <ReclaimOddsList cards={cards} className="max-h-[min(22rem,50dvh)] px-3 pb-3" />
+      <ReclaimOddsFocus card={cards?.find((row) => row.ticker === ticker) ?? null} />
     </div>
   );
 }

@@ -229,6 +229,7 @@
     "oddsLoading": "Loading",
     "oddsFloat": "Small window",
     "oddsFloatClose": "Close",
+    "oddsSearch": "Ticker or name",
     "range": {
       "1d": "1D",
       "1w": "1W",
