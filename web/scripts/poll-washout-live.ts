@@ -11,6 +11,7 @@ import { captureWashoutLive } from "../lib/us-market/washout-live";
 import { noteReclaimSeeds, startReclaimOddsFeed } from "../lib/us-market/reclaim-odds-feed";
 import { compactOldWashoutSamples } from "../lib/us-market/washout-samples";
 import { washoutCaptureSkipReason } from "../lib/us-market/washout-schedule";
+import { inReclaimHoldGap } from "../lib/us-market/us-session";
 import { polygonAdvancedKeyOrNull, polygonStarterKeyOrNull } from "../lib/us-market/polygon-keys";
 
 config({ path: resolve(process.cwd(), ".env.local") });
@@ -65,6 +66,8 @@ async function loop(): Promise<void> {
           new Date().toISOString(),
           `tape=${live.tapeYmd} index=${live.index.toFixed(2)} names=${live.items.length} pts=${live.series.length}`
         );
+      } else if (inReclaimHoldGap(now)) {
+        console.log(now.toISOString(), "idle", skip, "hold odds");
       } else {
         try {
           noteReclaimSeeds([]);

@@ -179,6 +179,16 @@ export function runnerTapeDate(now = new Date()): string {
   return tape;
 }
 
+/**
+ * 애프터 20:00 ET 다음부터, 같은 테이프의 프리 04:00 전까지.
+ * 금요일 애프터와 월요일 프리 사이의 주말도 이 공백이다.
+ * 이 동안 전고 돌파 카드는 애프터 마지막 분 값으로 둔다.
+ */
+export function inReclaimHoldGap(now = new Date()): boolean {
+  if (!isUsWeekday(now)) return true;
+  return sessionAtInstant(now) == null;
+}
+
 export function tapeSessionAt(
   now: Date,
   tapeYmd: string,

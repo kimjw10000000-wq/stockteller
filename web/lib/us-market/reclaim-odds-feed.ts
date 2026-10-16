@@ -7,6 +7,7 @@ import { createAdminClient } from "../supabase/admin";
 import { quoteReclaim } from "./reclaim-odds";
 import { polygonAdvancedKeyOrNull } from "./polygon-keys";
 import { savePublishedReclaimOdds, type PublishedReclaimOdds } from "./washout-published";
+import { inReclaimHoldGap } from "./us-session";
 import { nameInThisSession, type WashoutBoardRow } from "./washout-live";
 
 const SOCKET = "wss://socket.polygon.io/stocks";
@@ -57,6 +58,7 @@ async function rememberNames(tickers: string[]): Promise<void> {
 }
 
 function writeTrade(ticker: string, price: number): void {
+  if (inReclaimHoldGap()) return;
   const row = book.get(listingKey(ticker));
   if (!row || !(price > 0)) return;
   if (price >= row.peak) {
@@ -192,6 +194,7 @@ function pump(): void {
 }
 
 export function noteReclaimSeeds(items: WashoutBoardRow[], now = Date.now()): void {
+  if (items.length === 0 && inReclaimHoldGap(new Date(now))) return;
   seeding = true;
   try {
     const next = new Map<string, Seed>();

@@ -2,6 +2,7 @@
  *   npx tsx scripts/test-reclaim-odds.ts
  */
 import { liftProbability, oddsReferenceClose, quoteReclaim, recoveryX, showOddsPct } from "../lib/us-market/reclaim-odds";
+import { etWallMs, inReclaimHoldGap } from "../lib/us-market/us-session";
 
 function assert(cond: boolean, message: string): void {
   if (!cond) throw new Error(message);
@@ -31,5 +32,14 @@ const busy = oddsReferenceClose({ prevClose: 10, prevNotional: 2_000_000, dayOpe
 assert(busy === 10, `busy day ${busy}`);
 const near = oddsReferenceClose({ prevClose: 10, prevNotional: 50_000, dayOpen: 11 });
 assert(near === 10, `near open ${near}`);
+
+const at = (ymd: string, hour: number, minute: number) => new Date(etWallMs(ymd, hour, minute));
+assert(inReclaimHoldGap(at("2026-10-15", 19, 59)) === false, "last ah minute still live");
+assert(inReclaimHoldGap(at("2026-10-15", 20, 0)) === true, "ah close holds");
+assert(inReclaimHoldGap(at("2026-10-16", 3, 30)) === true, "before pre holds");
+assert(inReclaimHoldGap(at("2026-10-16", 4, 0)) === false, "pre open resumes");
+assert(inReclaimHoldGap(at("2026-10-17", 12, 0)) === true, "saturday holds");
+assert(inReclaimHoldGap(at("2026-10-19", 3, 59)) === true, "monday before pre holds");
+assert(inReclaimHoldGap(at("2026-10-19", 4, 0)) === false, "monday pre resumes");
 
 console.log("reclaim odds ok", { atLow, mid, dipped });
