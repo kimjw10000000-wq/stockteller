@@ -654,17 +654,15 @@ export function SimilarMoversContent() {
       {failed && !data ? (
         <p className="text-sm text-muted-foreground">{t("similar.error")}</p>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
           <ReclaimOddsCards />
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-            <IndexPane label={t("similar.indexLabel")} chart={chart} {...indexRoster} {...paneProps} />
-            <IndexPane
-              label={t("similar.reactionLabel")}
-              chart={reactionChart}
-              {...reactionRoster}
-              {...paneProps}
-            />
-          </div>
+          <IndexPane label={t("similar.indexLabel")} chart={chart} {...indexRoster} {...paneProps} />
+          <IndexPane
+            label={t("similar.reactionLabel")}
+            chart={reactionChart}
+            {...reactionRoster}
+            {...paneProps}
+          />
         </div>
       )}
     </main>

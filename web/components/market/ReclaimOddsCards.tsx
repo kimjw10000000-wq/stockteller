@@ -83,21 +83,23 @@ export function ReclaimOddsCards() {
           <ul className="mt-2 max-h-80 space-y-2 overflow-y-auto">
             {cards.map((row) => (
               <li key={row.ticker}>
-                <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{row.ticker}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[11px] text-muted-foreground">{t("similar.oddsUntil")}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{t("similar.oddsReclaim")}</p>
-                    <p className="text-sm font-semibold tabular-nums text-foreground">{pct(row.reclaimPct)}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {row.nextEdge == null
-                        ? t("similar.oddsAboveTop")
-                        : t("similar.oddsNext", { edge: row.nextEdge })}
-                    </p>
-                    <p className="text-sm font-semibold tabular-nums text-foreground">{pct(row.nextPct)}</p>
+                <div className="rounded-lg border border-border px-3 py-2">
+                  <p className="text-sm font-medium leading-snug text-foreground">{row.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{row.ticker}</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">{t("similar.oddsUntil")}</p>
+                  <div className="mt-1 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs leading-snug text-muted-foreground">{t("similar.oddsReclaim")}</p>
+                      <p className="text-sm font-semibold tabular-nums text-foreground">{pct(row.reclaimPct)}</p>
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <p className="text-xs leading-snug text-muted-foreground">
+                        {row.nextEdge == null
+                          ? t("similar.oddsAboveTop")
+                          : t("similar.oddsNext", { edge: row.nextEdge })}
+                      </p>
+                      <p className="text-sm font-semibold tabular-nums text-foreground">{pct(row.nextPct)}</p>
+                    </div>
                   </div>
                 </div>
               </li>
