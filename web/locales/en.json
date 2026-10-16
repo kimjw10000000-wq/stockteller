@@ -227,6 +227,8 @@
     "oddsNext": "Chance of {edge}% or higher",
     "oddsAboveTop": "Chance of a higher zone",
     "oddsLoading": "Loading",
+    "oddsFloat": "Small window",
+    "oddsFloatClose": "Close",
     "range": {
       "1d": "1D",
       "1w": "1W",

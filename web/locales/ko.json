@@ -227,6 +227,8 @@
     "oddsNext": "{edge}% 이상 갈 확률",
     "oddsAboveTop": "이 구간보다 높이 갈 확률",
     "oddsLoading": "불러오는 중",
+    "oddsFloat": "작게 띄우기",
+    "oddsFloatClose": "닫기",
     "range": {
       "1d": "1일",
       "1w": "1주일",
