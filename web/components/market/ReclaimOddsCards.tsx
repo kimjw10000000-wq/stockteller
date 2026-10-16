@@ -8,6 +8,7 @@ import { reclaimOddsUrl } from "@/lib/us-market/washout-chart-url";
 type CardRow = {
   ticker: string;
   name: string;
+  nameKo?: string;
   reclaimPct: number;
   nextPct: number;
   nextEdge: number | null;
@@ -35,7 +36,7 @@ function pct(n: number): string {
 }
 
 export function ReclaimOddsCards() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [cards, setCards] = useState<CardRow[] | null>(null);
   const seen = useRef(false);
 
@@ -84,7 +85,9 @@ export function ReclaimOddsCards() {
             {cards.map((row) => (
               <li key={row.ticker}>
                 <div className="rounded-lg border-2 border-foreground/40 px-3 py-2">
-                  <p className="text-sm font-medium leading-snug text-foreground">{row.name}</p>
+                  <p className="text-sm font-medium leading-snug text-foreground">
+                    {locale === "ko" && row.nameKo ? row.nameKo : row.name}
+                  </p>
                   <p className="font-mono text-xs text-muted-foreground">{row.ticker}</p>
                   <p className="mt-2 w-full text-center text-[11px] leading-snug text-muted-foreground">{t("similar.oddsUntil")}</p>
                   <div className="mt-2 flex items-start justify-between gap-3">

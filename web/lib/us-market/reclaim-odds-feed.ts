@@ -5,6 +5,8 @@
 import WebSocket from "ws";
 import { createAdminClient } from "../supabase/admin";
 import { quoteReclaim } from "./reclaim-odds";
+import { isTossConfigured } from "../toss/client";
+import { fetchTossStocks } from "../toss/stocks";
 import { polygonAdvancedKeyOrNull } from "./polygon-keys";
 import { savePublishedReclaimOdds, type PublishedReclaimOdds } from "./washout-published";
 import { inReclaimHoldGap } from "./us-session";
@@ -25,6 +27,7 @@ type Seed = {
 };
 
 const names = new Map<string, string>();
+const namesKo = new Map<string, string>();
 const book = new Map<string, Seed>();
 let socket: WebSocket | null = null;
 let authed = false;
@@ -42,19 +45,36 @@ function listingKey(ticker: string): string {
 
 async function rememberNames(tickers: string[]): Promise<void> {
   const missing = tickers.filter((ticker) => !names.has(ticker));
-  if (!missing.length) return;
-  try {
-    const admin = createAdminClient();
-    const { data } = await admin.from("us_listed_companies").select("ticker,name").in("ticker", missing);
-    for (const row of data ?? []) {
-      const ticker = listingKey(String(row.ticker ?? ""));
-      const name = String(row.name ?? "").trim();
-      if (ticker && name) names.set(ticker, name);
+  const missingKo = tickers.filter((ticker) => !namesKo.has(ticker));
+  if (!missing.length && !missingKo.length) return;
+  if (missing.length) {
+    try {
+      const admin = createAdminClient();
+      const { data } = await admin.from("us_listed_companies").select("ticker,name").in("ticker", missing);
+      for (const row of data ?? []) {
+        const ticker = listingKey(String(row.ticker ?? ""));
+        const name = String(row.name ?? "").trim();
+        if (ticker && name) names.set(ticker, name);
+      }
+    } catch {
+      /* 이름이 없으면 티커만 보여 준다. */
     }
-  } catch {
-    /* 이름이 없으면 티커만 보여 준다. */
+    for (const ticker of missing) if (!names.has(ticker)) names.set(ticker, ticker);
   }
-  for (const ticker of missing) if (!names.has(ticker)) names.set(ticker, ticker);
+  if (missingKo.length && isTossConfigured()) {
+    try {
+      const rows = await fetchTossStocks(missingKo);
+      for (const row of rows) {
+        const ticker = listingKey(row.symbol);
+        const name = row.name.trim();
+        if (ticker && name) namesKo.set(ticker, name);
+      }
+      for (const ticker of missingKo) if (!namesKo.has(ticker)) namesKo.set(ticker, "");
+    } catch (e) {
+      console.error("toss names", e instanceof Error ? e.message : e);
+    }
+  }
+  dirty = true;
 }
 
 function writeTrade(ticker: string, price: number): void {
@@ -170,6 +190,7 @@ async function publish(): Promise<void> {
     cards.push({
       ticker: row.ticker,
       name: names.get(row.ticker) ?? row.ticker,
+      ...(namesKo.get(row.ticker) ? { nameKo: namesKo.get(row.ticker) } : {}),
       reclaimPct: quote.reclaimPct,
       nextPct: quote.nextPct,
       nextEdge: quote.nextEdge,

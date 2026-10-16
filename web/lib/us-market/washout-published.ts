@@ -60,6 +60,8 @@ export type PublishedReclaimOdds = {
   cards: Array<{
     ticker: string;
     name: string;
+    /** 토스 종목명. 한국어 화면에서만 쓴다. */
+    nameKo?: string;
     reclaimPct: number;
     nextPct: number;
     nextEdge: number | null;
