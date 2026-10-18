@@ -2,7 +2,7 @@
  *   npx tsx scripts/test-reclaim-odds.ts
  */
 import { liftProbability, oddsReferenceClose, quoteReclaim, recoveryX, showOddsPct } from "../lib/us-market/reclaim-odds";
-import { etWallMs, inReclaimHoldGap } from "../lib/us-market/us-session";
+import { etWallMs, inReclaimHoldGap, shouldReplaceReclaimBook } from "../lib/us-market/us-session";
 
 function assert(cond: boolean, message: string): void {
   if (!cond) throw new Error(message);
@@ -41,5 +41,10 @@ assert(inReclaimHoldGap(at("2026-10-16", 4, 0)) === false, "pre open resumes");
 assert(inReclaimHoldGap(at("2026-10-17", 12, 0)) === true, "saturday holds");
 assert(inReclaimHoldGap(at("2026-10-19", 3, 59)) === true, "monday before pre holds");
 assert(inReclaimHoldGap(at("2026-10-19", 4, 0)) === false, "monday pre resumes");
+assert(shouldReplaceReclaimBook(at("2026-10-16", 19, 59), at("2026-10-16", 19, 59)) === true, "inside ah replaces");
+assert(shouldReplaceReclaimBook(at("2026-10-16", 19, 59), at("2026-10-16", 20, 0)) === false, "overrun ah keeps cards");
+assert(shouldReplaceReclaimBook(at("2026-10-16", 20, 0), at("2026-10-16", 20, 0)) === false, "after close keeps cards");
+assert(shouldReplaceReclaimBook(at("2026-10-17", 12, 0), at("2026-10-17", 12, 1)) === false, "weekend keeps cards");
+assert(shouldReplaceReclaimBook(at("2026-10-19", 4, 0), at("2026-10-19", 4, 0)) === true, "monday pre replaces");
 
 console.log("reclaim odds ok", { atLow, mid, dipped });

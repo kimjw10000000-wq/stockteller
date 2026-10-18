@@ -221,7 +221,8 @@ function pump(): void {
 }
 
 export function noteReclaimSeeds(items: WashoutBoardRow[], now = Date.now()): void {
-  if (items.length === 0 && inReclaimHoldGap(new Date(now))) return;
+  // 20:00을 넘긴 뒤에 19:59 명단을 다시 심으면 세션이 비어 카드가 전부 지워진다.
+  if (inReclaimHoldGap(new Date(now))) return;
   seeding = true;
   try {
     const next = new Map<string, Seed>();

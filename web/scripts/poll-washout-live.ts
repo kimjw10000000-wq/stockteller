@@ -12,7 +12,7 @@ import { captureWashoutLive } from "../lib/us-market/washout-live";
 import { noteReclaimSeeds, startReclaimOddsFeed } from "../lib/us-market/reclaim-odds-feed";
 import { compactOldWashoutSamples } from "../lib/us-market/washout-samples";
 import { washoutCaptureSkipReason } from "../lib/us-market/washout-schedule";
-import { inReclaimHoldGap } from "../lib/us-market/us-session";
+import { inReclaimHoldGap, shouldReplaceReclaimBook } from "../lib/us-market/us-session";
 import { polygonAdvancedKeyOrNull, polygonStarterKeyOrNull } from "../lib/us-market/polygon-keys";
 
 config({ path: resolve(process.cwd(), ".env.local") });
@@ -60,10 +60,15 @@ async function loop(): Promise<void> {
       if (skip === "ok") {
         const live = await captureWashoutLive();
         shareTickers = live.items.map((row) => row.ticker);
-        try {
-          noteReclaimSeeds(live.items);
-        } catch (e) {
-          console.error("reclaim seeds", e instanceof Error ? e.message : e);
+        const finished = new Date();
+        if (shouldReplaceReclaimBook(now, finished)) {
+          try {
+            noteReclaimSeeds(live.items, now.getTime());
+          } catch (e) {
+            console.error("reclaim seeds", e instanceof Error ? e.message : e);
+          }
+        } else {
+          console.log(finished.toISOString(), "hold odds");
         }
         console.log(
           new Date().toISOString(),

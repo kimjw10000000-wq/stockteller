@@ -189,6 +189,14 @@ export function inReclaimHoldGap(now = new Date()): boolean {
   return sessionAtInstant(now) == null;
 }
 
+/**
+ * 전고 카드는 스냅샷과 수집이 둘 다 세션 안일 때만 갈아 끼운다.
+ * 19:59에 시작한 수집이 20:00을 넘기면 마지막 카드를 그대로 둔다.
+ */
+export function shouldReplaceReclaimBook(snapshot: Date, finished: Date): boolean {
+  return !inReclaimHoldGap(snapshot) && !inReclaimHoldGap(finished);
+}
+
 export function tapeSessionAt(
   now: Date,
   tapeYmd: string,
