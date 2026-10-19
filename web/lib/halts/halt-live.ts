@@ -5,7 +5,7 @@
 import WebSocket from "ws";
 import { polygonAdvancedKeyOrNull } from "../us-market/polygon-keys";
 import { savePublishedHaltLive, type PublishedHaltLive } from "../us-market/washout-published";
-import { RESUMED_KEEP_MS } from "./halt-clock";
+import { keepResumedCard } from "./halt-clock";
 import { signalFromLuld, signalFromQuote, type HaltKind, type HaltSignal } from "./halt-signals";
 
 const SOCKET = "wss://socket.polygon.io/stocks";
@@ -52,7 +52,7 @@ export function applyHaltSignal(signal: HaltSignal): void {
 
 function prune(now: number): void {
   for (const [ticker, row] of book) {
-    if (row.resumedAt != null && now - row.resumedAt >= RESUMED_KEEP_MS) book.delete(ticker);
+    if (row.resumedAt != null && !keepResumedCard(row.haltedAt, row.resumedAt, now)) book.delete(ticker);
   }
 }
 

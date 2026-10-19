@@ -1,5 +1,5 @@
 import { haltEventMs, parseHaltEtMs } from "./elapsed";
-import { countdownMs, formatCountdown, stillShowResumed } from "./halt-clock";
+import { countdownMs, formatCountdown, keepResumedCard } from "./halt-clock";
 import { isKoreanHaltMarket } from "./realtime-filter";
 import type { HaltKind } from "./halt-signals";
 import type { TradeHaltItem } from "./nasdaq-trade-halts";
@@ -73,7 +73,7 @@ function volatilityRssCard(row: TradeHaltItem, now: number): HaltCard | null {
   const trade = (row.resumptionTradeTime ?? "").trim();
   const resumeMs = trade ? parseHaltEtMs((row.resumptionDate ?? "").trim() || row.haltDate, trade) : null;
   const resumedAt = resumeMs != null && resumeMs <= now ? resumeMs : null;
-  if (resumedAt != null && !stillShowResumed(resumedAt, now)) return null;
+  if (resumedAt != null && !keepResumedCard(haltedAt, resumedAt, now)) return null;
   return {
     ticker: row.symbol.trim().toUpperCase(),
     name: row.name?.trim() || row.symbol,
@@ -100,7 +100,7 @@ function rssCard(row: TradeHaltItem, now: number): HaltCard | null {
   const haltedAt = haltEventMs(row);
   if (!(haltedAt > 0)) return null;
   const resumedAt = scheduled != null && scheduled <= now ? scheduled : null;
-  if (resumedAt != null && !stillShowResumed(resumedAt, now)) return null;
+  if (resumedAt != null && !keepResumedCard(haltedAt, resumedAt, now)) return null;
   return {
     ticker: row.symbol.trim().toUpperCase(),
     name: row.name?.trim() || row.symbol,
@@ -175,9 +175,10 @@ export function mergeHaltCards(live: LiveHaltCard[], rss: TradeHaltItem[], now: 
   for (const row of oneVolatilityLive(live)) {
     const prev = byTicker.get(row.ticker) ?? names.get(row.ticker);
     const liveOpen = row.resumedAt == null;
-    if (!liveOpen && !stillShowResumed(row.resumedAt, now)) continue;
+    if (!liveOpen && !keepResumedCard(row.haltedAt, row.resumedAt, now)) continue;
     if (!liveOpen && prev && prev.resumedAt == null && prev.haltedAt >= row.haltedAt) continue;
     if (liveOpen && prev && prev.kind === "news" && prev.haltedAt > row.haltedAt) continue;
+    if (liveOpen && prev?.resumedAt != null && prev.resumedAt >= row.haltedAt) continue;
     const card: HaltCard = {
       ticker: row.ticker,
       name: row.ticker,

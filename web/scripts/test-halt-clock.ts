@@ -2,7 +2,7 @@
  *   npx tsx scripts/test-halt-clock.ts
  */
 import { haltCardFace, isVolatilityReason, mergeHaltCards, openHaltCount } from "../lib/halts/halt-board";
-import { countdownMs, formatCountdown, HALT_SLOT_MS } from "../lib/halts/halt-clock";
+import { countdownMs, formatCountdown, HALT_SLOT_MS, keepResumedCard } from "../lib/halts/halt-clock";
 import { applyHaltSignal } from "../lib/halts/halt-live";
 import { signalFromLuld, signalFromQuote } from "../lib/halts/halt-signals";
 import type { TradeHaltItem } from "../lib/halts/nasdaq-trade-halts";
@@ -80,9 +80,13 @@ const piled = mergeHaltCards(
   ],
   now,
 );
-assert(piled.map((card) => card.ticker).join(",") === "IBO,SLN,IRON", `rss board ${piled.map((c) => c.ticker).join(",")}`);
-assert(piled.filter((card) => card.ticker === "FUFU").length === 0, "resumed repeats do not pile up");
+assert(piled.map((card) => card.ticker).join(",") === "IBO,SLN,IRON,FUFU", `rss board ${piled.map((c) => c.ticker).join(",")}`);
+assert(piled.filter((card) => card.ticker === "FUFU").length === 1, "resumed repeats stay one card");
+const fufu = piled.find((card) => card.ticker === "FUFU");
+assert(fufu != null && haltCardFace(fufu, now).resumed, "today's resume stays on the board");
 assert(openHaltCount(piled, now) === 3, "open count");
+const nextDay = Date.parse("2026-10-20T16:00:00.000Z");
+assert(!keepResumedCard(fufu!.haltedAt, fufu!.resumedAt, nextDay), "yesterday's resume leaves the next US day");
 const sln = piled.find((card) => card.ticker === "SLN");
 assert(sln != null && !haltCardFace(sln, now).timed, "T3 has no timer");
 const iron = piled.find((card) => card.ticker === "IRON");
@@ -100,5 +104,13 @@ const one = mergeHaltCards(
 assert(one.length === 1 && one[0]?.ticker === "FUFU" && one[0].kind === "volatility", "one volatility card");
 assert(one[0]?.name === "Fufu Co", "polygon card keeps the nasdaq name");
 assert(haltCardFace(one[0]!, now).countdown === "4:00", "repeat halt keeps the first clock");
+
+const resumedMidTimer = mergeHaltCards(
+  [{ ticker: "AMRO", market: "Nasdaq", kind: "volatility", haltedAt: now - 4 * 60_000, resumedAt: null }],
+  [rssRow({ symbol: "AMRO", reasonCode: "LUDP", haltTime: "11:56:00", resumptionTradeTime: "11:58:30", resumptionDate: "10/19/2026" })],
+  now,
+);
+const amro = resumedMidTimer.find((card) => card.ticker === "AMRO");
+assert(amro != null && haltCardFace(amro, now).resumed, "nasdaq resume cuts the timer");
 
 console.log("halt clock ok");
