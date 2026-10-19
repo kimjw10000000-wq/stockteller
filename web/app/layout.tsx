@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
+import { HaltFloat } from "@/components/halts/HaltFloat";
 import { ReclaimOddsWidget } from "@/components/market/ReclaimOddsWidget";
 import { KakaoSdkLoader } from "@/components/news/KakaoSdkLoader";
 import { getRequestLocale } from "@/lib/i18n/server";
@@ -72,6 +73,7 @@ export default function RootLayout({
         <I18nProvider initialLocale={locale}>
           {children}
           <ReclaimOddsWidget />
+          <HaltFloat />
         </I18nProvider>
         <KakaoSdkLoader />
         <Analytics />

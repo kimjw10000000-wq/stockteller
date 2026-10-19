@@ -254,7 +254,20 @@
   "halts": {
     "kicker": "Market · Halts",
     "searchPlaceholder": "Ticker or company",
-    "searchAria": "Search current halt list"
+    "searchAria": "Search current halt list",
+    "board": "Trading halts",
+    "haltedCount": "{count} halted now",
+    "float": "Small window",
+    "floatClose": "Close",
+    "until": "Until resume",
+    "resumed": "Resumed",
+    "unknown": "Unknown",
+    "waiting": "Open-ended",
+    "empty": "No halted stocks right now",
+    "loading": "Loading halts…",
+    "volatility": "Volatility pause",
+    "news": "News halt",
+    "note": "The 5-minute timer is only for volatility pauses. If trading has not resumed, it starts another 5 minutes. T1, T2, and T3 news halts stay open-ended. Other halts appear only after a resume time is set."
   },
   "indicators": {
     "title": "Live releases",

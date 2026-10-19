@@ -6,6 +6,7 @@ import {
   fetchTossCircuitEvents,
 } from "./toss-circuit";
 import { haltEventMs } from "./elapsed";
+import { filterRealtimeHaltItems } from "./realtime-filter";
 
 /**
  * NASDAQ Trade Halt RSS 공식 가이드:
@@ -127,8 +128,11 @@ function toPayload(data: TradeHaltsResult, servedFromCache: boolean): HaltsCache
   const fetchedAtMs = cache?.fetchedAtMs ?? Date.now();
   const upstreamAgeMs = Math.max(0, Date.now() - fetchedAtMs);
   const meta = getHaltProviderMeta();
+  const items = filterRealtimeHaltItems(data.items, Date.now());
   return {
     ...data,
+    items,
+    count: items.length,
     servedFromCache,
     upstreamAgeMs,
     upstreamRetryAfterMs: Math.max(0, UPSTREAM_TTL_MS - upstreamAgeMs),

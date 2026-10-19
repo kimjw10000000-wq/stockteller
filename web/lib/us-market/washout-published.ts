@@ -5,6 +5,7 @@ import { loadWashoutMembers, type WashoutMemberLists } from "@/lib/us-market/was
 const BUCKET = "washout-catalog";
 const OBJECT_PATH = "current.json";
 const ODDS_PATH = "odds.json";
+const HALT_LIVE_PATH = "halts-live.json";
 const NAMES_KO_PATH = "names-ko.json";
 
 export type PublishedWashout = {
@@ -98,6 +99,28 @@ export async function loadPublishedKoreanNames(): Promise<Record<string, string>
   } catch {
     return {};
   }
+}
+
+export type PublishedHaltLive = {
+  builtAt: string;
+  cards: Array<{
+    ticker: string;
+    market: string;
+    kind: "volatility" | "news";
+    haltedAt: number;
+    resumedAt: number | null;
+  }>;
+};
+
+export async function savePublishedHaltLive(file: PublishedHaltLive): Promise<void> {
+  await ensureBucket();
+  const admin = storageAdmin();
+  const { error } = await admin.storage.from(BUCKET).upload(HALT_LIVE_PATH, Buffer.from(JSON.stringify(file), "utf8"), {
+    upsert: true,
+    contentType: "application/json",
+    cacheControl: "1",
+  });
+  if (error) throw error;
 }
 
 export async function savePublishedReclaimOdds(file: PublishedReclaimOdds): Promise<void> {

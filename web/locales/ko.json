@@ -13,9 +13,9 @@
     "newsSecDesc": "미국 상장사 뉴스·SEC 공시 AI 요약",
     "indicators": "실시간 발표",
     "indicatorsDesc": "CPI·PPI 및 기업 실적 발표",
-    "halts": "TradeHalt",
+    "halts": "거래중지 종목",
     "haltsDesc": "미국 주식 거래 정지·재개",
-    "similar": "Tools/Index",
+    "similar": "도구/지표",
     "similarDesc": "급등주 설거지 점수"
   },
   "header": {
@@ -254,7 +254,20 @@
   "halts": {
     "kicker": "Market · Halts",
     "searchPlaceholder": "티커 · 회사명",
-    "searchAria": "현재 Halt 목록 검색"
+    "searchAria": "현재 Halt 목록 검색",
+    "board": "거래 정지",
+    "haltedCount": "현재 거래 일시 중지 {count}종목",
+    "float": "작게 띄우기",
+    "floatClose": "닫기",
+    "until": "재개까지",
+    "resumed": "재개",
+    "unknown": "미정",
+    "waiting": "장기대기",
+    "empty": "지금 멈춘 종목이 없습니다",
+    "loading": "Halt 목록 불러오는 중…",
+    "volatility": "변동성 정지",
+    "news": "뉴스 정지",
+    "note": "5분 타이머는 변동성 정지만 해당합니다. 5분이 지나도 재개되지 않으면 다시 5분으로 돌아갑니다. T1·T2·T3 뉴스 정지는 미정 · 장기대기입니다. 그 밖의 정지는 재개 시각이 정해진 뒤에만 올라옵니다."
   },
   "indicators": {
     "title": "실시간 발표",

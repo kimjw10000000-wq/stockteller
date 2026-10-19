@@ -3,17 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  formatElapsedKo,
-  formatEtWallToLocal,
-  haltEventMs,
-  isLudpReason,
-  ludpElapsedEndMs,
-  parseHaltEtMs,
-} from "@/lib/halts/elapsed";
+import { isLudpReason } from "@/lib/halts/elapsed";
 import type { TradeHaltItem } from "@/lib/halts/nasdaq-trade-halts";
 import { ProtectedContent } from "@/components/security/ProtectedContent";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { ensureKoreanShareNames, subscribeKoreanShareNames } from "@/lib/companies/korean-names-client";
+import { haltCardFace, openHaltCount } from "@/lib/halts/halt-board";
+import {
+  closeHaltWidget,
+  getHaltWidgetState,
+  haltCardsAt,
+  haltCompanyName,
+  openHaltWidget,
+  patchHaltWidget,
+  primeHaltWidget,
+  rankHaltCards,
+  subscribeHaltWidget,
+  watchHaltCards,
+} from "@/lib/halts/halt-widget";
 
 type HaltsResponse = {
   items: TradeHaltItem[];
@@ -30,98 +37,9 @@ type HaltsResponse = {
 /** 서버 메모리 캐시를 자주 읽어, NASDAQ 업스트림이 바뀌면 수 초 내 UI 반영 */
 const CLIENT_POLL_MS = 5_000;
 
-function LocalDateTimeCell({
-  etDate,
-  etTime,
-  eventAtIso,
-  requireTime = false,
-}: {
-  etDate: string | null | undefined;
-  etTime: string | null | undefined;
-  /** Absolute ISO (Toss VI 등) — ET wall clock보다 우선 */
-  eventAtIso?: string | null;
-  /** 재개 시각처럼 시간 필드가 비면 '미정' */
-  requireTime?: boolean;
-}) {
-  if (eventAtIso?.trim()) {
-    const ms = Date.parse(eventAtIso);
-    if (Number.isFinite(ms)) {
-      const d = new Date(ms);
-      const time = d.toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hourCycle: "h23",
-      });
-      const date = d.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-      return (
-        <span className="block tabular-nums">
-          <span className="block text-[12px] font-bold leading-tight text-neutral-950">{time}</span>
-          <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-950">
-            {date}
-          </span>
-        </span>
-      );
-    }
-  }
-
-  if (requireTime && !(etTime ?? "").trim()) {
-    return <span className="text-[11px] font-medium text-neutral-950">미정</span>;
-  }
-  const parts = formatEtWallToLocal(etDate, etTime);
-  if (parts.empty) {
-    return <span className="text-[11px] font-medium text-neutral-950">미정</span>;
-  }
-  return (
-    <span className="block tabular-nums">
-      <span className="block text-[12px] font-bold leading-tight text-neutral-950">{parts.time}</span>
-      <span className="mt-0.5 block text-[10px] font-normal leading-tight text-neutral-950">
-        {parts.date}
-      </span>
-    </span>
-  );
-}
-
-function rowKey(row: TradeHaltItem): string {
-  return `${row.symbol}__${row.haltDate}__${row.haltTime}__${row.reasonCode}__${row.source ?? ""}`;
-}
-
-function rowDomId(row: TradeHaltItem): string {
-  return `halt-row-${rowKey(row).replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
-}
-
-function ElapsedCell({
-  row,
-  nowMs,
-}: {
-  row: TradeHaltItem;
-  nowMs: number;
-}) {
-  if (!isLudpReason(row.reasonCode)) {
-    return <span className="text-[11px] font-medium text-neutral-950">장기 정지</span>;
-  }
-
-  const haltMs = haltEventMs(row) || parseHaltEtMs(row.haltDate, row.haltTime);
-  if (haltMs == null || haltMs <= 0) {
-    return <span className="text-[11px] font-medium text-neutral-950">—</span>;
-  }
-
-  // 거래 재개 시각이 있으면 타이머 고정 = 재개 − 정지 (RSS 1분 지연 보정)
-  const endMs = ludpElapsedEndMs(row, nowMs);
-
-  return (
-    <span className="font-mono text-[12px] font-bold tabular-nums text-neutral-950">
-      {formatElapsedKo(haltMs, endMs)}
-    </span>
-  );
-}
-
 export function TradeHaltsPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [namesRev, setNamesRev] = useState(0);
   const [items, setItems] = useState<TradeHaltItem[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +48,8 @@ export function TradeHaltsPanel() {
   const [query, setQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [floating, setFloating] = useState(false);
   const [relayMeta, setRelayMeta] = useState<{
     servedFromCache?: boolean;
     upstreamAgeMs?: number;
@@ -143,17 +63,15 @@ export function TradeHaltsPanel() {
     [items]
   );
 
+  const cardsNow = haltCardsAt(nowMs);
+  const haltedNow = openHaltCount(cardsNow ?? [], nowMs);
+  const ranked = cardsNow ? rankHaltCards(cardsNow, query, locale) : null;
+
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return items
-      .filter(
-        (row) =>
-          row.symbol.toLowerCase().includes(q) ||
-          row.name.toLowerCase().includes(q)
-      )
-      .slice(0, 8);
-  }, [items, query]);
+    if (!q || !cardsNow) return [];
+    return rankHaltCards(cardsNow, q, locale).cards.filter((row) => rankHaltCards(cardsNow, q, locale).matched.has(row.ticker)).slice(0, 8);
+  }, [cardsNow, query, locale, namesRev]);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -169,7 +87,9 @@ export function TradeHaltsPanel() {
           setItems([]);
         }
       } else {
-        setItems(j.items ?? []);
+        const nextItems = j.items ?? [];
+        setItems(nextItems);
+        patchHaltWidget({ rss: nextItems });
         setFetchedAt(j.fetchedAt ?? null);
         setRelayMeta({
           servedFromCache: j.servedFromCache,
@@ -189,17 +109,26 @@ export function TradeHaltsPanel() {
   }, []);
 
   useEffect(() => {
+    void ensureKoreanShareNames();
+    return subscribeKoreanShareNames(() => setNamesRev((rev) => rev + 1));
+  }, []);
+
+  useEffect(() => watchHaltCards(), []);
+
+  useEffect(() => subscribeHaltWidget(() => {
+    setFloating(getHaltWidgetState().mode !== "off");
+  }), []);
+
+  useEffect(() => {
     void load();
     const id = window.setInterval(() => void load({ silent: true }), CLIENT_POLL_MS);
     return () => window.clearInterval(id);
   }, [load]);
 
   useEffect(() => {
-    if (!hasLudp) return;
-    setNowMs(Date.now());
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    const id = window.setInterval(() => setNowMs(Date.now()), 250);
     return () => window.clearInterval(id);
-  }, [hasLudp]);
+  }, []);
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
@@ -219,12 +148,12 @@ export function TradeHaltsPanel() {
     };
   }, []);
 
-  const focusRow = useCallback((row: TradeHaltItem) => {
-    const key = rowKey(row);
-    setQuery(row.symbol);
+  const focusRow = useCallback((ticker: string) => {
+    const key = ticker;
+    setQuery(ticker);
     setDropdownOpen(false);
 
-    const el = document.getElementById(rowDomId(row));
+    const el = document.getElementById(`halt-card-${ticker}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -245,7 +174,7 @@ export function TradeHaltsPanel() {
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-neutral-950 sm:text-2xl">
-          TradeHalt
+          {t("nav.halts")}
         </h1>
         <div ref={searchWrapRef} className="relative min-w-[180px] flex-1 sm:max-w-[260px]">
           <Search
@@ -263,7 +192,7 @@ export function TradeHaltsPanel() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && suggestions[0]) {
                 e.preventDefault();
-                focusRow(suggestions[0]);
+                focusRow(suggestions[0].ticker);
               }
               if (e.key === "Escape") setDropdownOpen(false);
             }}
@@ -281,14 +210,14 @@ export function TradeHaltsPanel() {
                 <li className="px-3 py-2 text-xs text-neutral-950">목록에 일치 항목 없음</li>
               ) : (
                 suggestions.map((row) => (
-                  <li key={rowKey(row)} role="option" aria-selected={query.trim().toUpperCase() === row.symbol}>
+                  <li key={row.ticker} role="option" aria-selected={query.trim().toUpperCase() === row.ticker}>
                     <button
                       type="button"
                       className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors hover:bg-neutral-50"
-                      onClick={() => focusRow(row)}
+                      onClick={() => focusRow(row.ticker)}
                     >
                       <span className="font-mono text-sm font-bold tracking-wide text-neutral-950">
-                        {row.symbol}
+                        {row.ticker}
                       </span>
                       <span className="line-clamp-1 text-[11px] text-neutral-950">{row.name}</span>
                     </button>
@@ -343,117 +272,104 @@ export function TradeHaltsPanel() {
       ) : null}
 
       <ProtectedContent className="overflow-hidden rounded border border-neutral-300 bg-white">
-        <div className="border-b border-neutral-200 bg-white px-3 py-2">
-          <h2 className="text-xs font-bold text-neutral-950">현재 Halt / Resume</h2>
+        <div className="flex items-center justify-between gap-2 border-b border-neutral-200 bg-white px-3 py-2">
+          <h2 className="text-xs font-bold text-neutral-950">{t("halts.board")}</h2>
+          <button
+            type="button"
+            aria-pressed={floating || picking}
+            onClick={() => {
+              if (floating) {
+                setPicking(false);
+                closeHaltWidget();
+                return;
+              }
+              setPicking((on) => {
+                if (!on) primeHaltWidget();
+                return !on;
+              });
+            }}
+            className={
+              floating || picking
+                ? "min-h-8 shrink-0 rounded-full bg-neutral-950 px-3 py-1 text-xs font-medium text-white"
+                : "min-h-8 shrink-0 rounded-full border border-neutral-400 px-3 py-1 text-xs font-medium text-neutral-950"
+            }
+          >
+            {floating ? t("halts.floatClose") : t("halts.float")}
+          </button>
         </div>
+        <p className="border-b border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-950">
+          {t("halts.haltedCount", { count: haltedNow })}
+        </p>
 
-        {loading && items.length === 0 ? (
+        {loading && items.length === 0 && cardsNow == null ? (
           <div className="flex items-center justify-center gap-2 px-3 py-10 text-xs text-neutral-950">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Halt 목록 불러오는 중…
+            {t("halts.loading")}
           </div>
-        ) : items.length === 0 ? (
-          <div className="px-3 py-8 text-center text-xs text-neutral-950">
-            현재 표시할 Trade Halt가 없습니다.
-          </div>
+        ) : !ranked || ranked.cards.length === 0 ? (
+          <div className="px-3 py-8 text-center text-xs text-neutral-950">{t("halts.empty")}</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse bg-white text-left text-[12px] text-neutral-950">
-              <thead>
-                <tr className="border-b border-neutral-200 bg-white text-[10px] font-semibold uppercase tracking-wide text-neutral-950">
-                  <th className="w-[22%] px-2.5 py-2">종목</th>
-                  <th className="w-[9%] px-2 py-2">시장</th>
-                  <th className="w-[16%] px-2 py-2">사유</th>
-                  <th className="w-[13%] px-2 py-2">정지</th>
-                  <th className="w-[12%] px-2 py-2">예상 재개</th>
-                  <th className="w-[12%] px-2 py-2">거래 재개</th>
-                  <th className="w-[16%] px-2 py-2">정지 경과 시간</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((row) => {
-                  const key = rowKey(row);
-                  const highlighted = highlightKey === key;
-                  return (
-                    <tr
-                      key={key}
-                      id={rowDomId(row)}
-                      className={`border-b border-neutral-100 last:border-0 transition-colors duration-500 ${
-                        highlighted ? "bg-amber-100" : "bg-white"
-                      }`}
-                    >
-                      <td className="px-2.5 py-2.5 align-top">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="font-mono text-[15px] font-bold leading-none tracking-wide text-neutral-950">
-                            {row.symbol}
-                          </span>
-                          {row.status === "resuming" ? (
-                            <span className="text-[9px] font-semibold uppercase leading-none text-green-700">
-                              Resume
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-semibold uppercase leading-none text-red-600">
-                              Halt
-                            </span>
-                          )}
-                          {row.source === "toss-vi" ? (
-                            <span className="text-[9px] font-semibold uppercase leading-none text-blue-700">
-                              Toss
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-2 max-w-[180px] text-[10px] leading-relaxed text-neutral-950">
-                          {row.name}
+          <ul className="space-y-2 p-3">
+            {ranked.cards.map((row) => {
+              const face = haltCardFace(row, nowMs);
+              const hit = ranked.matched.has(row.ticker);
+              const name = haltCompanyName(row, locale);
+              return (
+                <li key={row.ticker} id={`halt-card-${row.ticker}`} className="flex items-start gap-2">
+                  {picking && !floating ? (
+                    <input
+                      type="checkbox"
+                      className="mt-4 h-6 w-6 shrink-0 accent-neutral-950"
+                      aria-label={name}
+                      onChange={() => {
+                        setPicking(false);
+                        openHaltWidget(row.ticker);
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className={
+                      hit || highlightKey === row.ticker
+                        ? "min-w-0 flex-1 rounded-lg border-2 border-yellow-500 bg-yellow-200 px-3 py-3"
+                        : "min-w-0 flex-1 rounded-lg border-2 border-neutral-300 bg-white px-3 py-3"
+                    }
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-snug text-neutral-950">{name}</p>
+                        <p className="font-mono text-xs text-neutral-600">
+                          {row.ticker}
+                          {row.market ? ` · ${row.market}` : ""}
                         </p>
-                      </td>
-                      <td className="px-2 py-2.5 align-top font-medium text-neutral-900">
-                        {row.market || "—"}
-                      </td>
-                      <td className="px-2 py-2.5 align-top">
-                        <span className="font-mono text-[13px] font-bold tracking-wide text-neutral-950">
-                          {row.reasonCode}
-                        </span>
-                        <p className="mt-0.5 max-w-[130px] text-[10px] leading-snug text-neutral-700">
-                          {row.reasonLabel}
+                        <p className="mt-1 text-[11px] text-neutral-700">
+                          {row.reasonLabel || (row.kind === "volatility" ? t("halts.volatility") : t("halts.news"))}
                         </p>
-                      </td>
-                      <td className="px-2 py-2.5 align-top">
-                        <LocalDateTimeCell
-                          etDate={row.haltDate}
-                          etTime={row.haltTime}
-                          eventAtIso={row.eventAtIso}
-                        />
-                      </td>
-                      <td className="px-2 py-2.5 align-top">
-                        <LocalDateTimeCell
-                          etDate={row.resumptionDate}
-                          etTime={row.resumptionQuoteTime}
-                          requireTime
-                        />
-                      </td>
-                      <td className="px-2 py-2.5 align-top">
-                        <LocalDateTimeCell
-                          etDate={row.resumptionDate}
-                          etTime={row.resumptionTradeTime}
-                          requireTime
-                        />
-                      </td>
-                      <td className="px-2 py-2.5 align-top">
-                        <ElapsedCell row={row} nowMs={nowMs} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {face.resumed ? (
+                          <p className="text-3xl font-bold text-green-700">{t("halts.resumed")}</p>
+                        ) : face.timed ? (
+                          <>
+                            <p className="text-[11px] text-neutral-600">{t("halts.until")}</p>
+                            <p className="font-mono text-4xl font-bold tabular-nums text-neutral-950">{face.countdown}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] text-neutral-600">{t("halts.waiting")}</p>
+                            <p className="text-3xl font-bold text-neutral-950">{t("halts.unknown")}</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </ProtectedContent>
 
-      <p className="text-[10px] leading-relaxed text-neutral-950">
-        출처: NASDAQ Trade Halt RSS(미국 Halt/Resume) + 토스 Open API(VI/유의·종목명·시장).
-        목록은 정지 발생 일시 최신순입니다. LUDP·VI만 경과 타이머를 표시합니다.
-      </p>
+      <p className="text-[10px] leading-relaxed text-neutral-950">{t("halts.note")}</p>
     </div>
   );
 }

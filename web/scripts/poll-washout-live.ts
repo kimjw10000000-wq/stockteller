@@ -6,9 +6,11 @@
  *   npm run poll:washout
  */
 import { refreshKoreanShareNames } from "../lib/companies/korean-share-names";
+import { fetchNasdaqTradeHalts } from "../lib/halts/nasdaq-trade-halts";
 import { resolve } from "node:path";
 import { config } from "dotenv";
 import { captureWashoutLive } from "../lib/us-market/washout-live";
+import { haltBookTickers, startHaltLiveFeed } from "../lib/halts/halt-live";
 import { noteReclaimSeeds, startReclaimOddsFeed } from "../lib/us-market/reclaim-odds-feed";
 import { compactOldWashoutSamples } from "../lib/us-market/washout-samples";
 import { washoutCaptureSkipReason } from "../lib/us-market/washout-schedule";
@@ -45,6 +47,7 @@ async function loop(): Promise<void> {
     throw new Error("POLYGON_API_KEY_ADVANCED or POLYGON_API_KEY is missing in .env.local");
   }
   startReclaimOddsFeed();
+  startHaltLiveFeed();
   let hour = -1;
   for (;;) {
     await sleepUntilSnapshotSecond();
@@ -84,8 +87,15 @@ async function loop(): Promise<void> {
         }
         console.log(now.toISOString(), "idle", skip);
       }
+      let haltTickers = haltBookTickers();
       try {
-        await refreshKoreanShareNames(shareTickers);
+        const rss = await fetchNasdaqTradeHalts();
+        haltTickers = [...haltTickers, ...rss.items.map((row) => row.symbol)];
+      } catch (e) {
+        console.log(new Date().toISOString(), "halt names", e instanceof Error ? e.message : e);
+      }
+      try {
+        await refreshKoreanShareNames([...shareTickers, ...haltTickers]);
       } catch (e) {
         console.log(new Date().toISOString(), "toss share names", e instanceof Error ? e.message : e);
       }

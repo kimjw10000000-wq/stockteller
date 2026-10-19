@@ -157,18 +157,6 @@ async function collectCandidateSymbols(limit: number): Promise<string[]> {
 
   const jobs = [
     fetchTossRankings({
-      type: "MARKET_TRADING_VOLUME",
-      marketCountry: "KR",
-      duration: "realtime",
-      count: Math.min(limit, 50),
-    }),
-    fetchTossRankings({
-      type: "TOP_GAINERS",
-      marketCountry: "KR",
-      duration: "1d",
-      count: Math.min(limit, 40),
-    }),
-    fetchTossRankings({
       type: "TOP_GAINERS",
       marketCountry: "US",
       duration: "1d",

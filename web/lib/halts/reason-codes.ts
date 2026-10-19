@@ -16,6 +16,7 @@ export const HALT_REASON_CODES: Record<string, string> = {
   C11: "타 규제기관 정지 종료 · 재개",
   M1: "시장 전체 관련",
   LUDP: "변동성 정지 (LULD Pause)",
+  M: "변동성 정지 (AMEX Volatility Pause)",
   LUDS: "Limit Up-Limit Down Straddle",
   VI_STATIC: "정적 VI (변동성완화)",
   VI_DYNAMIC: "동적 VI (변동성완화)",
