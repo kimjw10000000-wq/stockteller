@@ -24,6 +24,12 @@ let publishing = false;
 let luld: WebSocket | null = null;
 let quotes: WebSocket | null = null;
 let started = false;
+let feedOn = false;
+
+function noteChange(): void {
+  dirty = true;
+  if (feedOn) void publish();
+}
 
 export function haltBookTickers(): string[] {
   return [...book.keys()];
@@ -36,7 +42,7 @@ export function applyHaltSignal(signal: HaltSignal): void {
     if (!prev || prev.resumedAt != null) return;
     prev.resumedAt = signal.at;
     if (signal.market) prev.market = signal.market;
-    dirty = true;
+    noteChange();
     return;
   }
   if (prev && prev.resumedAt == null) return;
@@ -47,7 +53,7 @@ export function applyHaltSignal(signal: HaltSignal): void {
     haltedAt: signal.at,
     resumedAt: null,
   });
-  dirty = true;
+  noteChange();
 }
 
 function prune(now: number): void {
@@ -149,6 +155,7 @@ export function startHaltLiveFeed(): void {
     console.error("halt live skipped: POLYGON_API_KEY_ADVANCED missing");
     return;
   }
+  feedOn = true;
   openSocket(onLuld, "luld");
   openSocket(onQuote, "quotes");
   setInterval(() => {

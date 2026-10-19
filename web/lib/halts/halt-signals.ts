@@ -43,8 +43,14 @@ export function polygonEventMs(t: unknown, fallback: number): number {
 }
 
 function nums(value: unknown): number[] {
-  if (Array.isArray(value)) return value.map((item) => Number(item)).filter((n) => Number.isFinite(n));
+  if (Array.isArray(value)) return value.flatMap((item) => nums(item));
   if (typeof value === "number" && Number.isFinite(value)) return [value];
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(/[^0-9]+/)
+      .map((item) => Number(item))
+      .filter((n) => Number.isFinite(n));
+  }
   return [];
 }
 

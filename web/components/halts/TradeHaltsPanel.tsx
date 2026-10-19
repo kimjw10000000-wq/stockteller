@@ -117,6 +117,7 @@ export function TradeHaltsPanel() {
 
   useEffect(() => subscribeHaltWidget(() => {
     setFloating(getHaltWidgetState().mode !== "off");
+    setNowMs(Date.now());
   }), []);
 
   useEffect(() => {

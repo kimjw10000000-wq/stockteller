@@ -176,8 +176,8 @@ export function mergeHaltCards(live: LiveHaltCard[], rss: TradeHaltItem[], now: 
     const prev = byTicker.get(row.ticker) ?? names.get(row.ticker);
     const liveOpen = row.resumedAt == null;
     if (!liveOpen && !keepResumedCard(row.haltedAt, row.resumedAt, now)) continue;
-    if (!liveOpen && prev && prev.resumedAt == null && prev.haltedAt >= row.haltedAt) continue;
-    if (liveOpen && prev && prev.kind === "news" && prev.haltedAt > row.haltedAt) continue;
+    if (prev?.kind === "news" && prev.haltedAt >= row.haltedAt) continue;
+    if (!liveOpen && prev && prev.resumedAt == null && prev.haltedAt > (row.resumedAt ?? row.haltedAt)) continue;
     if (liveOpen && prev?.resumedAt != null && prev.resumedAt >= row.haltedAt) continue;
     const card: HaltCard = {
       ticker: row.ticker,

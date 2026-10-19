@@ -113,4 +113,14 @@ const resumedMidTimer = mergeHaltCards(
 const amro = resumedMidTimer.find((card) => card.ticker === "AMRO");
 assert(amro != null && haltCardFace(amro, now).resumed, "nasdaq resume cuts the timer");
 
+const polygonResume = mergeHaltCards(
+  [{ ticker: "GAUZ", market: "Nasdaq", kind: "volatility", haltedAt: now - 6 * 60_000, resumedAt: now - 60_000 }],
+  [rssRow({ symbol: "GAUZ", reasonCode: "LUDP", haltTime: "11:54:00" })],
+  now,
+);
+const gauz = polygonResume.find((card) => card.ticker === "GAUZ");
+assert(gauz != null && haltCardFace(gauz, now).resumed, "polygon resume cuts the timer before nasdaq");
+const stringResume = signalFromLuld({ T: "GAUZ", i: "18", z: 3, t: now });
+assert(stringResume?.action === "resume", "string indicator 18 is a resume");
+
 console.log("halt clock ok");
