@@ -1,13 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMarketCaps } from "./market-cap";
 import { fetchSecExchangeTickers } from "./sec-exchange-tickers";
-import { fetchNasdaqTraderExchanges } from "./nasdaq-trader-exchanges";
+import { fetchNasdaqTraderListings } from "./nasdaq-trader-exchanges";
 import { classifyShareClass } from "./share-class";
+import { fetchPolygonTickerCiks } from "./polygon-ticker-cik";
+import { resolveTickerMeta } from "@/lib/sec/edgar-client";
+import { loadRecent12bFilings } from "./edgar-12b-index";
 import {
+  buildExchangeListedUniverse,
+  deactivateRemainingOrphanCiks,
+  fillListingCiks,
+  lookupSecCikForTraderTicker,
   parsePreviousTickers,
   planUsListedDiff,
   type DbListingRow,
   type ListingDiffPlan,
+  type PolygonCikHit,
 } from "./listing-diff";
 import {
   DEFAULT_NEWSWIRE_BATCH,
@@ -24,6 +32,15 @@ const DEFAULT_MARKET_CAP_BATCH = 300;
 export type UsListedSyncResult = {
   ok: boolean;
   secFetched: number;
+  traderFetched: number;
+  mapMatched: number;
+  aliasFilled: number;
+  polygonFilled: number;
+  edgarFilled: number;
+  formFilled: number;
+  parentFilled: number;
+  skippedNoCik: number;
+  orphanCiksDeleted: number;
   upserted: number;
   inserted: number;
   deactivated: number;
@@ -36,6 +53,8 @@ export type UsListedSyncResult = {
     inserted: string[];
     deactivated: string[];
     renamed: Array<{ from: string; to: string }>;
+    skippedNoCik: string[];
+    polygonFilled: string[];
   };
   error?: string;
   durationMs: number;
@@ -58,6 +77,7 @@ async function loadDbListings(admin: SupabaseClient): Promise<DbListingRow[]> {
     const { data, error } = await admin
       .from("us_listed_companies")
       .select("ticker,name,cik,exchange,is_active,previous_tickers")
+      .order("ticker", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
       if (/is_active|previous_tickers/i.test(error.message)) {
@@ -336,19 +356,68 @@ export async function syncUsListedCompanies(
   try {
     const [sec, trader, db] = await Promise.all([
       fetchSecExchangeTickers({ listedOnly: true }),
-      fetchNasdaqTraderExchanges().catch(() => new Map()),
+      fetchNasdaqTraderListings(),
       loadDbListings(admin),
     ]);
+    if (trader.length < 1000) {
+      throw new Error(`nasdaq trader directories too small (${trader.length})`);
+    }
+
+    const secByTicker = new Map(sec.map((r) => [r.ticker, r]));
+    const missingTickers = trader
+      .map((r) => r.ticker)
+      .filter((t) => !secByTicker.has(t) && !lookupSecCikForTraderTicker(t, secByTicker));
+    console.log(
+      `[us-listed-sync] trader=${trader.length} sec=${sec.length} missingCik=${missingTickers.length}`
+    );
+    const polygonHits = missingTickers.length
+      ? await fetchPolygonTickerCiks(missingTickers)
+      : new Map();
+    const polygonByTicker = new Map<string, PolygonCikHit>();
+    for (const [ticker, hit] of polygonHits) {
+      polygonByTicker.set(ticker, { cik: hit.cik, name: hit.name });
+    }
+
+    const universe = buildExchangeListedUniverse(trader, sec, polygonByTicker);
+    let edgarFilled = 0;
+    let formFilled = 0;
+    let parentFilled = 0;
+    if (universe.skippedNoCik.length) {
+      const skippedSet = new Set(universe.skippedNoCik);
+      const skippedRows = trader.filter((row) => skippedSet.has(row.ticker));
+      const cikByTicker = new Map<string, { cik: string; name?: string }>();
+      for (const row of skippedRows) {
+        const meta = await resolveTickerMeta(row.ticker);
+        if (!meta) continue;
+        cikByTicker.set(row.ticker, { cik: meta.cikPadded, name: meta.title });
+      }
+      const filings = skippedRows.some((row) => !cikByTicker.has(row.ticker))
+        ? await loadRecent12bFilings()
+        : [];
+      const filled = fillListingCiks({
+        skipped: skippedRows,
+        listed: universe.listed,
+        cikByTicker,
+        filings,
+        universeTickers: trader.map((row) => row.ticker),
+      });
+      universe.listed.push(...filled.added);
+      universe.skippedNoCik = filled.skippedNoCik;
+      edgarFilled = filled.edgarFilled;
+      formFilled = filled.formFilled;
+      parentFilled = filled.parentFilled;
+    }
     const now = new Date().toISOString();
-    const secRows = sec.map((r) => ({
-      ...r,
-      exchange: trader.get(r.ticker) ?? r.exchange,
-    }));
-    const plan = planUsListedDiff(secRows, db);
+    const plan = deactivateRemainingOrphanCiks(
+      planUsListedDiff(universe.listed, db),
+      db,
+      universe.listed,
+      universe.orphanCiksRemaining
+    );
     const listing = await applyListingPlan(admin, plan, now);
 
     console.log(
-      `[us-listed-sync] sec=${sec.length} inserted=${listing.inserted} deactivated=${listing.deactivated} renamed=${listing.tickerRenamed} updated=${listing.exchangeUpdated}`
+      `[us-listed-sync] trader=${trader.length} sec=${sec.length} matched=${universe.mapMatched} alias=${universe.aliasFilled} polygon=${universe.polygonFilled} edgar=${edgarFilled} form=${formFilled} parent=${parentFilled} skip=${universe.skippedNoCik.length} orphans=${universe.orphanCiksRemaining.length} inserted=${listing.inserted} deactivated=${listing.deactivated} renamed=${listing.tickerRenamed} updated=${listing.exchangeUpdated}`
     );
 
     const { error: adrErr } = await admin
@@ -371,6 +440,15 @@ export async function syncUsListedCompanies(
     return {
       ok: true,
       secFetched: sec.length,
+      traderFetched: trader.length,
+      mapMatched: universe.mapMatched,
+      aliasFilled: universe.aliasFilled,
+      polygonFilled: universe.polygonFilled,
+      edgarFilled,
+      formFilled,
+      parentFilled,
+      skippedNoCik: universe.skippedNoCik.length,
+      orphanCiksDeleted: universe.orphanCiksRemaining.length,
       upserted: listing.inserted + listing.exchangeUpdated + listing.tickerRenamed,
       inserted: listing.inserted,
       deactivated: listing.deactivated,
@@ -383,6 +461,8 @@ export async function syncUsListedCompanies(
         inserted: plan.inserts.slice(0, 12).map((r) => r.ticker),
         deactivated: plan.deactivates.slice(0, 12),
         renamed: plan.renames.slice(0, 12).map((r) => ({ from: r.from, to: r.to })),
+        skippedNoCik: universe.skippedNoCik.slice(0, 20),
+        polygonFilled: [...polygonHits.keys()].slice(0, 20),
       },
       durationMs: Date.now() - started,
     };
@@ -390,6 +470,15 @@ export async function syncUsListedCompanies(
     return {
       ok: false,
       secFetched: 0,
+      traderFetched: 0,
+      mapMatched: 0,
+      aliasFilled: 0,
+      polygonFilled: 0,
+      edgarFilled: 0,
+      formFilled: 0,
+      parentFilled: 0,
+      skippedNoCik: 0,
+      orphanCiksDeleted: 0,
       upserted: 0,
       inserted: 0,
       deactivated: 0,

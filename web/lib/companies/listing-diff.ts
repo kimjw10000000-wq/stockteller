@@ -1,3 +1,4 @@
+import { issuerNamesEqual } from "./issuer-name";
 import { isJuniorShareListing } from "./share-class";
 
 export type ListedExchange = "NASDAQ" | "NYSE" | "AMEX" | "OTC" | "OTHER";
@@ -355,9 +356,64 @@ export function deactivateRemainingOrphanCiks(
   return mergeDeactivates(plan, extra);
 }
 
+function pairableCommon(row: { ticker: string; name: string }, siblings: string[]): boolean {
+  if (isWarrantOrPreferredListing(row.ticker, row.name)) return false;
+  if (/\bunits?\b/i.test(row.name)) return false;
+  return !isJuniorShareListing(row.ticker, siblings);
+}
+
+/** When one CIK has several old and new tickers, pair only a unique common-name match. */
+function pairRenamesByIssuerName(
+  orphans: DbListingRow[],
+  newcomers: SecListingRow[]
+): Array<{ from: DbListingRow; to: SecListingRow }> {
+  const siblings = [...orphans.map((row) => row.ticker), ...newcomers.map((row) => row.ticker)];
+  const pairs: Array<{ from: DbListingRow; to: SecListingRow }> = [];
+  const usedFrom = new Set<string>();
+  const usedTo = new Set<string>();
+  for (const from of orphans) {
+    if (!pairableCommon(from, siblings)) continue;
+    const hits = newcomers.filter(
+      (to) => !usedTo.has(to.ticker) && pairableCommon(to, siblings) && issuerNamesEqual(from.name, to.name)
+    );
+    if (hits.length !== 1) continue;
+    const to = hits[0];
+    if (!to) continue;
+    const reverse = orphans.filter(
+      (row) => !usedFrom.has(row.ticker) && pairableCommon(row, siblings) && issuerNamesEqual(row.name, to.name)
+    );
+    if (reverse.length !== 1) continue;
+    usedFrom.add(from.ticker);
+    usedTo.add(to.ticker);
+    pairs.push({ from, to });
+  }
+  return pairs;
+}
+
+function pushRename(
+  renames: ListingRename[],
+  claimedNew: Set<string>,
+  renamedAway: Set<string>,
+  from: DbListingRow,
+  to: SecListingRow
+): void {
+  claimedNew.add(to.ticker);
+  renamedAway.add(from.ticker);
+  renames.push({
+    from: from.ticker,
+    to: to.ticker,
+    cik: to.cik,
+    name: to.name,
+    exchange: to.exchange,
+    previous_tickers: appendPrevious(from.previous_tickers, from.ticker),
+  });
+}
+
 /**
  * Listed universe vs DB. Dual-class issuers (same CIK, two tickers) stay as two rows.
- * 1:1 ticker rename on a CIK updates the existing row; leftover active tickers go OTC/inactive.
+ * A single old ticker and a single new ticker on the same CIK is a rename.
+ * Several of each pair only when the common-stock names match one to one.
+ * Everything else inserts or goes inactive. No manual list.
  */
 export function planUsListedDiff(sec: SecListingRow[], db: DbListingRow[]): ListingDiffPlan {
   const listed = sec.filter((r) => isSearchListedExchange(r.exchange));
@@ -388,18 +444,11 @@ export function planUsListedDiff(sec: SecListingRow[], db: DbListingRow[]): List
     if (orphans.length === 1 && newcomers.length === 1) {
       const from = orphans[0];
       const to = newcomers[0];
-      if (from && to) {
-        claimedNew.add(to.ticker);
-        renamedAway.add(from.ticker);
-        renames.push({
-          from: from.ticker,
-          to: to.ticker,
-          cik,
-          name: to.name,
-          exchange: to.exchange,
-          previous_tickers: appendPrevious(from.previous_tickers, from.ticker),
-        });
-      }
+      if (from && to) pushRename(renames, claimedNew, renamedAway, from, to);
+      continue;
+    }
+    for (const pair of pairRenamesByIssuerName(orphans, newcomers)) {
+      pushRename(renames, claimedNew, renamedAway, pair.from, pair.to);
     }
   }
 
@@ -444,5 +493,103 @@ export function planUsListedDiff(sec: SecListingRow[], db: DbListingRow[]): List
     updates,
     renames,
     deactivates: [...deactivate],
+  };
+}
+
+export type CikHint = { cik: string; name?: string };
+
+export type FilingNameHint = { cik: string; companyName: string };
+
+function realCik(raw: string | undefined): string {
+  const cik = String(raw ?? "").replace(/\D/g, "").padStart(10, "0");
+  if (!cik || cik === "0000000000") return "";
+  return cik;
+}
+
+/**
+ * Tickers the exchange lists but the SEC exchange file did not.
+ * Fill CIK from the plain SEC ticker map, then a unique recent registration-name match,
+ * then the common share already resolved in this same pass.
+ */
+export function fillListingCiks(input: {
+  skipped: TraderListingRow[];
+  listed: SecListingRow[];
+  cikByTicker: Map<string, CikHint>;
+  filings: FilingNameHint[];
+  universeTickers: string[];
+}): { added: SecListingRow[]; skippedNoCik: string[]; edgarFilled: number; formFilled: number; parentFilled: number } {
+  const byTicker = new Map(input.listed.map((row) => [row.ticker, row]));
+  const added: SecListingRow[] = [];
+  let edgarFilled = 0;
+  let formFilled = 0;
+  let parentFilled = 0;
+  const pending = input.skipped.filter((row) => isSearchListedExchange(row.exchange) && !byTicker.has(row.ticker));
+
+  const take = (row: TraderListingRow, cik: string, name: string, kind: "edgar" | "form" | "parent") => {
+    const next: SecListingRow = {
+      ticker: row.ticker,
+      name: name.trim() || row.name,
+      cik,
+      exchange: row.exchange,
+    };
+    byTicker.set(row.ticker, next);
+    added.push(next);
+    if (kind === "edgar") edgarFilled += 1;
+    else if (kind === "form") formFilled += 1;
+    else parentFilled += 1;
+  };
+
+  const afterTicker: TraderListingRow[] = [];
+  for (const row of pending) {
+    const hint = input.cikByTicker.get(row.ticker);
+    const cik = realCik(hint?.cik);
+    if (!cik) {
+      afterTicker.push(row);
+      continue;
+    }
+    take(row, cik, hint?.name || row.name, "edgar");
+  }
+
+  const afterForm: TraderListingRow[] = [];
+  for (const row of afterTicker) {
+    const hit = input.filings.find((filing) => issuerNamesEqual(row.name, filing.companyName));
+    const cik = realCik(hit?.cik);
+    if (!hit || !cik) {
+      afterForm.push(row);
+      continue;
+    }
+    const sameName = afterTicker.filter((other) => issuerNamesEqual(other.name, hit.companyName));
+    if (sameName.length !== 1) {
+      afterForm.push(row);
+      continue;
+    }
+    take(row, cik, row.name, "form");
+  }
+
+  let rest = afterForm;
+  let moved = true;
+  while (moved) {
+    moved = false;
+    const still: TraderListingRow[] = [];
+    for (const row of rest) {
+      const parentTicker = findIssuerParentTicker(row.ticker, input.universeTickers);
+      const parent = parentTicker ? byTicker.get(parentTicker) : undefined;
+      const cik = realCik(parent?.cik);
+      if (!parent || !cik) {
+        still.push(row);
+        continue;
+      }
+      take(row, cik, row.name, "parent");
+      moved = true;
+    }
+    rest = still;
+  }
+
+  return {
+    added,
+    skippedNoCik: rest.map((row) => row.ticker),
+    edgarFilled,
+    formFilled,
+    parentFilled,
   };
 }

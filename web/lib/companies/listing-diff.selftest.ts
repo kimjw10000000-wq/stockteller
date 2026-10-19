@@ -1,6 +1,7 @@
 import {
   buildExchangeListedUniverse,
   deactivateRemainingOrphanCiks,
+  fillListingCiks,
   planUsListedDiff,
   resolveListedIssuerParent,
   findIssuerParentTicker,
@@ -122,6 +123,50 @@ assert(
   "same-day IPO warrant waits on common"
 );
 assert(findIssuerParentTicker("ARBE", ["ARBE", "ARBEW"]) == null, "common has no parent");
+
+const split = planUsListedDiff(
+  [
+    { ticker: "NEW1", name: "Alpha Inc. - Common Stock", cik: "0000000088", exchange: "NASDAQ" },
+    { ticker: "NEW2", name: "Alpha Inc. - Warrant", cik: "0000000088", exchange: "NASDAQ" },
+  ],
+  [
+    db("OLD1", "0000000088", { name: "Alpha Inc. - Common Stock" }),
+    db("OLD2", "0000000088", { name: "Alpha Class B" }),
+  ]
+);
+assert(split.renames.some((row) => row.from === "OLD1" && row.to === "NEW1"), "unique common name renames");
+assert(!split.renames.some((row) => row.from === "OLD2"), "unmatched class is not renamed");
+assert(split.inserts.some((row) => row.ticker === "NEW2"), "warrant inserts beside the rename");
+assert(split.deactivates.includes("OLD2"), "unmatched old ticker deactivates");
+
+const ambiguous = planUsListedDiff(
+  [
+    { ticker: "B", name: "Beta Co", cik: "0000000077", exchange: "NASDAQ" },
+    { ticker: "C", name: "Gamma Co", cik: "0000000077", exchange: "NASDAQ" },
+  ],
+  [db("A1", "0000000077", { name: "Old One" }), db("A2", "0000000077", { name: "Old Two" })]
+);
+assert(ambiguous.renames.length === 0, "ambiguous cik does not guess a rename");
+assert(ambiguous.deactivates.includes("A1") && ambiguous.deactivates.includes("A2"), "old tickers deactivate");
+assert(ambiguous.inserts.some((row) => row.ticker === "B") && ambiguous.inserts.some((row) => row.ticker === "C"), "new tickers insert");
+
+const filled = fillListingCiks({
+  skipped: [
+    { ticker: "WORX", name: "SCWorx", exchange: "NASDAQ" },
+    { ticker: "ARBEW", name: "Arbe Warrant", exchange: "NASDAQ" },
+    { ticker: "IPO1", name: "Brand New Inc. - Common Stock", exchange: "NYSE" },
+    { ticker: "DUP1", name: "Same Name Inc", exchange: "NASDAQ" },
+    { ticker: "DUP2", name: "Same Name Inc", exchange: "NASDAQ" },
+  ],
+  listed: [{ ticker: "ARBE", name: "Arbe", cik: "0000000042", exchange: "NASDAQ" }],
+  cikByTicker: new Map([["WORX", { cik: "0001674227", name: "SCWorx Corp." }]]),
+  filings: [{ cik: "0000000091", companyName: "Brand New Inc." }],
+  universeTickers: ["WORX", "ARBEW", "ARBE", "IPO1", "DUP1", "DUP2"],
+});
+assert(filled.added.some((row) => row.ticker === "WORX" && row.cik === "0001674227"), "sec ticker map fills cik");
+assert(filled.added.some((row) => row.ticker === "ARBEW" && row.cik === "0000000042"), "warrant inherits the common cik");
+assert(filled.added.some((row) => row.ticker === "IPO1" && row.cik === "0000000091"), "registration name fills cik");
+assert(filled.skippedNoCik.includes("DUP1") && filled.skippedNoCik.includes("DUP2"), "duplicate names stay unresolved");
 
 console.log("listing-diff.selftest ok", {
   listed: uni.listed.map((r) => r.ticker),
