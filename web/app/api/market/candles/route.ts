@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sharedCdnCache } from "@/lib/http/shared-cdn-cache";
 import { isTossConfigured, TossApiError } from "@/lib/toss/client";
 import { fetchTossCandles } from "@/lib/toss/market";
 
@@ -51,26 +52,32 @@ export async function GET(req: Request) {
   try {
     if (isTossConfigured()) {
       const candles = await fetchTossCandles(symbol, interval, count);
-      return NextResponse.json({
-        symbol,
-        interval,
-        candles,
-        source: "toss",
-        fetchedAt: new Date().toISOString(),
-      });
+      return NextResponse.json(
+        {
+          symbol,
+          interval,
+          candles,
+          source: "toss",
+          fetchedAt: new Date().toISOString(),
+        },
+        { headers: sharedCdnCache(60, 60) }
+      );
     }
 
     const candles = await finnhubCandles(symbol, count);
-    return NextResponse.json({
-      symbol,
-      interval: "1d",
-      candles: candles ?? [],
-      source: candles ? "finnhub" : "none",
-      message: candles
-        ? "토스 미설정 — Finnhub 일봉 폴백"
-        : "토스(TOSSINVEST_CLIENT_ID/SECRET) 또는 FINNHUB_API_KEY가 필요합니다.",
-      fetchedAt: new Date().toISOString(),
-    });
+    return NextResponse.json(
+      {
+        symbol,
+        interval: "1d",
+        candles: candles ?? [],
+        source: candles ? "finnhub" : "none",
+        message: candles
+          ? "토스 미설정 — Finnhub 일봉 폴백"
+          : "토스(TOSSINVEST_CLIENT_ID/SECRET) 또는 FINNHUB_API_KEY가 필요합니다.",
+        fetchedAt: new Date().toISOString(),
+      },
+      { headers: sharedCdnCache(60, 60) }
+    );
   } catch (e) {
     const status = e instanceof TossApiError ? e.httpStatus : 500;
     console.error("[market/candles]", e);

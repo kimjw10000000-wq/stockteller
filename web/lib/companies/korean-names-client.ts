@@ -35,7 +35,7 @@ export function ensureKoreanShareNames(): Promise<void> {
       void ensureKoreanShareNames();
     }, 60_000);
   }
-  inflight = fetch(url, { cache: "no-store" })
+  inflight = fetch(url, { cache: "default" })
     .then(async (res) => {
       if (!res.ok) return;
       const json = (await res.json()) as NamesFile;

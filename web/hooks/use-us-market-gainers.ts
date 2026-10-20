@@ -33,7 +33,7 @@ export function useUsMarketGainers(minPct: number, pollMs: number) {
     let apiFinnhubRefined = false;
 
     try {
-      const res = await fetch(`/api/us-day-gainers?minPct=${minPct}`, { cache: "no-store" });
+      const res = await fetch(`/api/us-day-gainers?minPct=${minPct}`, { cache: "default" });
       if (!res.ok) {
         const t = await res.text();
         throw new Error(t.slice(0, 240) || `HTTP ${res.status}`);

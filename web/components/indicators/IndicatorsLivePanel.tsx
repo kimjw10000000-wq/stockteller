@@ -181,7 +181,7 @@ export function IndicatorsLivePanel() {
 
     async function loadState() {
       try {
-        const res = await fetch("/api/indicators/state", { cache: "no-store" });
+        const res = await fetch("/api/indicators/state", { cache: "default" });
         const j = (await res.json()) as IndicatorsSnapshot & { ok?: boolean };
         if (!cancelled && j.items) applySnapshot(j);
       } catch (e) {
@@ -235,7 +235,7 @@ export function IndicatorsLivePanel() {
     pollTimer = window.setInterval(() => {
       void (async () => {
         try {
-          const res = await fetch("/api/indicators/state", { cache: "no-store" });
+          const res = await fetch("/api/indicators/state", { cache: "default" });
           const j = (await res.json()) as IndicatorsSnapshot;
           if (j.items) {
             setItems((prev) => {

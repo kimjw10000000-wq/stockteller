@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sharedCdnCache } from "@/lib/http/shared-cdn-cache";
 import { isAlphaVantageConfigured } from "@/lib/us-market/alpha-vantage-gainers";
 import { getUsMarketGainersForRoute } from "@/lib/us-market/us-gainers-server";
 
@@ -12,15 +13,18 @@ export async function GET(req: Request) {
   try {
     const result = await getUsMarketGainersForRoute(minPct);
 
-    return NextResponse.json({
-      items: result.items,
-      source: result.source,
-      alphavantageConfigured: isAlphaVantageConfigured(),
-      delayedMarketSnapshot: result.delayedMarketSnapshot,
-      finnhubQuoteRefined: result.finnhubQuoteRefined,
-      fetchedAt: new Date().toISOString(),
-      minPct,
-    });
+    return NextResponse.json(
+      {
+        items: result.items,
+        source: result.source,
+        alphavantageConfigured: isAlphaVantageConfigured(),
+        delayedMarketSnapshot: result.delayedMarketSnapshot,
+        finnhubQuoteRefined: result.finnhubQuoteRefined,
+        fetchedAt: new Date().toISOString(),
+        minPct,
+      },
+      { headers: sharedCdnCache(30, 15) }
+    );
   } catch (e) {
     console.error("[us-day-gainers]", e);
     return NextResponse.json(

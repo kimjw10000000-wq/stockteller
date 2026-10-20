@@ -79,7 +79,7 @@ export function TradeHaltsPanel() {
       setError(null);
     }
     try {
-      const res = await fetch("/api/halts", { cache: "no-store" });
+      const res = await fetch("/api/halts", { cache: "default" });
       const j = (await res.json()) as HaltsResponse;
       if (!res.ok && j.error) {
         if (!opts?.silent) {

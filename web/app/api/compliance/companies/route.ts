@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sharedCdnCache } from "@/lib/http/shared-cdn-cache";
 import { searchUsListedCompanies } from "@/lib/companies/search";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
         q,
         count: items.length,
       },
-      { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } }
+      { headers: sharedCdnCache(30, 60) }
     );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

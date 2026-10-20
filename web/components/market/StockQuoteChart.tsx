@@ -99,9 +99,9 @@ export function StockQuoteChart({ defaultSymbol = "AAPL" }: { defaultSymbol?: st
     setSymbol(s);
     try {
       const [qRes, cRes] = await Promise.all([
-        fetch(`/api/market/quote?symbols=${encodeURIComponent(s)}`, { cache: "no-store" }),
+        fetch(`/api/market/quote?symbols=${encodeURIComponent(s)}`, { cache: "default" }),
         fetch(`/api/market/candles?symbol=${encodeURIComponent(s)}&interval=1d&count=60`, {
-          cache: "no-store",
+          cache: "default",
         }),
       ]);
       const qj = (await qRes.json()) as {

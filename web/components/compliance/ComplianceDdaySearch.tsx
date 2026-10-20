@@ -62,7 +62,7 @@ export function ComplianceDdaySearch() {
         try {
           const res = await fetch(
             `/api/compliance/companies?q=${encodeURIComponent(q)}&limit=12`,
-            { cache: "no-store" }
+            { cache: "default" }
           );
           const j = (await res.json()) as { items?: CompanyHit[] };
           setSuggestions(j.items ?? []);
@@ -94,10 +94,10 @@ export function ComplianceDdaySearch() {
     try {
       const [res, shelfRes] = await Promise.all([
         fetch(`/api/compliance/analysis?ticker=${encodeURIComponent(ticker)}`, {
-          cache: "no-store",
+          cache: "default",
         }),
         fetch(`/api/compliance/registered-capacity?ticker=${encodeURIComponent(ticker)}`, {
-          cache: "no-store",
+          cache: "default",
         }),
       ]);
       const j = (await res.json()) as CompanyAnalysisApiOk | { ok: false; error?: string };

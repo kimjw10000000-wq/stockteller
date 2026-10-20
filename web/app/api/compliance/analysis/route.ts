@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sharedCdnCache } from "@/lib/http/shared-cdn-cache";
 import type {
   CompanyAnalysisApiOk,
   CompanyAnalysisRow,
@@ -73,12 +74,16 @@ export async function GET(req: Request) {
     const cached = await getCachedAnalysis(admin, ticker);
     const shelfCapacity = await loadRegisteredCapacitySnapshot(admin, ticker).catch(() => null);
     if (cached && !cached.analysis_error) {
-      return NextResponse.json(rowToApi(cached, "cache", meta, shelfCapacity));
+      return NextResponse.json(rowToApi(cached, "cache", meta, shelfCapacity), {
+        headers: sharedCdnCache(60, 60),
+      });
     }
 
     // Cache miss (or prior error): one-shot EDGAR analyze + upsert
     const fresh = await analyzeAndCacheCompany(admin, ticker);
-    return NextResponse.json(rowToApi(fresh, "fresh", meta, shelfCapacity));
+    return NextResponse.json(rowToApi(fresh, "fresh", meta, shelfCapacity), {
+      headers: sharedCdnCache(60, 60),
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[compliance/analysis]", message);

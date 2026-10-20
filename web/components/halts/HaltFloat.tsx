@@ -310,7 +310,7 @@ export function HaltFloat() {
       if (!floating && haltWatchers() === 0) return;
       if (document.hidden && !floating) return;
       try {
-        const res = await fetch(haltLiveUrl(), { cache: "no-cache" });
+        const res = await fetch(haltLiveUrl(), { cache: "default" });
         if (stopped) return;
         if (res.status === 304) return;
         if (!res.ok) {

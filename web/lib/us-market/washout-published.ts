@@ -134,13 +134,59 @@ export async function savePublishedReclaimOdds(file: PublishedReclaimOdds): Prom
   if (error) throw error;
 }
 
-export async function loadPublishedWashout(): Promise<PublishedWashout | null> {
+async function downloadPublished(path: string): Promise<string | null> {
   try {
     const admin = storageAdmin();
-    const { data, error } = await admin.storage.from(BUCKET).download(OBJECT_PATH);
+    const { data, error } = await admin.storage.from(BUCKET).download(path);
     if (error || !data) return null;
-    const parsed = JSON.parse(await data.text()) as PublishedWashout;
+    return await data.text();
+  } catch {
+    return null;
+  }
+}
+
+export async function loadPublishedWashout(): Promise<PublishedWashout | null> {
+  const text = await downloadPublished(OBJECT_PATH);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as PublishedWashout;
     if (!parsed?.boards || typeof parsed.boards !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadPublishedHaltLive(): Promise<PublishedHaltLive | null> {
+  const text = await downloadPublished(HALT_LIVE_PATH);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as PublishedHaltLive;
+    if (!Array.isArray(parsed?.cards)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadPublishedReclaimOdds(): Promise<PublishedReclaimOdds | null> {
+  const text = await downloadPublished(ODDS_PATH);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as PublishedReclaimOdds;
+    if (!Array.isArray(parsed?.cards)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadPublishedKoreanNamesFile(): Promise<PublishedKoreanNames | null> {
+  const text = await downloadPublished(NAMES_KO_PATH);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as PublishedKoreanNames;
+    if (!parsed?.names || typeof parsed.names !== "object") return null;
     return parsed;
   } catch {
     return null;

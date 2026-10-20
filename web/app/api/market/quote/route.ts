@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sharedCdnCache } from "@/lib/http/shared-cdn-cache";
 import { isTossConfigured, TossApiError } from "@/lib/toss/client";
 import { fetchTossPrices } from "@/lib/toss/market";
 
@@ -39,19 +40,22 @@ export async function GET(req: Request) {
   try {
     if (isTossConfigured()) {
       const prices = await fetchTossPrices(symbols);
-      return NextResponse.json({
-        items: prices.map((p) => ({
-          symbol: p.symbol,
-          price: p.price,
-          change: p.change,
-          changePct: p.changePct,
-          volume: p.volume,
-          currency: p.currency,
-        })),
-        source: "toss",
-        configured: true,
-        fetchedAt: new Date().toISOString(),
-      });
+      return NextResponse.json(
+        {
+          items: prices.map((p) => ({
+            symbol: p.symbol,
+            price: p.price,
+            change: p.change,
+            changePct: p.changePct,
+            volume: p.volume,
+            currency: p.currency,
+          })),
+          source: "toss",
+          configured: true,
+          fetchedAt: new Date().toISOString(),
+        },
+        { headers: sharedCdnCache(5, 5) }
+      );
     }
 
     const items = [];
@@ -60,17 +64,20 @@ export async function GET(req: Request) {
       if (q) items.push(q);
     }
 
-    return NextResponse.json({
-      items,
-      source: items.length ? "finnhub" : "none",
-      configured: false,
-      tossConfigured: false,
-      message:
-        items.length === 0
-          ? "토스(TOSSINVEST_CLIENT_ID/SECRET) 또는 FINNHUB_API_KEY가 필요합니다."
-          : "토스 미설정 — Finnhub 폴백",
-      fetchedAt: new Date().toISOString(),
-    });
+    return NextResponse.json(
+      {
+        items,
+        source: items.length ? "finnhub" : "none",
+        configured: false,
+        tossConfigured: false,
+        message:
+          items.length === 0
+            ? "토스(TOSSINVEST_CLIENT_ID/SECRET) 또는 FINNHUB_API_KEY가 필요합니다."
+            : "토스 미설정 — Finnhub 폴백",
+        fetchedAt: new Date().toISOString(),
+      },
+      { headers: sharedCdnCache(5, 5) }
+    );
   } catch (e) {
     const status = e instanceof TossApiError ? e.httpStatus : 500;
     console.error("[market/quote]", e);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sharedCdnCache } from "@/lib/http/shared-cdn-cache";
 import {
   loadRegisteredCapacitySnapshot,
   refreshRegisteredCapacityForTicker,
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
     if (!snap) {
       return NextResponse.json({ ok: false, error: "상장사 목록에 없는 티커입니다." }, { status: 404 });
     }
-    return NextResponse.json({ ok: true, ...snap });
+    return NextResponse.json({ ok: true, ...snap }, { headers: sharedCdnCache(60, 60) });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

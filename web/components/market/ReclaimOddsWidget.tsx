@@ -378,7 +378,7 @@ export function ReclaimOddsWidget() {
       if (!live && reclaimWatchers() === 0) return;
       if (document.hidden && !live) return;
       try {
-        const res = await fetch(reclaimOddsUrl(), { cache: "no-cache" });
+        const res = await fetch(reclaimOddsUrl(), { cache: "default" });
         if (stopped) return;
         if (res.status === 304) return;
         if (!res.ok) {
