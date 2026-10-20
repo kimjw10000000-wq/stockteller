@@ -378,8 +378,9 @@ export function ReclaimOddsWidget() {
       if (!live && reclaimWatchers() === 0) return;
       if (document.hidden && !live) return;
       try {
-        const res = await fetch(reclaimOddsUrl(), { cache: "no-store" });
+        const res = await fetch(reclaimOddsUrl(), { cache: "no-cache" });
         if (stopped) return;
+        if (res.status === 304) return;
         if (!res.ok) {
           if (getReclaimWidgetState().cards == null) patchReclaimWidget({ cards: [] });
           return;
