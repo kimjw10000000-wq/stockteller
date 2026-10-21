@@ -80,3 +80,41 @@ export async function fetchNasdaqTraderExchanges(): Promise<Map<string, TraderEx
   const listings = await fetchNasdaqTraderListings();
   return new Map(listings.map((r) => [r.ticker, r.exchange]));
 }
+
+/** ETF와 시험 종목. 회사 목록에 넣지 않으려고 티커만 모은다. */
+export function excludedTickersFromNasdaqListed(text: string): string[] {
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || line.startsWith("Symbol") || line.startsWith("File Creation")) continue;
+    const cols = line.split("|");
+    if (!isYes(cols[3]) && !isYes(cols[6])) continue;
+    const ticker = normTicker(cols[0] ?? "");
+    if (ticker) out.push(ticker);
+  }
+  return out;
+}
+
+export function excludedTickersFromOtherListed(text: string): string[] {
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || line.startsWith("ACT Symbol") || line.startsWith("File Creation")) continue;
+    const cols = line.split("|");
+    if (!isYes(cols[6]) && !isYes(cols[4])) continue;
+    const ticker = normTicker(cols[0] ?? "");
+    if (ticker) out.push(ticker);
+  }
+  return out;
+}
+
+export async function fetchExcludedTraderTickers(): Promise<Set<string>> {
+  const [nasdaqRes, otherRes] = await Promise.all([
+    fetch(NASDAQ_LISTED, { cache: "no-store" }),
+    fetch(OTHER_LISTED, { cache: "no-store" }),
+  ]);
+  if (!nasdaqRes.ok) throw new Error(`nasdaqlisted.txt ${nasdaqRes.status}`);
+  if (!otherRes.ok) throw new Error(`otherlisted.txt ${otherRes.status}`);
+  return new Set([
+    ...excludedTickersFromNasdaqListed(await nasdaqRes.text()),
+    ...excludedTickersFromOtherListed(await otherRes.text()),
+  ]);
+}

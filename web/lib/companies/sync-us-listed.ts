@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMarketCaps } from "./market-cap";
 import { fetchSecExchangeTickers } from "./sec-exchange-tickers";
-import { fetchNasdaqTraderListings } from "./nasdaq-trader-exchanges";
+import { fetchExcludedTraderTickers, fetchNasdaqTraderListings } from "./nasdaq-trader-exchanges";
 import { classifyShareClass } from "./share-class";
 import { fetchPolygonTickerCiks } from "./polygon-ticker-cik";
 import { resolveTickerMeta } from "@/lib/sec/edgar-client";
@@ -293,6 +293,76 @@ async function applyListingPlan(
   return { inserted, deactivated, tickerRenamed, exchangeUpdated };
 }
 
+export type SecTickerFileSyncResult = {
+  ok: boolean;
+  secFetched: number;
+  excludedEtfOrTest: number;
+  listed: number;
+  inserted: number;
+  deactivated: number;
+  tickerRenamed: number;
+  updated: number;
+  samples: {
+    inserted: string[];
+    deactivated: string[];
+    renamed: Array<{ from: string; to: string }>;
+  };
+  error?: string;
+  durationMs: number;
+};
+
+/** 최신 SEC company_tickers_exchange.json 의 이름, CIK, 티커, 거래소로 회사 목록을 맞춘다. */
+export async function syncListedFromSecTickerFile(admin: SupabaseClient): Promise<SecTickerFileSyncResult> {
+  const started = Date.now();
+  try {
+    const [sec, excluded, db] = await Promise.all([
+      fetchSecExchangeTickers({ listedOnly: true }),
+      fetchExcludedTraderTickers(),
+      loadDbListings(admin),
+    ]);
+    const listed = sec.filter((row) => !excluded.has(row.ticker));
+    if (listed.length < 1000) {
+      throw new Error(`SEC ticker file too small after ETF filter (${listed.length})`);
+    }
+    const plan = planUsListedDiff(listed, db);
+    const now = new Date().toISOString();
+    const listing = await applyListingPlan(admin, plan, now);
+    console.log(
+      `[sec-ticker-file] sec=${sec.length} excluded=${excluded.size} listed=${listed.length} inserted=${listing.inserted} deactivated=${listing.deactivated} renamed=${listing.tickerRenamed} updated=${listing.exchangeUpdated}`
+    );
+    return {
+      ok: true,
+      secFetched: sec.length,
+      excludedEtfOrTest: excluded.size,
+      listed: listed.length,
+      inserted: listing.inserted,
+      deactivated: listing.deactivated,
+      tickerRenamed: listing.tickerRenamed,
+      updated: listing.exchangeUpdated,
+      samples: {
+        inserted: plan.inserts.slice(0, 12).map((row) => row.ticker),
+        deactivated: plan.deactivates.slice(0, 12),
+        renamed: plan.renames.slice(0, 12).map((row) => ({ from: row.from, to: row.to })),
+      },
+      durationMs: Date.now() - started,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      secFetched: 0,
+      excludedEtfOrTest: 0,
+      listed: 0,
+      inserted: 0,
+      deactivated: 0,
+      tickerRenamed: 0,
+      updated: 0,
+      samples: { inserted: [], deactivated: [], renamed: [] },
+      error: e instanceof Error ? e.message : String(e),
+      durationMs: Date.now() - started,
+    };
+  }
+}
+
 async function refreshMarketCaps(
   admin: SupabaseClient,
   batchSize: number
@@ -347,6 +417,8 @@ export async function syncUsListedCompanies(
     skipMarketCap?: boolean;
     newswireBatchSize?: number;
     skipNewswire?: boolean;
+    /** SEC 티커 파일 동기화가 목록을 맡긴다. 시가총액·통신사만 갱신한다. */
+    skipListing?: boolean;
   }
 ): Promise<UsListedSyncResult> {
   const started = Date.now();
@@ -354,6 +426,39 @@ export async function syncUsListedCompanies(
   const newswireBatchSize = opts?.newswireBatchSize ?? DEFAULT_NEWSWIRE_BATCH;
 
   try {
+    if (opts?.skipListing) {
+      let marketCapUpdated = 0;
+      if (!opts?.skipMarketCap) {
+        marketCapUpdated = await refreshMarketCaps(admin, marketCapBatchSize);
+      }
+      let newswire: NewswireSyncResult | undefined;
+      if (!opts?.skipNewswire) {
+        newswire = await refreshPrimaryNewswires(admin, newswireBatchSize);
+      }
+      return {
+        ok: true,
+        secFetched: 0,
+        traderFetched: 0,
+        mapMatched: 0,
+        aliasFilled: 0,
+        polygonFilled: 0,
+        edgarFilled: 0,
+        formFilled: 0,
+        parentFilled: 0,
+        skippedNoCik: 0,
+        orphanCiksDeleted: 0,
+        upserted: 0,
+        inserted: 0,
+        deactivated: 0,
+        tickerRenamed: 0,
+        exchangeUpdated: 0,
+        marketCapUpdated,
+        marketCapBatchSize,
+        newswire,
+        durationMs: Date.now() - started,
+      };
+    }
+
     const [sec, trader, db] = await Promise.all([
       fetchSecExchangeTickers({ listedOnly: true }),
       fetchNasdaqTraderListings(),

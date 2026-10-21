@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-/** Daily listing master: 01:15 UTC = 10:15 KST (vercel.json). Auth: CRON_SECRET or Vercel Cron. */
+/** 시가총액·통신사·분석. 상장 목록은 맥미니가 한국시간 16:00에 SEC 파일로 갱신한다. */
 
 function authorize(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -41,6 +41,7 @@ export async function GET(req: Request) {
       skipMarketCap,
       newswireBatchSize,
       skipNewswire,
+      skipListing: true,
     });
 
     // Fold EDGAR analysis refresh into this cron (Hobby plan: 2 cron slots)

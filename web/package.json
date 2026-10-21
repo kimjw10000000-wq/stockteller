@@ -22,6 +22,7 @@
     "test:toss-prices": "tsx scripts/test-toss-prices.ts",
     "engine": "tsx scripts/run-market-engine.ts",
     "sync:us-listed": "tsx scripts/sync-us-listed-companies.ts",
+    "sync:sec-tickers": "tsx scripts/sync-sec-ticker-file.ts",
     "listings:update": "tsx scripts/update-listings.ts",
     "listings:snapshot": "tsx scripts/update-listings.ts --snap-only",
     "count:us-listed": "tsx scripts/count-us-listed.ts",

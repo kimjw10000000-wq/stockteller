@@ -356,38 +356,32 @@ export function deactivateRemainingOrphanCiks(
   return mergeDeactivates(plan, extra);
 }
 
-function pairableCommon(row: { ticker: string; name: string }, siblings: string[]): boolean {
-  if (isWarrantOrPreferredListing(row.ticker, row.name)) return false;
-  if (/\bunits?\b/i.test(row.name)) return false;
-  return !isJuniorShareListing(row.ticker, siblings);
-}
-
-/** When one CIK has several old and new tickers, pair only a unique common-name match. */
-function pairRenamesByIssuerName(
-  orphans: DbListingRow[],
-  newcomers: SecListingRow[]
-): Array<{ from: DbListingRow; to: SecListingRow }> {
-  const siblings = [...orphans.map((row) => row.ticker), ...newcomers.map((row) => row.ticker)];
-  const pairs: Array<{ from: DbListingRow; to: SecListingRow }> = [];
-  const usedFrom = new Set<string>();
-  const usedTo = new Set<string>();
-  for (const from of orphans) {
-    if (!pairableCommon(from, siblings)) continue;
-    const hits = newcomers.filter(
-      (to) => !usedTo.has(to.ticker) && pairableCommon(to, siblings) && issuerNamesEqual(from.name, to.name)
-    );
-    if (hits.length !== 1) continue;
-    const to = hits[0];
-    if (!to) continue;
-    const reverse = orphans.filter(
-      (row) => !usedFrom.has(row.ticker) && pairableCommon(row, siblings) && issuerNamesEqual(row.name, to.name)
-    );
-    if (reverse.length !== 1) continue;
-    usedFrom.add(from.ticker);
-    usedTo.add(to.ticker);
-    pairs.push({ from, to });
+/** 같은 CIK 안에서는 이 종류가 같을 때만 티커 변경으로 짝을 짓는다. */
+export function listingShape(ticker: string, name?: string | null): string {
+  const t = ticker.trim().toUpperCase().replace(/\./g, "-");
+  const compact = t.replace(/-/g, "");
+  const label = String(name ?? "");
+  const preferredName =
+    /우선주/.test(label) ||
+    (/\bpreferred shares?\b|\bpreference shares?\b|\bpreferred stock\b|\bpfd\b/i.test(label) &&
+      !/preferred bank/i.test(label));
+  if (isPreferredShareTicker(t) || preferredName) return "PREFERRED";
+  if (
+    /-W(T|S)?$/.test(t) ||
+    (compact.length >= 5 && compact.endsWith("W")) ||
+    /\bwarrants?\b/i.test(label) ||
+    /워런트/.test(label)
+  ) {
+    return "WARRANT";
   }
-  return pairs;
+  if (/-U$/.test(t) || (compact.length >= 5 && compact.endsWith("U")) || /\bunits?\b/i.test(label)) {
+    return "UNIT";
+  }
+  if (/-R$/.test(t) || (compact.length >= 5 && compact.endsWith("R"))) return "RIGHT";
+  if (/-A$/.test(t)) return "CLASS_A";
+  if (/-B$/.test(t)) return "CLASS_B";
+  if (/-C$/.test(t)) return "CLASS_C";
+  return "COMMON";
 }
 
 function pushRename(
@@ -410,10 +404,9 @@ function pushRename(
 }
 
 /**
- * Listed universe vs DB. Dual-class issuers (same CIK, two tickers) stay as two rows.
- * A single old ticker and a single new ticker on the same CIK is a rename.
- * Several of each pair only when the common-stock names match one to one.
- * Everything else inserts or goes inactive. No manual list.
+ * SEC 목록과 DB. 같은 CIK라도 종류가 다르면 티커 변경이 아니다.
+ * 한 종류에서 빠진 티커와 새 티커가 각각 하나일 때만 그 줄의 티커를 바꾼다.
+ * 둘 이상이면 짝을 맞추지 않고, 새 티커는 추가하고 빠진 티커는 비활성으로 둔다.
  */
 export function planUsListedDiff(sec: SecListingRow[], db: DbListingRow[]): ListingDiffPlan {
   const listed = sec.filter((r) => isSearchListedExchange(r.exchange));
@@ -439,16 +432,29 @@ export function planUsListedDiff(sec: SecListingRow[], db: DbListingRow[]): List
     const dbRows = dbByCik.get(cik) ?? [];
     const dbActive = dbRows.filter((r) => r.is_active);
     const orphans = dbActive.filter((r) => !secByTicker.has(r.ticker));
+    const inactive = dbRows.filter((r) => !r.is_active && !secByTicker.has(r.ticker));
     const newcomers = secRows.filter((r) => !dbByTicker.has(r.ticker) && !claimedNew.has(r.ticker));
-
-    if (orphans.length === 1 && newcomers.length === 1) {
-      const from = orphans[0];
-      const to = newcomers[0];
-      if (from && to) pushRename(renames, claimedNew, renamedAway, from, to);
-      continue;
-    }
-    for (const pair of pairRenamesByIssuerName(orphans, newcomers)) {
-      pushRename(renames, claimedNew, renamedAway, pair.from, pair.to);
+    const shapes = new Set<string>([
+      ...orphans.map((row) => listingShape(row.ticker, row.name)),
+      ...inactive.map((row) => listingShape(row.ticker, row.name)),
+      ...newcomers.map((row) => listingShape(row.ticker, row.name)),
+    ]);
+    for (const shape of shapes) {
+      const olds = orphans.filter((row) => listingShape(row.ticker, row.name) === shape);
+      const news = newcomers.filter((row) => listingShape(row.ticker, row.name) === shape);
+      if (olds.length === 1 && news.length === 1 && olds[0] && news[0]) {
+        pushRename(renames, claimedNew, renamedAway, olds[0], news[0]);
+        continue;
+      }
+      if (olds.length === 0 && news.length === 1 && news[0]) {
+        const dead = inactive.filter((row) => listingShape(row.ticker, row.name) === shape);
+        const stillThere = dbActive.filter(
+          (row) => secByTicker.has(row.ticker) && listingShape(row.ticker, row.name) === shape
+        );
+        if (dead.length === 1 && stillThere.length === 0 && dead[0]) {
+          pushRename(renames, claimedNew, renamedAway, dead[0], news[0]);
+        }
+      }
     }
   }
 

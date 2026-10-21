@@ -134,10 +134,50 @@ const split = planUsListedDiff(
     db("OLD2", "0000000088", { name: "Alpha Class B" }),
   ]
 );
-assert(split.renames.some((row) => row.from === "OLD1" && row.to === "NEW1"), "unique common name renames");
-assert(!split.renames.some((row) => row.from === "OLD2"), "unmatched class is not renamed");
-assert(split.inserts.some((row) => row.ticker === "NEW2"), "warrant inserts beside the rename");
-assert(split.deactivates.includes("OLD2"), "unmatched old ticker deactivates");
+assert(split.renames.length === 0, "two old commons and one new common do not pair");
+assert(split.deactivates.includes("OLD1") && split.deactivates.includes("OLD2"), "unpaired commons deactivate");
+assert(split.inserts.some((row) => row.ticker === "NEW1"), "new common inserts");
+assert(split.inserts.some((row) => row.ticker === "NEW2"), "warrant inserts beside the common");
+
+const crossed = planUsListedDiff(
+  [{ ticker: "NEWTW", name: "Alpha Inc. - Warrant", cik: "0000000066", exchange: "NASDAQ" }],
+  [db("OLDC", "0000000066", { name: "Alpha Inc. - Common Stock" })]
+);
+assert(crossed.renames.length === 0, "common does not rename into a warrant");
+assert(crossed.deactivates.includes("OLDC"), "gone common deactivates");
+assert(crossed.inserts.some((row) => row.ticker === "NEWTW"), "new warrant inserts");
+
+const bothShapes = planUsListedDiff(
+  [
+    { ticker: "HUCK", name: "Huck Inc", cik: "0000000055", exchange: "NASDAQ" },
+    { ticker: "HUCKW", name: "Huck Warrant", cik: "0000000055", exchange: "NASDAQ" },
+  ],
+  [
+    db("DOMO", "0000000055", { name: "Domo Inc" }),
+    db("DOMOW", "0000000055", { name: "Domo Warrant" }),
+  ]
+);
+assert(bothShapes.renames.some((row) => row.from === "DOMO" && row.to === "HUCK"), "common renames on its own");
+assert(bothShapes.renames.some((row) => row.from === "DOMOW" && row.to === "HUCKW"), "warrant renames on its own");
+
+const classes = planUsListedDiff(
+  [
+    { ticker: "NEW-A", name: "Alpha Class A", cik: "0000000044", exchange: "NASDAQ" },
+    { ticker: "OLD-B", name: "Alpha Class B", cik: "0000000044", exchange: "NASDAQ" },
+  ],
+  [
+    db("OLD-A", "0000000044", { name: "Alpha Class A" }),
+    db("OLD-B", "0000000044", { name: "Alpha Class B" }),
+  ]
+);
+assert(classes.renames.some((row) => row.from === "OLD-A" && row.to === "NEW-A"), "class A renames alone");
+assert(!classes.renames.some((row) => row.from === "OLD-B"), "class B that remains is not renamed");
+
+const relist = planUsListedDiff(
+  [{ ticker: "BACK", name: "Back Co", cik: "0000000033", exchange: "NASDAQ" }],
+  [db("AWAY", "0000000033", { name: "Away Co", is_active: false, exchange: "OTC" })]
+);
+assert(relist.renames.some((row) => row.from === "AWAY" && row.to === "BACK"), "inactive same-cik common relists");
 
 const ambiguous = planUsListedDiff(
   [
