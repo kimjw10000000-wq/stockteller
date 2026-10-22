@@ -6,6 +6,8 @@ import {
   washoutScoreForIndexName,
   trackingOriginMs,
   specialTickersAfterRth,
+  barNotionalUsd,
+  WASHOUT_CAPTURE_NOTIONAL_USD,
   WASHOUT_REACTION_MS,
   WASHOUT_TRACK_PCT,
   type WashoutBar,
@@ -21,6 +23,7 @@ import {
 import { polygonAdvancedKeyOrNull, polygonGetWithKey, polygonStarterKeyOrNull } from "./polygon-keys";
 import { lowAfterPeak, oddsReferenceClose } from "./reclaim-odds";
 import { fetchMinuteAggs, polygonTimeMs, scoreWithPeakSeconds } from "./washout-polygon";
+import { ingestNewsfilterRunners } from "@/lib/newsfilter/ingest-runner";
 import {
   activeTapeSession,
   boardTapeYmd,
@@ -322,6 +325,14 @@ function seenHigh(raw: SnapshotRow, ymd: string, now: Date): number | null {
   if (open == null || now.getTime() < open) return minuteHigh;
   const dayHigh = raw.day?.h;
   return maxNum(minuteHigh ?? undefined, dayHigh != null && dayHigh > 0 ? dayHigh : undefined);
+}
+
+function minuteBarClearsCapture(bar: WashoutBar, prevClose: number): boolean {
+  if (!(prevClose > 0)) return false;
+  const high = bar.high ?? bar.price;
+  if (!Number.isFinite(high) || (high / prevClose - 1) * 100 < WASHOUT_TRACK_PCT) return false;
+  const notional = barNotionalUsd(bar);
+  return notional != null && notional >= WASHOUT_CAPTURE_NOTIONAL_USD;
 }
 
 function isCandidate(
@@ -711,6 +722,7 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
 
   const seriesList: WashoutPoint[][] = [];
   const failed = new Set<string>();
+  const newsTickers: string[] = [];
   const scored = await mapPool(picked, CONCURRENCY, async (row) => {
     try {
       const { ticker, quoteTicker } = row;
@@ -760,6 +772,13 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       const last = out.series.length ? out.series[out.series.length - 1] : null;
       if (!last?.tracking) return null;
       const firstTrack = out.series.find((point) => point.tracking);
+      if (
+        !wasTracked.has(ticker) &&
+        !trackGrants.has(ticker) &&
+        bars.some((bar) => minuteBarClearsCapture(bar, bar.prevClose ?? firstPc))
+      ) {
+        newsTickers.push(ticker);
+      }
       seriesList.push(out.series);
       return {
         ticker: row.ticker,
@@ -791,6 +810,13 @@ async function computeLive(now = new Date(), opts?: CaptureWashoutOpts): Promise
       return null;
     }
   });
+
+  if (newsTickers.length > 0) {
+    void ingestNewsfilterRunners(newsTickers).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn("[newsfilter] ingest", message.slice(0, 240));
+    });
+  }
 
   const pickedTickers = new Set(picked.map((row) => row.ticker));
   const items: WashoutBoardRow[] = [];

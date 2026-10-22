@@ -1,7 +1,7 @@
 import type { GeminiAnalysisResult, Sentiment } from "@/lib/types";
 import { GroqApiError, groqChatJson, groqModel, isGroqConfigured } from "@/lib/groq/client";
 
-const SYSTEM_INSTRUCTION = `You are an equity research assistant summarizing a GlobeNewswire press-release headline and teaser for listed U.S. stocks.
+const SYSTEM_INSTRUCTION = `You are an equity research assistant summarizing a newswire headline and teaser for listed U.S. stocks.
 
 The model's reasoning/thinking must follow this chain internally before you write the answer:
 1) 보도자료의 의도 — 회사가 전달하려는 핵심 사실

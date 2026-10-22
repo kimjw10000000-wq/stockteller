@@ -12,8 +12,8 @@ const WIRE_NEWS_COLUMNS =
   "id,source,external_id,url,title,teaser,summary,sentiment,analysis_score,tickers,primary_ticker,company_name,published_at,created_at,market_cap,cap_bucket,language,llm_model,affiliation,newswire,form_type,accession";
 const WIRE_NEWS_COLUMNS_WITH_ORIGINAL = `${WIRE_NEWS_COLUMNS},original_title,original_teaser,original_summary`;
 
-/** GNW RSS + SEC 8-K/6-K Exhibit 99.1 press releases. */
-export const NEWS_SEC_SOURCE_OR = "source.eq.globenewswire,source.eq.edgar-6k,source.eq.edgar-8k";
+/** GNW RSS, SEC 8-K/6-K Exhibit 99.1, and Newsfilter headlines for captured runners. */
+export const NEWS_SEC_SOURCE_OR = "source.eq.globenewswire,source.eq.edgar-6k,source.eq.edgar-8k,source.eq.newsfilter";
 
 export type WireNewsPage = {
   items: WireNewsRow[];
