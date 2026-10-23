@@ -221,6 +221,7 @@
     "members": "Names in this index",
     "membersEmpty": "None right now",
     "membersOther": "Names are shown for the session that is open now",
+    "oddsBasis": "A statistical probability from this stock and past stocks with a similar chart path.",
     "oddsTitle": "Prior-high break",
     "oddsUntil": "Until today's regular session ends",
     "oddsReclaim": "Chance of breaking the prior high",

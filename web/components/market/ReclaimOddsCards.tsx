@@ -34,7 +34,8 @@ export function ReclaimOddsCards() {
   return (
     <Card className="border-border">
       <CardContent className="px-4 py-4">
-        <div className="flex items-center justify-between gap-2">
+        <p className="text-sm leading-5 text-foreground">{t("similar.oddsBasis")}</p>
+        <div className="mt-3 flex items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">{t("similar.oddsTitle")}</p>
           {handheld ? (
             <button
