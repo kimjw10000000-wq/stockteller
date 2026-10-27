@@ -292,6 +292,19 @@ export function catalogReadPlan(now = new Date()): { live: string[]; prior: stri
   return { live: [...live].sort(), prior: [...prior].sort() };
 }
 
+/** 오늘 포함 21거래일. 어제·5일·20일 평균이 읽는 가장 오래된 애프터장 시작. */
+export function washoutHistoryCutoffMs(now = new Date()): number {
+  const oldest = tapeDatesBack(runnerTapeDate(now), 21)[0];
+  return sessionBounds(oldest, "afterhours").start;
+}
+
+/** 본장 10시대 ET에 한 번. 그 시각에만 비교선 밖의 점수 행을 지운다. */
+export function shouldPruneWashoutHistory(now = new Date()): boolean {
+  if (inReclaimHoldGap(now)) return false;
+  if (sessionAtInstant(now) !== "regular") return false;
+  return getZonedParts(now, EASTERN_TIME_ZONE).hour === 10;
+}
+
 /** 지금 테이프에서 열려 있는 세션. 주말 공백은 금요일 앱터. 그 외 휴장은 이미 시작한 마지막 세션. */
 export function activeTapeSession(now = new Date()): UsTradingSession {
   if (weekendReplayFriday(now)) return "afterhours";

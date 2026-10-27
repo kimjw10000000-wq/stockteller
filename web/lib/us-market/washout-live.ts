@@ -972,7 +972,7 @@ export async function getWashoutBoard(opts?: {
   return payload;
 }
 
-const PUBLISHED_RANGES: WashoutRange[] = ["1d", "1w", "1m", "3m"];
+const PUBLISHED_RANGES: WashoutRange[] = ["1d"];
 const PUBLISHED_SESSIONS: UsTradingSession[] = ["afterhours", "premarket", "regular"];
 
 /** 방문자 수와 무관하게, 한 번 만든 점수표를 그대로 나눠 준다. */

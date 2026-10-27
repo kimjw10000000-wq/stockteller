@@ -51,7 +51,6 @@ type ChartFile = {
 const CHART_W = 640;
 const CHART_H = 280;
 const PAD = 16;
-const RANGES: RangeKey[] = ["1d", "1w", "1m", "3m"];
 const SESSIONS: SessionKey[] = ["afterhours", "premarket", "regular"];
 
 function boardKey(range: RangeKey, session: SessionKey): string {
@@ -344,7 +343,6 @@ function IndexPane({
   namesNote,
   range,
   session,
-  onRange,
   onSession,
   overlaysOn,
   onToggleOverlay,
@@ -356,7 +354,6 @@ function IndexPane({
   namesNote?: string;
   range: RangeKey;
   session: SessionKey;
-  onRange: (range: RangeKey) => void;
   onSession: (session: SessionKey) => void;
   overlaysOn: Record<OverlayKey, boolean>;
   onToggleOverlay: (key: OverlayKey) => void;
@@ -489,25 +486,6 @@ function IndexPane({
             onHoverIndex={setHoverIndex}
             overlays={activeOverlays}
           />
-          <div className="grid grid-cols-4 gap-1 text-center text-sm">
-            {RANGES.map((key) => {
-              const active = range === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onRange(key)}
-                  className={`rounded-lg py-2 ${
-                    active
-                      ? "bg-input-background font-medium text-foreground"
-                      : "text-muted-foreground hover:bg-input-background/70"
-                  }`}
-                >
-                  {t(`similar.range.${key}`)}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </CardContent>
     </Card>
@@ -543,7 +521,7 @@ function publishedFile(): ChartFile | null {
 
 export function SimilarMoversContent() {
   const { t } = useI18n();
-  const [range, setRange] = useState<RangeKey>("1d");
+  const range: RangeKey = "1d";
   const [session, setSession] = useState<SessionKey>(() => activeTapeSession());
   const readyRef = useRef(false);
   const byBoardRef = useRef<Partial<Record<string, Payload>>>({});
@@ -643,7 +621,6 @@ export function SimilarMoversContent() {
   const paneProps = {
     range,
     session,
-    onRange: setRange,
     onSession: setSession,
     overlaysOn: on,
     onToggleOverlay: (key: OverlayKey) => setOn((prev) => ({ ...prev, [key]: !prev[key] })),

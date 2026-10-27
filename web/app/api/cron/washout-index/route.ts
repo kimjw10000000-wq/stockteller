@@ -13,7 +13,7 @@ function authorize(req: Request): boolean {
   return vercelCron;
 }
 
-/** Polygon을 치지 않는다. 오래된 샘플만 정리. */
+/** Polygon을 치지 않는다. 본장 10시대에 비교선 밖의 행만 지운다. */
 export async function GET(req: Request) {
   if (!authorize(req)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });

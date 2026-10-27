@@ -2,7 +2,16 @@
  *   npx tsx scripts/test-reclaim-odds.ts
  */
 import { liftProbability, oddsReferenceClose, quoteReclaim, recoveryX, showOddsPct } from "../lib/us-market/reclaim-odds";
-import { catalogReadPlan, etWallMs, inReclaimHoldGap, shouldReplaceReclaimBook } from "../lib/us-market/us-session";
+import {
+  catalogReadPlan,
+  etWallMs,
+  inReclaimHoldGap,
+  sessionBounds,
+  shouldPruneWashoutHistory,
+  shouldReplaceReclaimBook,
+  tapeDatesBack,
+  washoutHistoryCutoffMs,
+} from "../lib/us-market/us-session";
 
 function assert(cond: boolean, message: string): void {
   if (!cond) throw new Error(message);
@@ -54,5 +63,17 @@ assert(shouldReplaceReclaimBook(at("2026-10-16", 19, 59), at("2026-10-16", 20, 0
 assert(shouldReplaceReclaimBook(at("2026-10-16", 20, 0), at("2026-10-16", 20, 0)) === false, "after close keeps cards");
 assert(shouldReplaceReclaimBook(at("2026-10-17", 12, 0), at("2026-10-17", 12, 1)) === false, "weekend keeps cards");
 assert(shouldReplaceReclaimBook(at("2026-10-19", 4, 0), at("2026-10-19", 4, 0)) === true, "monday pre replaces");
+
+const pruneAt = at("2026-10-15", 10, 20);
+assert(shouldPruneWashoutHistory(pruneAt) === true, "thursday 10:20 prunes");
+assert(shouldPruneWashoutHistory(at("2026-10-15", 11, 20)) === false, "11:20 skips");
+assert(shouldPruneWashoutHistory(at("2026-10-15", 9, 20)) === false, "premarket skips");
+assert(shouldPruneWashoutHistory(at("2026-10-17", 10, 20)) === false, "saturday skips");
+const oldest = tapeDatesBack("2026-10-15", 21)[0];
+const cutoff = washoutHistoryCutoffMs(pruneAt);
+assert(cutoff === sessionBounds(oldest, "afterhours").start, "cutoff keeps 21 tapes");
+assert(sessionBounds(tapeDatesBack("2026-10-15", 22)[0], "afterhours").start < cutoff, "22nd tape is outside");
+const spanDays = (pruneAt.getTime() - cutoff) / 86_400_000;
+assert(spanDays > 26 && spanDays < 32, `cutoff span ${spanDays}`);
 
 console.log("reclaim odds ok", { atLow, mid, dipped });

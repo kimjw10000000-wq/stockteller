@@ -2,7 +2,14 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { washoutScoreForIndex } from "./washout-score";
-import { activeTapeSession, runnerTapeDate, tapeDayElapsedMin, type UsTradingSession } from "./us-session";
+import {
+  activeTapeSession,
+  runnerTapeDate,
+  shouldPruneWashoutHistory,
+  tapeDayElapsedMin,
+  washoutHistoryCutoffMs,
+  type UsTradingSession,
+} from "./us-session";
 
 export type WashoutSample = {
   t: number;
@@ -181,43 +188,39 @@ export async function persistSamples(
   }
 }
 
-/** 20거래일 비교선이 1분 점으로 남도록, 달력 45일까지는 1분을 유지한다. */
-const KEEP_MINUTE_MS = 45 * 24 * 60 * 60 * 1000;
-const KEEP_HISTORY_MS = 400 * 24 * 60 * 60 * 1000;
+const PRUNE_STEP_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** 비교선 밖의 행만 지운다. 남은 21거래일은 읽거나 다시 저장하지 않는다. */
 export async function compactOldWashoutSamples(now = Date.now()): Promise<{
   compacted: number;
   pruned: number;
 }> {
-  const pruneBefore = now - KEEP_HISTORY_MS;
-  const compactBefore = now - KEEP_MINUTE_MS;
-  try {
-    const admin = createAdminClient();
-    const { error: pruneErr } = await admin
+  if (!shouldPruneWashoutHistory(new Date(now))) return { compacted: 0, pruned: 0 };
+  const cutoff = washoutHistoryCutoffMs(now);
+  const admin = createAdminClient();
+  const { data, error: oldestErr } = await admin
+    .from("washout_index_samples")
+    .select("t")
+    .order("t", { ascending: true })
+    .limit(1);
+  if (oldestErr) throw oldestErr;
+  const oldest = data?.[0]?.t != null ? Date.parse(String(data[0].t)) : NaN;
+  if (!Number.isFinite(oldest) || oldest >= cutoff) return { compacted: 0, pruned: 0 };
+  let from = oldest;
+  let pruned = 0;
+  while (from < cutoff) {
+    const to = Math.min(cutoff, from + PRUNE_STEP_MS);
+    const { error } = await admin
       .from("washout_index_samples")
       .delete()
-      .lt("t", new Date(pruneBefore).toISOString());
-    if (pruneErr) throw pruneErr;
-    const old = await loadSamplesSince(pruneBefore);
-    const stale = old.filter((row) => row.t < compactBefore);
-    if (stale.length === 0) return { compacted: 0, pruned: 0 };
-    const keep = toTenMinuteSamples(stale);
-    const keepT = new Set(keep.map((row) => minuteKey(row.t)));
-    await persistSamples(keep, keep[0] ? runnerTapeDate(new Date(keep[0].t)) : "", {
-      incremental: false,
-    });
-    const drop = stale.filter((row) => !keepT.has(minuteKey(row.t)));
-    const chunk = 200;
-    for (let i = 0; i < drop.length; i += chunk) {
-      const ids = drop.slice(i, i + chunk).map((row) => new Date(row.t).toISOString());
-      const { error } = await admin.from("washout_index_samples").delete().in("t", ids);
-      if (error) throw error;
-    }
-    samplesQueryCache = null;
-    return { compacted: keep.length, pruned: drop.length };
-  } catch {
-    return { compacted: 0, pruned: 0 };
+      .gte("t", new Date(from).toISOString())
+      .lt("t", new Date(to).toISOString());
+    if (error) throw error;
+    pruned += 1;
+    from = to;
   }
+  samplesQueryCache = null;
+  return { compacted: 0, pruned };
 }
 
 export async function loadTrackedOrigins(): Promise<Map<string, number>> {
