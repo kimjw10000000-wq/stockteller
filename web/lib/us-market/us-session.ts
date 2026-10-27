@@ -274,6 +274,24 @@ export function boardTapeYmd(now: Date, session: UsTradingSession): string {
   return friday;
 }
 
+/**
+ * 점수표가 매분 다시 읽을 날과, 하루 동안 고정인 과거 날.
+ * 5일·20일 평균은 오늘을 넣지 않으므로 과거 날은 prior에 있다.
+ * 애프터 20:00과 프리 04:00 사이, 그리고 주말은 null이다.
+ */
+export function catalogReadPlan(now = new Date()): { live: string[]; prior: string[] } | null {
+  if (inReclaimHoldGap(now)) return null;
+  const live = new Set<string>();
+  const prior = new Set<string>();
+  for (const session of ["afterhours", "premarket", "regular"] as UsTradingSession[]) {
+    const tape = boardTapeYmd(now, session);
+    live.add(tape);
+    for (const day of tapeDatesBack(tape, 21).slice(0, -1)) prior.add(day);
+  }
+  for (const day of live) prior.delete(day);
+  return { live: [...live].sort(), prior: [...prior].sort() };
+}
+
 /** 지금 테이프에서 열려 있는 세션. 주말 공백은 금요일 앱터. 그 외 휴장은 이미 시작한 마지막 세션. */
 export function activeTapeSession(now = new Date()): UsTradingSession {
   if (weekendReplayFriday(now)) return "afterhours";

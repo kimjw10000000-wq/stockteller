@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getWashoutCatalog, type WashoutBoardPayload } from "@/lib/us-market/washout-live";
 import { loadWashoutMembers, type WashoutMemberLists } from "@/lib/us-market/washout-samples";
+import { activeTapeSession, inReclaimHoldGap } from "@/lib/us-market/us-session";
 
 const BUCKET = "washout-catalog";
 const OBJECT_PATH = "current.json";
@@ -198,7 +199,16 @@ export async function publishWashoutCatalog(): Promise<{
   builtAt: string;
   boards: Record<string, WashoutBoardPayload>;
   members: WashoutMemberLists;
+  skipped?: boolean;
 }> {
+  if (inReclaimHoldGap()) {
+    return {
+      builtAt: new Date().toISOString(),
+      boards: {},
+      members: { session: activeTapeSession(), index: [], reaction: [] },
+      skipped: true,
+    };
+  }
   const [boards, members] = await Promise.all([getWashoutCatalog(), loadWashoutMembers()]);
   const builtAt = await savePublishedWashout(boards, members);
   return { builtAt, boards, members };

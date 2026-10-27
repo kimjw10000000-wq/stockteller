@@ -27,6 +27,7 @@ import { ingestNewsfilterRunners } from "@/lib/newsfilter/ingest-runner";
 import {
   activeTapeSession,
   boardTapeYmd,
+  catalogReadPlan,
   etWallMs,
   holdSessionEndMinute,
   isInTapeDay,
@@ -40,6 +41,7 @@ import {
   type UsTradingSession,
 } from "./us-session";
 import {
+  loadPriorTapeSamples,
   loadSamplesForTapeDates,
   loadSamplesSince,
   loadTapeHighs,
@@ -974,17 +976,19 @@ const PUBLISHED_RANGES: WashoutRange[] = ["1d", "1w", "1m", "3m"];
 const PUBLISHED_SESSIONS: UsTradingSession[] = ["afterhours", "premarket", "regular"];
 
 /** 방문자 수와 무관하게, 한 번 만든 점수표를 그대로 나눠 준다. */
-export async function getWashoutCatalog(): Promise<Record<string, WashoutBoardPayload>> {
-  const now = new Date();
+export async function getWashoutCatalog(now = new Date()): Promise<Record<string, WashoutBoardPayload>> {
+  const plan = catalogReadPlan(now);
+  if (!plan || plan.live.length === 0) return {};
   const tapes = new Map<UsTradingSession, string>();
-  const tapeSet = new Set<string>();
-  for (const session of PUBLISHED_SESSIONS) {
-    const tape = boardTapeYmd(now, session);
-    tapes.set(session, tape);
-    for (const day of tapeDatesBack(tape, 21)) tapeSet.add(day);
-  }
-  const samples = await loadSamplesForTapeDates([...tapeSet]);
-  return boardsFromSamples(tapes, samples, PUBLISHED_RANGES);
+  for (const session of PUBLISHED_SESSIONS) tapes.set(session, boardTapeYmd(now, session));
+  const reactionFromMs = Math.min(
+    ...plan.live.map((tape) => sessionBounds(tape, "afterhours").start)
+  );
+  const [prior, live] = await Promise.all([
+    loadPriorTapeSamples(plan.prior),
+    loadSamplesForTapeDates(plan.live, { reactionFromMs }),
+  ]);
+  return boardsFromSamples(tapes, [...prior, ...live], PUBLISHED_RANGES);
 }
 
 /** 지금 세션의 1일 선만. 비교선·긴 기간은 전체 표가 이어서 채운다. */

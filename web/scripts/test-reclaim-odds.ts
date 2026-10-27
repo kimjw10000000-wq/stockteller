@@ -2,7 +2,7 @@
  *   npx tsx scripts/test-reclaim-odds.ts
  */
 import { liftProbability, oddsReferenceClose, quoteReclaim, recoveryX, showOddsPct } from "../lib/us-market/reclaim-odds";
-import { etWallMs, inReclaimHoldGap, shouldReplaceReclaimBook } from "../lib/us-market/us-session";
+import { catalogReadPlan, etWallMs, inReclaimHoldGap, shouldReplaceReclaimBook } from "../lib/us-market/us-session";
 
 function assert(cond: boolean, message: string): void {
   if (!cond) throw new Error(message);
@@ -41,6 +41,14 @@ assert(inReclaimHoldGap(at("2026-10-16", 4, 0)) === false, "pre open resumes");
 assert(inReclaimHoldGap(at("2026-10-17", 12, 0)) === true, "saturday holds");
 assert(inReclaimHoldGap(at("2026-10-19", 3, 59)) === true, "monday before pre holds");
 assert(inReclaimHoldGap(at("2026-10-19", 4, 0)) === false, "monday pre resumes");
+
+const thursday = catalogReadPlan(at("2026-10-15", 14, 0));
+assert(thursday != null && thursday.live.length === 1 && thursday.live[0] === "2026-10-15", "thursday live is today");
+assert(thursday != null && thursday.prior.length === 20 && !thursday.prior.includes("2026-10-15"), "thursday prior excludes today");
+assert(catalogReadPlan(at("2026-10-15", 20, 0)) == null, "after the close, no read");
+assert(catalogReadPlan(at("2026-10-17", 12, 0)) == null, "saturday, no read");
+const fridayAh = catalogReadPlan(at("2026-10-16", 18, 0));
+assert(fridayAh != null && fridayAh.live.includes("2026-10-19") && !fridayAh.prior.includes("2026-10-19"), "friday ah reads monday tape only");
 assert(shouldReplaceReclaimBook(at("2026-10-16", 19, 59), at("2026-10-16", 19, 59)) === true, "inside ah replaces");
 assert(shouldReplaceReclaimBook(at("2026-10-16", 19, 59), at("2026-10-16", 20, 0)) === false, "overrun ah keeps cards");
 assert(shouldReplaceReclaimBook(at("2026-10-16", 20, 0), at("2026-10-16", 20, 0)) === false, "after close keeps cards");

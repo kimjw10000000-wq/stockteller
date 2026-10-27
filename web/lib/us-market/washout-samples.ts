@@ -723,6 +723,57 @@ export async function loadSamplesSince(fromMs: number): Promise<WashoutSample[]>
   }
 }
 
+const PRIOR_BUCKET = "washout-catalog";
+const PRIOR_OBJECT = "prior-samples.json";
+let priorMem: { key: string; samples: WashoutSample[] } | null = null;
+
+function priorKey(dates: string[]): string {
+  return [...dates].sort().join(",");
+}
+
+/** 오늘을 뺀 20거래일. 테이프 날짜가 바뀌기 전에는 데이터베이스를 다시 읽지 않는다. */
+export async function loadPriorTapeSamples(dates: string[]): Promise<WashoutSample[]> {
+  const key = priorKey(dates);
+  if (!key) return [];
+  if (priorMem?.key === key) return priorMem.samples;
+  const stored = await readPriorObject(key);
+  if (stored) {
+    priorMem = { key, samples: stored };
+    return stored;
+  }
+  const samples = await loadSamplesForTapeDates(dates);
+  priorMem = { key, samples };
+  await writePriorObject(key, samples);
+  return samples;
+}
+
+async function readPriorObject(key: string): Promise<WashoutSample[] | null> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.storage.from(PRIOR_BUCKET).download(PRIOR_OBJECT);
+    if (error || !data) return null;
+    const parsed = JSON.parse(await data.text()) as { key?: string; samples?: WashoutSample[] };
+    if (parsed.key !== key || !Array.isArray(parsed.samples)) return null;
+    return parsed.samples;
+  } catch {
+    return null;
+  }
+}
+
+async function writePriorObject(key: string, samples: WashoutSample[]): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const body = JSON.stringify({ key, samples });
+    await admin.storage.from(PRIOR_BUCKET).upload(PRIOR_OBJECT, Buffer.from(body, "utf8"), {
+      upsert: true,
+      contentType: "application/json",
+      cacheControl: "3600",
+    });
+  } catch {
+    /* 다음 분에 다시 읽는다. */
+  }
+}
+
 /** 테이프 날짜 색인으로 필요한 날만 읽는다. 하루는 960분 이하라 날짜당 한 번이면 된다. */
 export async function loadSamplesForTapeDates(
   tapes: string[],

@@ -21,6 +21,12 @@ export async function GET() {
       );
     }
     const made = await publishWashoutCatalog();
+    if (made.skipped) {
+      return NextResponse.json(
+        { boards: {}, builtAt: made.builtAt, members: made.members, skipped: true },
+        { headers: SHARED }
+      );
+    }
     return NextResponse.json(
       { boards: made.boards, builtAt: made.builtAt, members: made.members },
       { headers: SHARED }
