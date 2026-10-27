@@ -196,7 +196,7 @@ export async function compactOldWashoutSamples(now = Date.now()): Promise<{
   pruned: number;
 }> {
   if (!shouldPruneWashoutHistory(new Date(now))) return { compacted: 0, pruned: 0 };
-  const cutoff = washoutHistoryCutoffMs(now);
+  const cutoff = washoutHistoryCutoffMs(new Date(now));
   const admin = createAdminClient();
   const { data, error: oldestErr } = await admin
     .from("washout_index_samples")
